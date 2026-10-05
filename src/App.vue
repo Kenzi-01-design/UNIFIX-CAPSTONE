@@ -9,6 +9,14 @@
       @open-report="publicPage = 'report'"
       @open-login="publicPage = 'login'"
       @open-track="publicPage = 'track'"
+      @open-evaluation="publicPage = 'evaluation'"
+    />
+
+    <EvaluationView
+      v-else-if="!isAuthenticated && publicPage === 'evaluation'"
+      public-mode
+      respondent-role="Public"
+      @back="publicPage = 'home'"
     />
 
     <TrackReportView
@@ -112,6 +120,16 @@
           <SettingsView
             v-else-if="currentView === 'settings'"
           />
+
+          <EvaluationView
+            v-else-if="currentView === 'evaluation'"
+            :respondent-role="currentRole"
+          />
+
+          <EvaluationView
+            v-else-if="currentView === 'evaluation-results' && currentRole === 'Admin'"
+            admin-mode
+          />
         </main>
       </div>
 
@@ -133,7 +151,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue';
 
 // Composables
 import { useAuth } from './composables/useAuth.js';
@@ -161,9 +179,11 @@ import ActivityLogView from './views/ActivityLogView.vue';
 import UserManagementView from './views/UserManagementView.vue';
 import ReportView from './views/ReportView.vue';
 import PersonnelTasksView from './views/PersonnelTasksView.vue';
-import AdminView from './views/AdminView.vue';
 import ProfileView from './views/ProfileView.vue';
 import SettingsView from './views/SettingsView.vue';
+
+const AdminView = defineAsyncComponent(() => import('./views/AdminView.vue'));
+const EvaluationView = defineAsyncComponent(() => import('./views/EvaluationView.vue'));
 
 const { currentRole, activeUserName, isAuthenticated, logout, loadSettings } = useAuth();
 const { reports, loadReports, subscribeToReports, resolveReport, techAccept, techStart, techComplete } = useReports();
@@ -197,7 +217,9 @@ const viewTitles = {
   tasks: 'My Assigned Tasks',
   admin: 'Administration Panel',
   profile: 'Profile Overview',
-  settings: 'System Settings'
+  settings: 'System Settings',
+  evaluation: 'System Evaluation',
+  'evaluation-results': 'Evaluation Results'
 };
 
 const currentViewTitle = computed(() => viewTitles[currentView.value] || 'Dashboard');
@@ -260,6 +282,10 @@ function navigateTo(view) {
   }
   if (view === 'user-management' && currentRole.value !== 'Admin') {
     showToast('User Management is available to administrators only.', 'info');
+    return;
+  }
+  if (view === 'evaluation-results' && currentRole.value !== 'Admin') {
+    showToast('Evaluation Results are available to administrators only.', 'info');
     return;
   }
   if (view === 'submit' && currentRole.value === 'Employee') {

@@ -6,6 +6,8 @@ import { calculateDueAt } from '../lib/sla.js';
 import { removeUploadedPhotos, uploadPhotoFiles } from '../lib/photos.js';
 import { useSlaSettings } from './useSlaSettings.js';
 import { recordDemoAudit } from './useAuditLog.js';
+import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork } from '../lib/workflow.js';
+import { validateRequestInput } from '../lib/validation.js';
 
 const STORAGE_KEY = 'unifix-requests-v1';
 
@@ -205,6 +207,7 @@ export function useRequests() {
   }
 
   async function addRequest(reqData, photoFiles = []) {
+    validateRequestInput(reqData);
     const nextId = `#REQ-${200 + requests.value.length + 1}`;
     const newReq = {
       id: nextId,
@@ -283,7 +286,7 @@ export function useRequests() {
 
   async function acknowledgeRequest(requestId, responseNote) {
     const req = requests.value.find((r) => r.id.toLowerCase() === requestId.toLowerCase());
-    if (!req || req.techState !== 'completed' || req.status !== 'for-verification') return null;
+    if (!req || !canVerifyCompletedWork(req)) return null;
 
     const previousStatus = req.status;
     const previousCompletedAt = req.completedAt;
@@ -322,7 +325,7 @@ export function useRequests() {
   async function rejectRequest(requestId, reason) {
     const request = requests.value.find((item) => item.id.toLowerCase() === requestId.toLowerCase());
     const safeReason = String(reason || '').trim();
-    if (!request || request.status !== 'for-verification' || safeReason.length < 5 || safeReason.length > 500) return false;
+    if (!request || !canRejectForRework(request, safeReason)) return false;
     const previous = {
       status: request.status,
       techState: request.techState,
@@ -521,7 +524,7 @@ export function useRequests() {
 
   async function requestComplete(requestId, currentPersonnel, completionPhotos = []) {
     const request = requests.value.find((item) => item.id === requestId);
-    if (!request || request.techState !== 'started' || !isAssignedTo(request, currentPersonnel)) return false;
+    if (!request || !canSubmitWorkForVerification(request, currentPersonnel)) return false;
     const previousState = request.techState;
     const previousStatus = request.status;
     const previousAttachments = request.photoAttachments || [];

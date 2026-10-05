@@ -27,6 +27,30 @@ function normalizeCode(value: unknown) {
   return value.trim().toUpperCase();
 }
 
+async function readBoundedBody(request: Request, maxBytes: number) {
+  const reader = request.body?.getReader();
+  if (!reader) return '';
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error('BODY_TOO_LARGE');
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+}
+
 async function rateLimitKey(request: Request) {
   const ip = request.headers.get('cf-connecting-ip')
     || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -67,9 +91,12 @@ Deno.serve(async (request) => {
       });
     }
 
-    const requestBody = await request.text();
-    if (new TextEncoder().encode(requestBody).byteLength > maxRequestBytes) {
-      return respond(origin, { error: 'Request is too large.' }, 413);
+    let requestBody;
+    try {
+      requestBody = await readBoundedBody(request, maxRequestBytes);
+    } catch (bodyError) {
+      if (bodyError.message === 'BODY_TOO_LARGE') return respond(origin, { error: 'Request is too large.' }, 413);
+      throw bodyError;
     }
     let payload;
     try {

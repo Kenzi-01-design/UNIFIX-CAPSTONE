@@ -9,9 +9,6 @@ const allowedHostnames = (Deno.env.get('TURNSTILE_ALLOWED_HOSTNAME') || '')
   .split(',')
   .map((hostname) => hostname.trim().toLowerCase())
   .filter(Boolean);
-const requestBuckets = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 10;
-const RATE_WINDOW_MS = 60_000;
 function getCorsHeaders(origin: string) {
   const headers: Record<string, string> = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -27,21 +24,12 @@ function isAllowedOrigin(origin: string) {
   return allowedOrigins.includes(origin);
 }
 
-function clientKey(request: Request) {
-  return request.headers.get('cf-connecting-ip')
-    || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || 'unknown';
-}
-
-function isRateLimited(key: string) {
-  const now = Date.now();
-  const bucket = requestBuckets.get(key);
-  if (!bucket || bucket.resetAt <= now) {
-    requestBuckets.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return false;
-  }
-  bucket.count += 1;
-  return bucket.count > RATE_LIMIT;
+async function rateLimitKey(request: Request) {
+  const ip = request.headers.get('cf-connecting-ip')
+    || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+  if (!ip) return null;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`report:${ip}`));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 const categories = new Set([
@@ -61,6 +49,30 @@ function text(value: unknown, maxLength: number) {
     : null;
 }
 
+async function readBoundedBody(request: Request, maxBytes: number) {
+  const reader = request.body?.getReader();
+  if (!reader) return '';
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error('BODY_TOO_LARGE');
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+}
+
 function decodePhoto(value: unknown) {
   if (typeof value !== 'string' || value.length > Math.ceil(MAX_PHOTO_BYTES * 4 / 3) + 100) {
     throw new Error('Each photo must be 5 MB or smaller.');
@@ -70,8 +82,10 @@ function decodePhoto(value: unknown) {
 
   const bytes = Uint8Array.from(atob(match[2]), (character) => character.charCodeAt(0));
   if (!bytes.length || bytes.length > MAX_PHOTO_BYTES) throw new Error('Each photo must be 5 MB or smaller.');
-  const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-  const png = bytes.length >= 8 && bytes[0] === 0x89 && String.fromCharCode(...bytes.slice(1, 4)) === 'PNG';
+  const jpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  const png = bytes.length >= pngSignature.length
+    && pngSignature.every((byte, index) => bytes[index] === byte);
   const webp = bytes.length >= 12
     && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF'
     && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP';
@@ -88,19 +102,42 @@ Deno.serve(async (request) => {
   if (!isAllowedOrigin(origin)) return new Response('Forbidden origin.', { status: 403 });
   if (request.method === 'OPTIONS') return new Response('ok', { headers: getCorsHeaders(origin) });
   if (request.method !== 'POST') return response({ error: 'Method not allowed.' }, 405, origin);
-  if (isRateLimited(clientKey(request))) {
-    return new Response(JSON.stringify({ error: 'Too many reports submitted. Please try again later.' }), {
-      status: 429,
-      headers: { ...getCorsHeaders(origin), 'Retry-After': '60' }
-    });
-  }
   const contentLength = Number(request.headers.get('content-length') || 0);
   if (contentLength > 22 * 1024 * 1024) {
     return response({ error: 'The report and photos exceed the allowed upload size.' }, 413, origin);
   }
 
   try {
-    const requestBody = await request.text();
+    const admin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+    const keyHash = await rateLimitKey(request);
+    if (!keyHash) return response({ error: 'Could not verify the request source.' }, 503, origin);
+    const { data: allowed, error: rateError } = await admin.rpc('consume_public_endpoint_rate_limit', {
+      p_key_hash: keyHash,
+      p_limit: 10
+    });
+    if (rateError) {
+      console.error('Public report rate limiter failed.', rateError);
+      return response({ error: 'Report submission is temporarily unavailable.' }, 503, origin);
+    }
+    if (!allowed) {
+      return new Response(JSON.stringify({ error: 'Too many reports submitted. Please try again later.' }), {
+        status: 429,
+        headers: { ...getCorsHeaders(origin), 'Retry-After': '60' }
+      });
+    }
+
+    let requestBody;
+    try {
+      requestBody = await readBoundedBody(request, 22 * 1024 * 1024);
+    } catch (bodyError) {
+      if (bodyError.message === 'BODY_TOO_LARGE') {
+        return response({ error: 'The report and photos exceed the allowed upload size.' }, 413, origin);
+      }
+      throw bodyError;
+    }
     if (new TextEncoder().encode(requestBody).byteLength > 22 * 1024 * 1024) {
       return response({ error: 'The report and photos exceed the allowed upload size.' }, 413, origin);
     }
@@ -161,10 +198,6 @@ Deno.serve(async (request) => {
     }
     const now = new Date();
     const id = `PUB-${crypto.randomUUID()}`;
-    const admin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
     const uploadedPaths: string[] = [];
     const attachments = [];
     try {

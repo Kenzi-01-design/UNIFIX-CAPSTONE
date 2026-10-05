@@ -151,3 +151,166 @@ Create the matching Supabase Auth users before signing in. Profile records use t
 ## Security note
 
 The database policies require Supabase Auth and match authenticated email addresses to `user_profiles`. Roles are loaded from the database after sign-in; the role picker is shown only in explicitly enabled local demo mode. The open demo policies have been removed from the schema.
+
+### Phase 4 quality, security, and evaluation
+
+- The app is installable as a PWA, caches its application shell after the first online visit, and shows an offline fallback. Public report drafts (including compressed photo files) can be saved in IndexedDB on the device. Drafts are restored on reconnect but are **not silently submitted**: users must review the content, reconnect, and complete Turnstile verification before sending.
+- Anonymous SUS and ISO/IEC 25010 evaluation is available from the public home page and signed-in navigation. The survey stores only ratings and a respondent-selected role. No name, email, or account identifier is saved. Public writes go through a size-limited, origin-checked Edge Function with database-backed rate limiting; the Admin results page returns aggregates only.
+- Personnel report reads are restricted to reports assigned to them or reports they personally submitted. New evaluation responses have RLS enabled and cannot be read directly by any client role.
+- Vitest covers SLA calculation and report/request verification transitions. The pgTAP RLS suite is in `supabase/tests/phase4_rls.test.sql`. Run `pnpm test` for unit tests and `pnpm test:rls` against a local/staging Supabase instance.
+- `pnpm security:check` scans the built frontend bundle for a service-role environment reference or JWT. `vercel.json`, `public/_headers`, and `public/_redirects` configure deployment security headers and SPA routing.
+- Deployment steps are in [DEPLOYMENT.md](DEPLOYMENT.md). Role-specific instructions are indexed in [USER_MANUAL.md](USER_MANUAL.md), and release notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### Local verification
+
+```bash
+pnpm install
+pnpm dev
+pnpm test
+pnpm build
+pnpm security:check
+```
+
+The security bundle scan requires a completed production build. The RLS test
+requires the Supabase CLI and a disposable local or staging database. Apply
+`supabase/migrations/202610050004_phase4_evaluation_security.sql` after the
+Phase 1–3 migrations, or use the complete `supabase/schema.sql` for a new
+project. Deploy `submit-evaluation` as described in [DEPLOYMENT.md](DEPLOYMENT.md).
+
+### Frontend environment variables
+
+Copy `.env.example` to `.env.local` for development. Only these non-secret
+frontend settings are read by Vite:
+
+| Variable | Description |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Public Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Public/anon Supabase key; data authorization is enforced by RLS |
+| `VITE_TURNSTILE_SITE_KEY` | Public Turnstile widget key |
+| `VITE_SMS_NOTIFICATIONS_ENABLED` | Enables the SMS preference only when its backend provider is configured |
+| `VITE_DEMO_MODE` | Enables local demo behavior; must be `false` in production |
+
+Supabase service-role, Resend, Semaphore, Turnstile secret, and notification
+webhook values are backend secrets. Set them with `supabase secrets set` and
+never place them in a `VITE_` variable or client environment file. Optional
+provider setup is covered in the Phase 1/2 sections and deployment guide.
+
+### Role permission matrix
+
+| Capability | Public | Employee | Assistant | Personnel | Admin |
+| --- | --- | --- | --- | --- | --- |
+| Submit public report and track by code | Yes | Yes | Yes | Yes | Yes |
+| Submit/read service requests | No sign-in; public report flow | Own requests | Review requests | Assigned requests only | All |
+| View reports | Tracking milestones only | Own submissions | All reports | Assigned reports and own submissions | All |
+| Assign personnel / manage users and roles | No | No | No | No | Yes |
+| Update assigned work progress | No | No | No | Assigned work only | Yes |
+| Verify completed work | No | No | Yes | No | Yes |
+| Configure SLAs, locations, and maintenance schedules | No | No | No | No | Yes |
+| View analytics and global audit | No | No | Analytics | No | Yes |
+| View evaluation aggregates | No | No | No | No | Yes |
+| Submit optional anonymous evaluation | Yes | Yes | Yes | Yes | Yes |
+
+The database also recognizes a `Student` profile role. It can submit its own
+report and optional feedback but has no additional administration privileges.
+Public reports go through the restricted tracking and submission functions;
+anonymous clients do not get direct report-row access.
+
+### Database ERD
+
+```mermaid
+erDiagram
+  USER_PROFILES ||--o| USER_PREFERENCES : "email (logical)"
+  REPORTS ||--o| REPORT_FEEDBACK : receives
+  REPORTS ||--o{ REPORT_DUPLICATE_VOTES : collects
+  REPORTS o|--o{ REPORTS : "merged into"
+  LOCATIONS o|--o{ MAINTENANCE_SCHEDULES : schedules
+  REPORTS ||--o{ AUDIT_LOG : "activity (polymorphic)"
+  REQUESTS ||--o{ AUDIT_LOG : "activity (polymorphic)"
+
+  USER_PROFILES {
+    text id PK
+    text email UK
+    text role
+    boolean is_active
+  }
+  USER_PREFERENCES {
+    text user_email PK
+    boolean email_notifications
+    boolean inapp_notifications
+  }
+  REPORTS {
+    text id PK
+    text tracking_code UK
+    text reporter_email
+    text duplicate_of FK
+    text status
+    text priority
+    timestamptz due_at
+  }
+  REQUESTS {
+    text id PK
+    text tracking_code UK
+    text requester_email
+    text status
+    text priority
+    timestamptz due_at
+  }
+  REPORT_FEEDBACK {
+    uuid id PK
+    text report_id FK
+    smallint rating
+  }
+  REPORT_DUPLICATE_VOTES {
+    uuid id PK
+    text report_id FK
+    text voter_hash
+  }
+  LOCATIONS {
+    uuid id PK
+    text building
+    text floor
+    text room
+  }
+  MAINTENANCE_SCHEDULES {
+    uuid id PK
+    uuid location_id FK
+    date next_due
+    text frequency
+  }
+  SLA_SETTINGS {
+    text priority PK
+    integer target_hours
+  }
+  NOTIFICATIONS {
+    uuid id PK
+    text recipient_email
+    text event_type
+  }
+  NOTIFICATION_DELIVERIES {
+    uuid id PK
+    text channel
+    text status
+  }
+  AUDIT_LOG {
+    uuid id PK
+    text entity_type
+    text entity_id
+    text action
+  }
+  EVALUATION_RESPONSES {
+    uuid id PK
+    uuid submission_key UK
+    text respondent_role
+    smallint sus_answers_array
+    jsonb iso_answers
+  }
+```
+
+The notifications/delivery records use recipient and entity identifiers rather
+than a direct database foreign key. Audit entries are polymorphic (`entity_type`
+and `entity_id`); `user_preferences.user_email` is also an email-keyed logical
+association rather than an enforced foreign key.
+
+Run `supabase/seed-demo.sql` **only in a disposable demo project** to create
+representative overdue, open, assigned, completed, and rated work records for
+the analytics dashboard.

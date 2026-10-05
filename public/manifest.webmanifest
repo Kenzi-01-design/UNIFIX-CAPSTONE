@@ -1,0 +1,18 @@
+{
+  "name": "UNIFIX Campus Maintenance",
+  "short_name": "UNIFIX",
+  "description": "Report and track campus maintenance issues.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7faf7",
+  "theme_color": "#0f6b3d",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

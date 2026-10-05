@@ -6,6 +6,8 @@ import { calculateDueAt } from '../lib/sla.js';
 import { removeUploadedPhotos, uploadPhotoFiles } from '../lib/photos.js';
 import { useSlaSettings } from './useSlaSettings.js';
 import { recordDemoAudit } from './useAuditLog.js';
+import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork } from '../lib/workflow.js';
+import { validateReportInput } from '../lib/validation.js';
 
 const STORAGE_KEY = 'unifix-reports-v2';
 
@@ -365,6 +367,7 @@ export function useReports() {
   }
 
   async function addReport(newReportData, photoFiles = []) {
+    validateReportInput(newReportData);
     const nextNumericId = 1040 + reports.value.length + 1;
     const report = {
       id: `#${nextNumericId}`,
@@ -539,7 +542,7 @@ export function useReports() {
 
   async function resolveReport(reportId) {
     const report = reports.value.find((r) => r.id.toLowerCase() === reportId.toLowerCase());
-    if (!report || report.status !== 'for-verification' || report.techState !== 'completed') return false;
+    if (!report || !canVerifyCompletedWork(report)) return false;
     const previous = {
       status: report.status,
       completedAt: report.completedAt,
@@ -574,7 +577,7 @@ export function useReports() {
   async function rejectReport(reportId, reason) {
     const report = reports.value.find((item) => item.id.toLowerCase() === reportId.toLowerCase());
     const safeReason = String(reason || '').trim();
-    if (!report || report.status !== 'for-verification' || safeReason.length < 5 || safeReason.length > 500) return false;
+    if (!report || !canRejectForRework(report, safeReason)) return false;
     const previous = {
       status: report.status,
       techState: report.techState,
@@ -705,7 +708,7 @@ export function useReports() {
 
   async function techComplete(reportId, currentTechName, completionPhotos = []) {
     const report = reports.value.find((r) => r.id === reportId);
-    if (!report || report.techState !== 'started' || !normalizePersonnel(report).includes(currentTechName)) return false;
+    if (!report || !canSubmitWorkForVerification(report, currentTechName)) return false;
 
     const previousState = report.techState;
     const previousStatus = report.status;

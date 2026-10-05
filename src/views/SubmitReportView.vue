@@ -17,6 +17,19 @@
 
     <div v-else class="submit-layout">
       <div class="form-card">
+        <section v-if="publicMode && offlineDrafts.length" class="offline-draft-banner" role="status">
+          <div>
+            <strong>{{ offlineDrafts.length }} report draft{{ offlineDrafts.length === 1 ? '' : 's' }} saved on this device</strong>
+            <p>{{ isOnline ? 'Restore a draft, complete security verification, and submit it.' : 'Reconnect to restore a draft and complete security verification.' }}</p>
+          </div>
+          <button type="button" class="btn-secondary" :disabled="!isOnline" @click="restoreQueuedDraft()">
+            Restore draft
+          </button>
+        </section>
+        <p v-if="publicMode && !isOnline" class="offline-state" role="status">
+          You are offline. Submit to save this report on this device; UNIFIX will require verification before it can be sent.
+        </p>
+        <p v-if="draftError" class="form-inline-error" role="alert">{{ draftError }}</p>
         <div v-if="publicMode" class="public-report-warning" role="note">
           <UiIcon name="error" :size="20" />
           <div>
@@ -29,6 +42,7 @@
           <input
             type="text"
             v-model="form.title"
+            maxlength="160"
             placeholder="e.g., Flickering lights in Room 204"
           />
         </div>
@@ -36,6 +50,7 @@
           <label>Description *</label>
           <textarea
             v-model="form.desc"
+            maxlength="4000"
             placeholder="Describe the issue in detail. Include when it started and any safety concerns..."
           ></textarea>
         </div>
@@ -183,7 +198,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import TurnstileWidget from '../components/TurnstileWidget.vue';
 import UiIcon from '../components/UiIcon.vue';
 import PhotoPicker from '../components/PhotoPicker.vue';
@@ -195,6 +210,11 @@ import { isSupabaseConfigured, submitPublicReport } from '../lib/supabase.js';
 import { photoToDataUrl } from '../lib/photos.js';
 import { useLocations } from '../composables/useLocations.js';
 import { useDuplicateReports } from '../composables/useDuplicateReports.js';
+import {
+  deleteOfflineReportDraft,
+  listOfflineReportDrafts,
+  saveOfflineReportDraft
+} from '../lib/offlineReportDrafts.js';
 
 const props = defineProps({
   publicMode: Boolean,
@@ -214,6 +234,10 @@ const selectedPhotos = ref([]);
 const submission = ref(null);
 const selectedLocationId = ref('');
 const locationError = ref('');
+const isOnline = ref(typeof navigator === 'undefined' || navigator.onLine);
+const offlineDrafts = ref([]);
+const queuedDraftId = ref('');
+const draftError = ref('');
 const duplicatePrompt = ref(false);
 const duplicateChoice = ref('');
 const duplicateNote = ref('');
@@ -269,6 +293,12 @@ const catMeta = {
 };
 
 function clearForm() {
+  if (queuedDraftId.value) {
+    void deleteOfflineReportDraft(queuedDraftId.value)
+      .then(() => refreshOfflineDrafts())
+      .catch((error) => console.error('Could not remove the cleared offline report draft.', error));
+    queuedDraftId.value = '';
+  }
   form.title = '';
   form.desc = '';
   form.cat = '';
@@ -341,7 +371,94 @@ onMounted(() => {
   void loadLocations().catch((error) => {
     locationError.value = error.message || 'Managed campus locations could not be loaded.';
   });
+  if (props.publicMode) {
+    window.addEventListener('online', handleConnectionChange);
+    window.addEventListener('offline', handleConnectionChange);
+    void refreshOfflineDrafts();
+  }
 });
+
+onBeforeUnmount(() => {
+  window.removeEventListener('online', handleConnectionChange);
+  window.removeEventListener('offline', handleConnectionChange);
+});
+
+async function refreshOfflineDrafts() {
+  try {
+    offlineDrafts.value = await listOfflineReportDrafts();
+    draftError.value = '';
+  } catch (error) {
+    draftError.value = error.message || 'Offline report drafts could not be loaded.';
+  }
+}
+
+async function handleConnectionChange() {
+  isOnline.value = navigator.onLine;
+  if (!isOnline.value) return;
+  await refreshOfflineDrafts();
+  if (offlineDrafts.value.length && !queuedDraftId.value
+    && !form.title && !form.desc && !form.cat && !form.bldg) {
+    await restoreQueuedDraft(offlineDrafts.value[0]);
+  }
+}
+
+async function restoreQueuedDraft(draft = offlineDrafts.value[0]) {
+  if (!draft) return;
+  form.title = draft.form.title || '';
+  form.desc = draft.form.desc || '';
+  form.cat = draft.form.cat || '';
+  form.bldg = draft.form.bldg || '';
+  form.floor = draft.form.floor || '';
+  form.room = draft.form.room || '';
+  form.landmark = draft.form.landmark || '';
+  form.email = draft.form.email || '';
+  selectedLocationId.value = draft.form.locationId || '';
+  selectedPhotos.value = Array.isArray(draft.photos) ? draft.photos : [];
+  queuedDraftId.value = draft.id;
+  duplicateChoice.value = '';
+  duplicateSearchSignature.value = '';
+  showToast('Offline report draft restored. Complete verification and submit it when ready.', 'info');
+}
+
+async function saveDraftForOfflineSubmission() {
+  const saved = await saveOfflineReportDraft({
+    id: queuedDraftId.value || undefined,
+    form: {
+      title: form.title,
+      desc: form.desc,
+      cat: form.cat,
+      bldg: form.bldg,
+      floor: form.floor,
+      room: form.room,
+      landmark: form.landmark,
+      email: form.email,
+      locationId: selectedLocationId.value
+    },
+    photos: selectedPhotos.value
+  });
+  queuedDraftId.value = saved.id;
+  await refreshOfflineDrafts();
+  showToast('Report saved on this device. It will need security verification before submission.', 'success');
+}
+
+async function persistQueuedDraftEdits() {
+  if (!queuedDraftId.value) return;
+  await saveOfflineReportDraft({
+    id: queuedDraftId.value,
+    form: {
+      title: form.title,
+      desc: form.desc,
+      cat: form.cat,
+      bldg: form.bldg,
+      floor: form.floor,
+      room: form.room,
+      landmark: form.landmark,
+      email: form.email,
+      locationId: selectedLocationId.value
+    },
+    photos: selectedPhotos.value
+  });
+}
 function continueAsDifferent() {
   duplicateChoice.value = 'different';
   duplicatePrompt.value = false;
@@ -352,6 +469,11 @@ async function addDuplicateVote(match) {
   isSubmitting.value = true;
   try {
     await voteForDuplicate(match.id, duplicateNote.value);
+    if (queuedDraftId.value) {
+      await deleteOfflineReportDraft(queuedDraftId.value);
+      queuedDraftId.value = '';
+      await refreshOfflineDrafts();
+    }
     duplicateSaved.value = match;
     duplicatePrompt.value = false;
     showToast('Your vote and note were added to the existing report.', 'success');
@@ -371,12 +493,24 @@ async function handleSubmit() {
     showToast('Please fill in all required fields.', 'error');
     return;
   }
-  if (props.captchaRequired && !captchaToken.value) {
+  if (props.captchaRequired && isOnline.value && !captchaToken.value) {
     showToast('Please complete the security verification.', 'error');
     return;
   }
   if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
     showToast('Enter a valid email address for status updates.', 'error');
+    return;
+  }
+  if (props.publicMode && !isOnline.value) {
+    isSubmitting.value = true;
+    try {
+      await saveDraftForOfflineSubmission();
+    } catch (error) {
+      draftError.value = error.message || 'This report could not be saved for offline submission.';
+      showToast(draftError.value, 'error');
+    } finally {
+      isSubmitting.value = false;
+    }
     return;
   }
   const searchSignature = JSON.stringify([form.cat, reportLocation.value, form.title.trim()]);
@@ -421,6 +555,7 @@ async function handleSubmit() {
 
   isSubmitting.value = true;
   try {
+    await persistQueuedDraftEdits();
     const encodedPhotos = props.captchaRequired && isSupabaseConfigured
       ? await Promise.all(selectedPhotos.value.map(photoToDataUrl))
       : [];
@@ -430,6 +565,11 @@ async function handleSubmit() {
       ? await submitPublicReport(reportData, captchaToken.value, encodedPhotos)
       : await addReport(reportData, selectedPhotos.value);
 
+    if (queuedDraftId.value) {
+      await deleteOfflineReportDraft(queuedDraftId.value);
+      queuedDraftId.value = '';
+      await refreshOfflineDrafts();
+    }
     clearForm();
     if (props.captchaRequired) resetCaptcha();
     submission.value = created;
@@ -462,6 +602,11 @@ async function handleSubmit() {
 .submission-confirmation { max-width: 760px; margin: 28px auto; }
 .submission-confirmation > p { color: var(--text-2); font-size: 13px; }
 .form-inline-error { color: var(--red); }
+.offline-draft-banner,.offline-state { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:16px; padding:13px 14px; border:1px solid var(--border-dark); border-radius:var(--radius-sm); background:var(--surface-2); color:var(--text-2); font-size:12px; }
+.offline-draft-banner strong { color:var(--text); font-size:13px; }
+.offline-draft-banner p { margin-top:3px; }
+.offline-state { border-color:#f2c46d; background:#fff8e8; color:#855700; }
+@media(max-width:560px){.offline-draft-banner{align-items:stretch;flex-direction:column}.offline-draft-banner button{width:100%}}
 .duplicate-prompt,.duplicate-saved { display:grid; gap:10px; margin-top:16px; padding:16px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface-2); }
 .duplicate-prompt>p,.duplicate-state,.duplicate-item small { color:var(--text-3); font-size:12px; }
 .duplicate-note-label { display:grid; gap:5px; color:var(--text-2); font-size:12px; font-weight:700; }

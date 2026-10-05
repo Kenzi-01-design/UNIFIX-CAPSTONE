@@ -140,6 +140,21 @@
       <div class="nav-label">Account</div>
       <div
         class="nav-item"
+        :class="{ active: currentView === 'evaluation' }"
+        @click="$emit('navigate', 'evaluation')"
+      >
+        <span class="nav-icon"><UiIcon name="success" /></span> System Evaluation
+      </div>
+      <div
+        v-if="currentRole === 'Admin'"
+        class="nav-item"
+        :class="{ active: currentView === 'evaluation-results' }"
+        @click="$emit('navigate', 'evaluation-results')"
+      >
+        <span class="nav-icon"><UiIcon name="activity" /></span> Evaluation Results
+      </div>
+      <div
+        class="nav-item"
         :class="{ active: currentView === 'settings' }"
         @click="$emit('navigate', 'settings')"
       >
