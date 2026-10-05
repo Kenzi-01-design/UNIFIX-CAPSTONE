@@ -64,7 +64,7 @@ const activityEntries = computed(() => {
       date: r.date,
       statusClass: r.status,
       statusLabel: r.status === 'in-progress' ? 'In Progress' : r.status,
-      details: r.desc || r.loc
+      details: [r.desc || r.loc, r.adminRemark ? `Administrator remark: ${r.adminRemark}` : ''].filter(Boolean).join(' · ')
     }));
 
   const userRequests = requests.value
@@ -76,7 +76,7 @@ const activityEntries = computed(() => {
       date: req.date,
       statusClass: req.status === 'action-taken' ? 'resolved' : 'pending',
       statusLabel: req.status === 'action-taken' ? 'Action Taken' : 'Submitted',
-      details: req.adminResponse || req.details
+      details: [req.details, req.adminRemark ? `Administrator remark: ${req.adminRemark}` : '', req.adminResponse ? `Action taken: ${req.adminResponse}` : ''].filter(Boolean).join(' · ')
     }));
 
   const loginHistory = currentRole.value === 'Admin'

@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue';
-import { isSupabaseConfigured, supabase } from '../lib/supabase.js';
+import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 
 // Private module-level state
 const _currentRole = ref('Admin');
@@ -154,6 +154,10 @@ export function useAuth() {
       return profile.role;
     }
 
+    if (!isDemoMode) {
+      throw new Error('Authentication is unavailable. Configure Supabase before signing in.');
+    }
+
     _currentRole.value = role;
     _activeUserName.value =
       role === 'Personnel'
@@ -174,6 +178,16 @@ export function useAuth() {
     loginEvents.value.unshift(event);
     loginEvents.value = loginEvents.value.slice(0, 100);
     localStorage.setItem(LOGIN_EVENTS_KEY, JSON.stringify(loginEvents.value));
+  }
+
+  async function sendPasswordReset(email) {
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Password recovery is unavailable until Supabase is configured.');
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin
+    });
+    if (error) throw error;
   }
 
   async function logout() {
@@ -300,6 +314,7 @@ export function useAuth() {
     isAuthenticated: _isAuthenticated,
     userInitials,
     login,
+    sendPasswordReset,
     logout,
     loadProfile,
     saveProfile,

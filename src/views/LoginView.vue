@@ -89,9 +89,9 @@
       </div>
 
       <div style="display: flex; justify-content: flex-end; margin-bottom: 24px">
-        <a href="#" @click.prevent="showToast('Password recovery link sent to registered email.', 'info')" style="font-size: 13px; color: var(--primary); font-weight: 600; text-decoration: none;">
+        <button type="button" @click="handlePasswordReset" style="padding: 0; border: 0; background: transparent; font: inherit; font-size: 13px; color: var(--primary); font-weight: 600; cursor: pointer;">
           Forgot password?
-        </a>
+        </button>
       </div>
 
       <button class="btn-primary" @click="handleLogin">
@@ -112,20 +112,20 @@ import { useAuth } from '../composables/useAuth.js';
 import { useReports } from '../composables/useReports.js';
 import { useToast } from '../composables/useToast.js';
 import { useNotifications } from '../composables/useNotifications.js';
-import { isSupabaseConfigured } from '../lib/supabase.js';
+import { isDemoMode, isSupabaseConfigured } from '../lib/supabase.js';
 import UiIcon from '../components/UiIcon.vue';
 
 defineProps({ showBack: Boolean });
 const emit = defineEmits(['logged-in', 'back']);
 
-const { login, loadSettings, activeUserName } = useAuth();
+const { login, loadSettings, sendPasswordReset, activeUserName } = useAuth();
 const { technicians } = useReports();
 const { showToast } = useToast();
 const { refreshNotifications } = useNotifications();
 
 const selectedRole = ref('Admin');
-const email = ref('admin.user@nvsu.edu.ph');
-const password = ref('password123');
+const email = ref(isDemoMode ? 'admin.user@nvsu.edu.ph' : '');
+const password = ref(isDemoMode ? 'password123' : '');
 
 const roleEmailMap = {
   Employee: 'prof.reyes@nvsu.edu.ph',
@@ -164,6 +164,19 @@ async function handleLogin() {
     emit('logged-in', landing);
   } catch (error) {
     showToast(error.message || 'Unable to sign in.', 'error');
+  }
+}
+
+async function handlePasswordReset() {
+  if (!email.value.trim()) {
+    showToast('Enter your university email first.', 'error');
+    return;
+  }
+  try {
+    await sendPasswordReset(email.value);
+    showToast('Password recovery link sent to your email.', 'success');
+  } catch (error) {
+    showToast(error.message || 'Unable to send password recovery email.', 'error');
   }
 }
 </script>
