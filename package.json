@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:rls": "supabase test db",
-    "security:check": "node scripts/check-client-secrets.mjs"
+    "security:check": "node scripts/check-client-secrets.mjs",
+    "smoke:post-deploy": "node scripts/post-deploy-smoke.mjs"
   },
   "dependencies": {
     "@lucide/vue": "^1.46.0",

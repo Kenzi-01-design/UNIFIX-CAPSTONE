@@ -16,7 +16,7 @@ Supabase is prepared as the database layer for reports, requests, and login even
 1. Create a Supabase project.
 2. Copy `.env.example` to `.env.local`.
 3. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the project API settings.
-4. Run `supabase/schema.sql` in the Supabase SQL Editor for a new project. For an existing project, apply the relevant additive scripts in `supabase/migrations/`.
+4. Run the complete `supabase/schema.sql` script in the Supabase SQL Editor for a new project. For an existing project, apply the additive scripts in `supabase/migrations/` in filename order. Both paths request a PostgREST schema-cache reload after the database objects are installed.
 5. Create the matching accounts in **Authentication → Users** using the emails in `user_profiles`.
 6. Deploy the public and notification Edge Functions after setting the CAPTCHA, allowed-origin, and notification values below.
 
@@ -130,7 +130,10 @@ select cron.schedule(
 
 The daily job creates at most one work order per schedule per due date and advances overdue schedules to their next future occurrence. The Admin panel also provides a manual generation action. Keep the QR route available through the deployment's SPA fallback so `/report?location=<id>` serves the Vue application.
 
-The app uses local demo data whenever `VITE_DEMO_MODE=true`, even if local Supabase values are present. Never commit `.env.local`.
+Production builds refuse to start if demo mode is enabled or required Supabase
+and Turnstile configuration is missing. In local development, the app uses demo
+data whenever `VITE_DEMO_MODE=true`, even if local Supabase values are present.
+Never commit `.env.local`.
 
 For local-only demo mode without Supabase, explicitly set `VITE_DEMO_MODE=true`. Do not enable this in a deployed environment; the demo data is intentionally client-side and is not an authentication boundary.
 
@@ -176,6 +179,8 @@ requires the Supabase CLI and a disposable local or staging database. Apply
 `supabase/migrations/202610050004_phase4_evaluation_security.sql` after the
 Phase 1–3 migrations, or use the complete `supabase/schema.sql` for a new
 project. Deploy `submit-evaluation` as described in [DEPLOYMENT.md](DEPLOYMENT.md).
+Apply all numbered migrations through `202610050010` in sequence on an existing
+project.
 
 ### Frontend environment variables
 
@@ -187,8 +192,9 @@ frontend settings are read by Vite:
 | `VITE_SUPABASE_URL` | Public Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Public/anon Supabase key; data authorization is enforced by RLS |
 | `VITE_TURNSTILE_SITE_KEY` | Public Turnstile widget key |
+| `VITE_ERROR_REPORT_URL` | Optional HTTPS client error-ingestion endpoint; public URL, no credentials |
 | `VITE_SMS_NOTIFICATIONS_ENABLED` | Enables the SMS preference only when its backend provider is configured |
-| `VITE_DEMO_MODE` | Enables local demo behavior; must be `false` in production |
+| `VITE_DEMO_MODE` | Enables local demo behavior; production startup rejects `true` |
 
 Supabase service-role, Resend, Semaphore, Turnstile secret, and notification
 webhook values are backend secrets. Set them with `supabase secrets set` and
@@ -313,4 +319,6 @@ association rather than an enforced foreign key.
 
 Run `supabase/seed-demo.sql` **only in a disposable demo project** to create
 representative overdue, open, assigned, completed, and rated work records for
-the analytics dashboard.
+the analytics dashboard. It refuses to run unless the same SQL session first
+executes `set unifix.allow_demo_seed = 'true';`. Use this explicit override only
+on a disposable project; never run the seed against production.
