@@ -27,6 +27,8 @@
           <UiIcon name="work" :size="16" /> 3. Carpentry Inspection & Maintenance
         </button>
       </div>
+      <p v-if="locationsLoading" class="location-options-state" role="status">Loading managed campus locations…</p>
+      <p v-else-if="locationsError" class="location-options-error" role="alert">{{ locationsError }} Built-in building options are available.</p>
     </div>
 
     <PhotoPicker v-model="selectedPhotos" label="Attach photos to this request (optional)" />
@@ -332,62 +334,41 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue';
+import { computed, onMounted, ref, reactive, watch } from 'vue';
 import { useRequests } from '../composables/useRequests.js';
 import { useAuth } from '../composables/useAuth.js';
 import { useToast } from '../composables/useToast.js';
 import UiIcon from '../components/UiIcon.vue';
 import PhotoPicker from '../components/PhotoPicker.vue';
 import TrackingCodeNotice from '../components/TrackingCodeNotice.vue';
+import { useLocations } from '../composables/useLocations.js';
 
 const { addRequest } = useRequests();
 const { activeUserName } = useAuth();
 const { showToast } = useToast();
+const {
+  activeLocations,
+  loading: locationsLoading,
+  loadError: locationLoadError,
+  loadLocations,
+  demoBuildings
+} = useLocations();
+const locationsError = ref('');
 
 const activeTab = ref('rwss');
 const selectedPhotos = ref([]);
 const submissionCode = ref('');
 const isSubmitting = ref(false);
 
-const buildings = [
-  '5 Star CR',
-  'Academic Classroom Building',
-  'Administration Building',
-  'Alumni Building',
-  'Arts and Cultural Office',
-  'Auto Service Center',
-  "Boy's Shop Building",
-  'Cafeteria',
-  'Campus Quadrangle',
-  'CBA Building',
-  'CIT Office',
-  'COE office',
-  'College of Arts and Sciences Office',
-  'College of Arts & Science Building',
-  'CTE Office',
-  'College of Teacher Education Building',
-  'Electronics Building',
-  'Engineering Building',
-  'Engineering Science Lab Building',
-  'Food Court',
-  'Graphic Arts Building',
-  'Gymnasium',
-  'HRM Building',
-  'IT Lab Building',
-  'Ladies Dorm',
-  'Mechanical Engineering Laboratory Building',
-  'Motorpool',
-  'MRF',
-  'Oval',
-  "Oval's Bleachers",
-  'RAC building',
-  'Rotary',
-  'ROTC building',
-  'Stalls and Classrooms',
-  'Technician Institute',
-  'Technology Lab Building',
-  'Training Center'
-];
+const buildings = computed(() => activeLocations.value.length
+  ? [...new Set(activeLocations.value.map((location) => location.building))]
+  : demoBuildings);
+
+onMounted(() => {
+  void loadLocations().catch((error) => {
+    locationsError.value = locationLoadError.value || error.message || 'Managed campus locations could not be loaded.';
+  });
+});
 
 // 1. RWSS Form State
 const rwss = reactive({
@@ -545,6 +526,9 @@ async function submitRequest(requestData, clearForm, successMessage) {
 </script>
 
 <style scoped>
+.location-options-state,.location-options-error { margin-top:8px; font-size:12px; }
+.location-options-state { color:var(--text-3); }
+.location-options-error { color:var(--red); }
 .req-form-tabs {
   display: flex;
   gap: 10px;

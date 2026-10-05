@@ -1,5 +1,6 @@
 <template>
   <div class="view active" id="view-dashboard">
+    <AnalyticsDashboard v-if="['Admin', 'Assistant'].includes(currentRole)" />
     <!-- Analytics are available to administrators only. -->
     <div v-if="currentRole === 'Admin'" class="stats-grid">
       <div class="stat-card blue" @click="$emit('filter-reports', {})">
@@ -210,12 +211,13 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, defineAsyncComponent } from 'vue';
 import { useReports } from '../composables/useReports.js';
 import { useRequests } from '../composables/useRequests.js';
 import { useAuth } from '../composables/useAuth.js';
 import UiIcon from '../components/UiIcon.vue';
 import SlaBadge from '../components/SlaBadge.vue';
+const AnalyticsDashboard = defineAsyncComponent(() => import('../components/AnalyticsDashboard.vue'));
 import { isOverdue } from '../lib/sla.js';
 
 const props = defineProps({

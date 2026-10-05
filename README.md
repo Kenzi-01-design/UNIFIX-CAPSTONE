@@ -110,6 +110,26 @@ provides an email address. Public tracking remains limited to milestone dates,
 the generic maintenance-team label, and the last update; it never returns names,
 contact details, or internal remarks.
 
+### Phase 3 analytics and smart operations
+
+- Admin and Assistant dashboards include date/category-filtered operational KPIs, workload and issue charts, CSV export, and a print-ready PDF summary. Production aggregates are calculated by the `get_unifix_analytics` database function; demo mode calculates the same metrics from local demo records.
+- Report submission checks open reports with the same category and location and a similar title. The reporter can add a vote/note to an existing report or continue as a distinct issue. Public matching returns only a small set of matching issue details, and search/vote RPCs are rate-limited. Administrators can merge eligible reports; merged items inherit later status changes from the primary report.
+- Administrators manage building/floor/room locations. Active locations populate report and request forms; printable QR sheets link to `/report?location=<id>` and pre-fill the matching report location.
+- Service requests include a formatted job-order print view with control number, requester/office, service details, signature blocks, and completion/acceptance section. The **Download PDF** action opens the browser's print dialog; select **Save as PDF**.
+- Administrators can create/edit and pause preventive-maintenance schedules. Due schedules generate tagged work orders and advance their next-due date. The Admin panel's **Generate due work orders** action runs due schedules immediately.
+
+Apply `supabase/migrations/202610050003_phase3_analytics_duplicates_locations_maintenance.sql` to an existing project, or use the updated `supabase/schema.sql` for a fresh project. To run preventive schedules automatically, enable `pg_cron` in the Supabase Dashboard, then schedule the database function in the SQL Editor:
+
+```sql
+select cron.schedule(
+  'unifix-preventive-maintenance',
+  '0 2 * * *',
+  $$select public.generate_due_maintenance_work_orders();$$
+);
+```
+
+The daily job creates at most one work order per schedule per due date and advances overdue schedules to their next future occurrence. The Admin panel also provides a manual generation action. Keep the QR route available through the deployment's SPA fallback so `/report?location=<id>` serves the Vue application.
+
 The app uses local demo data whenever `VITE_DEMO_MODE=true`, even if local Supabase values are present. Never commit `.env.local`.
 
 For local-only demo mode without Supabase, explicitly set `VITE_DEMO_MODE=true`. Do not enable this in a deployed environment; the demo data is intentionally client-side and is not an authentication boundary.

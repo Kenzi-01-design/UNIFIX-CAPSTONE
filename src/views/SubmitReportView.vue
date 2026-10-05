@@ -57,46 +57,17 @@
           </div>
           <div class="form-group">
             <label>Building *</label>
-            <select v-model="form.bldg">
+            <select v-model="locationSelectValue">
               <option value="">Select building...</option>
-              <option>5 Star CR</option>
-              <option>Academic Classroom Building</option>
-              <option>Administration Building</option>
-              <option>Alumni Building</option>
-              <option>Arts and Cultural Office</option>
-              <option>Auto Service Center</option>
-              <option>Boy&apos;s Shop Building</option>
-              <option>Cafeteria</option>
-              <option>Campus Quadrangle</option>
-              <option>CBA Building</option>
-              <option>CIT Office</option>
-              <option>COE office</option>
-              <option>College of Arts and Sciences Office</option>
-              <option>College of Arts &amp; Science Building</option>
-              <option>CTE Office</option>
-              <option>College of Teacher Education Building</option>
-              <option>Electronics Building</option>
-              <option>Engineering Building</option>
-              <option>Engineering Science Lab Building</option>
-              <option>Food Court</option>
-              <option>Graphic Arts Building</option>
-              <option>Gymnasium</option>
-              <option>HRM Building</option>
-              <option>IT Lab Building</option>
-              <option>Ladies Dorm</option>
-              <option>Mechanical Engineering Laboratory Building</option>
-              <option>Motorpool</option>
-              <option>MRF</option>
-              <option>Oval</option>
-              <option>Oval&apos;s Bleachers</option>
-              <option>RAC building</option>
-              <option>Rotary</option>
-              <option>ROTC building</option>
-              <option>Stalls and Classrooms</option>
-              <option>Technician Institute</option>
-              <option>Technology Lab Building</option>
-              <option>Training Center</option>
+              <option v-for="location in activeLocations" :key="location.id" :value="location.id">
+                {{ toLocationLabel(location) }}
+              </option>
+              <option v-if="!activeLocations.length" v-for="building in demoBuildings" :key="building" :value="building">
+                {{ building }}
+              </option>
             </select>
+            <small v-if="locationLoading">Loading managed campus locations…</small>
+            <small v-else-if="locationError" class="form-inline-error">{{ locationError }} Using built-in building options.</small>
           </div>
         </div>
         <div class="form-row triple">
@@ -136,6 +107,37 @@
         </div>
 
         <PhotoPicker v-model="selectedPhotos" label="Attach photos of the issue (optional)" />
+
+        <section v-if="duplicatePrompt" class="duplicate-prompt" aria-live="polite">
+          <strong>Similar open reports</strong>
+          <p>Check whether one of these reports already describes this issue before submitting a new one.</p>
+          <label v-if="similarReports.length" class="duplicate-note-label">
+            Optional note for the existing report (up to 500 characters)
+            <textarea v-model="duplicateNote" rows="2" maxlength="500" placeholder="Add useful details for the maintenance team…"></textarea>
+          </label>
+          <div v-if="duplicateLoading" class="duplicate-state" role="status">Checking for similar reports…</div>
+          <div v-else-if="duplicateError" class="duplicate-error" role="alert">
+            Similar reports could not be checked: {{ duplicateError }}
+          </div>
+          <div v-else-if="similarReports.length" class="duplicate-list">
+            <article v-for="match in similarReports" :key="match.id" class="duplicate-item">
+              <span><strong>{{ match.title }}</strong><small>{{ match.id }} · {{ match.loc }} · {{ formatStatus(match.status) }}</small></span>
+              <button type="button" class="btn-primary" :disabled="isSubmitting" @click="addDuplicateVote(match)">
+                Same issue — add vote / note
+              </button>
+            </article>
+          </div>
+          <div v-else class="duplicate-state">No similar open reports were found.</div>
+          <div class="duplicate-prompt-actions">
+            <button type="button" class="btn-secondary" @click="continueAsDifferent">
+              {{ duplicateError ? 'Continue without a duplicate check' : 'Different issue — continue' }}
+            </button>
+          </div>
+        </section>
+        <div v-if="duplicateSaved" class="duplicate-saved" role="status">
+          Your vote and note were added to <strong>{{ duplicateSaved.title }}</strong>. No second report was created.
+          <button type="button" class="btn-secondary" @click="startAnotherReport">Check another issue</button>
+        </div>
 
         <div v-if="captchaRequired" class="captcha-box">
           <label>Security verification *</label>
@@ -181,7 +183,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import TurnstileWidget from '../components/TurnstileWidget.vue';
 import UiIcon from '../components/UiIcon.vue';
 import PhotoPicker from '../components/PhotoPicker.vue';
@@ -191,8 +193,14 @@ import { useAuth } from '../composables/useAuth.js';
 import { useToast } from '../composables/useToast.js';
 import { isSupabaseConfigured, submitPublicReport } from '../lib/supabase.js';
 import { photoToDataUrl } from '../lib/photos.js';
+import { useLocations } from '../composables/useLocations.js';
+import { useDuplicateReports } from '../composables/useDuplicateReports.js';
 
-const props = defineProps({ publicMode: Boolean, captchaRequired: Boolean });
+const props = defineProps({
+  publicMode: Boolean,
+  captchaRequired: Boolean,
+  prefillLocationId: { type: String, default: '' }
+});
 const emit = defineEmits(['report-submitted', 'back', 'view-reports']);
 
 const { addReport } = useReports();
@@ -204,6 +212,28 @@ const captchaWidget = ref(null);
 const isSubmitting = ref(false);
 const selectedPhotos = ref([]);
 const submission = ref(null);
+const selectedLocationId = ref('');
+const locationError = ref('');
+const duplicatePrompt = ref(false);
+const duplicateChoice = ref('');
+const duplicateNote = ref('');
+const duplicateSaved = ref(null);
+const duplicateSearchSignature = ref('');
+const {
+  activeLocations,
+  loading: locationLoading,
+  loadLocations,
+  toLocationLabel,
+  demoBuildings
+} = useLocations();
+const {
+  similarReports,
+  loading: duplicateLoading,
+  error: duplicateError,
+  findSimilarOpenReports,
+  clearSimilarReports,
+  voteForDuplicate
+} = useDuplicateReports();
 
 function resetCaptcha() {
   captchaToken.value = '';
@@ -247,12 +277,93 @@ function clearForm() {
   form.room = '';
   form.landmark = '';
   form.email = '';
+  selectedLocationId.value = '';
   selectedPhotos.value = [];
+  duplicatePrompt.value = false;
+  duplicateChoice.value = '';
+  duplicateNote.value = '';
+  duplicateSaved.value = null;
 }
 
 function startAnotherReport() {
   submission.value = null;
+  duplicateSaved.value = null;
   clearForm();
+}
+
+const locationSelectValue = computed({
+  get: () => selectedLocationId.value || form.bldg,
+  set: (value) => {
+    const selected = activeLocations.value.find((location) => location.id === value);
+    selectedLocationId.value = selected?.id || '';
+    form.bldg = selected?.building || value;
+    if (selected) {
+      form.floor = selected.floor;
+      form.room = selected.room;
+    }
+    duplicateChoice.value = '';
+  }
+});
+
+const reportLocation = computed(() => {
+  const selected = activeLocations.value.find((location) => location.id === selectedLocationId.value);
+  const parts = [selected?.building || form.bldg];
+  if (form.floor) parts.push(form.floor);
+  if (form.room) parts.push(form.room);
+  if (form.landmark) parts.push(`(${form.landmark})`);
+  return parts.filter(Boolean).join(' · ');
+});
+
+function applyLocationPrefill() {
+  if (!props.prefillLocationId) return;
+  const selected = activeLocations.value.find((location) => location.id === props.prefillLocationId);
+  if (!selected) return;
+  selectedLocationId.value = selected.id;
+  form.bldg = selected.building;
+  form.floor = selected.floor;
+  form.room = selected.room;
+}
+
+watch(activeLocations, applyLocationPrefill, { deep: true, immediate: true });
+watch(() => props.prefillLocationId, applyLocationPrefill);
+watch(
+  () => [form.title, form.cat, form.bldg, form.floor, form.room, form.landmark],
+  () => {
+    duplicateChoice.value = '';
+    duplicatePrompt.value = false;
+    duplicateSaved.value = null;
+    duplicateSearchSignature.value = '';
+    clearSimilarReports();
+  }
+);
+
+onMounted(() => {
+  void loadLocations().catch((error) => {
+    locationError.value = error.message || 'Managed campus locations could not be loaded.';
+  });
+});
+function continueAsDifferent() {
+  duplicateChoice.value = 'different';
+  duplicatePrompt.value = false;
+  duplicateError.value = '';
+}
+
+async function addDuplicateVote(match) {
+  isSubmitting.value = true;
+  try {
+    await voteForDuplicate(match.id, duplicateNote.value);
+    duplicateSaved.value = match;
+    duplicatePrompt.value = false;
+    showToast('Your vote and note were added to the existing report.', 'success');
+  } catch (error) {
+    showToast(error.message || 'The duplicate vote could not be saved.', 'error');
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+function formatStatus(status) {
+  return String(status || 'pending').replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 async function handleSubmit() {
@@ -268,12 +379,34 @@ async function handleSubmit() {
     showToast('Enter a valid email address for status updates.', 'error');
     return;
   }
+  const searchSignature = JSON.stringify([form.cat, reportLocation.value, form.title.trim()]);
+  if (!duplicateChoice.value && duplicateSearchSignature.value !== searchSignature) {
+    if (duplicateLoading.value) return;
+    duplicatePrompt.value = true;
+    try {
+      await findSimilarOpenReports({
+        category: form.cat,
+        location: reportLocation.value,
+        title: form.title
+      });
+      if (JSON.stringify([form.cat, reportLocation.value, form.title.trim()]) !== searchSignature) return;
+      duplicateSearchSignature.value = searchSignature;
+    } catch {
+      return;
+    }
+    if (duplicateError.value || similarReports.value.length) return;
+    duplicatePrompt.value = false;
+    duplicateChoice.value = 'different';
+  } else if (duplicateError.value && duplicateChoice.value !== 'different') {
+    duplicatePrompt.value = true;
+    return;
+  }
+  if (!duplicateChoice.value && (duplicateError.value || similarReports.value.length)) {
+    duplicatePrompt.value = true;
+    return;
+  }
 
   const meta = catMeta[form.cat] || { icon: 'other', bg: '#f7faf7' };
-  const locParts = [form.bldg];
-  if (form.floor) locParts.push(form.floor);
-  if (form.room) locParts.push(form.room);
-  if (form.landmark) locParts.push(`(${form.landmark})`);
 
   const reportData = {
     title: form.title.trim(),
@@ -281,7 +414,7 @@ async function handleSubmit() {
     cat: form.cat,
     catIcon: meta.icon,
     catBg: meta.bg,
-    loc: locParts.join(' · '),
+    loc: reportLocation.value,
     reporter: activeUserName.value || 'Public Reporter',
     reporterEmail: props.publicMode ? form.email.trim() : ''
   };
@@ -328,5 +461,20 @@ async function handleSubmit() {
 .form-actions button:disabled { cursor: wait; opacity: .7; }
 .submission-confirmation { max-width: 760px; margin: 28px auto; }
 .submission-confirmation > p { color: var(--text-2); font-size: 13px; }
+.form-inline-error { color: var(--red); }
+.duplicate-prompt,.duplicate-saved { display:grid; gap:10px; margin-top:16px; padding:16px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface-2); }
+.duplicate-prompt>p,.duplicate-state,.duplicate-item small { color:var(--text-3); font-size:12px; }
+.duplicate-note-label { display:grid; gap:5px; color:var(--text-2); font-size:12px; font-weight:700; }
+.duplicate-note-label textarea { width:100%; padding:9px; border:1px solid var(--border-dark); border-radius:6px; font:inherit; resize:vertical; }
+.duplicate-list { display:grid; gap:8px; }
+.duplicate-item { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px; border:1px solid var(--border); border-radius:7px; background:var(--surface); }
+.duplicate-item>span { display:grid; gap:3px; min-width:0; }
+.duplicate-item small { overflow-wrap:anywhere; }
+.duplicate-item button,.duplicate-prompt-actions button,.duplicate-saved button { flex:none; margin-top:0; }
+.duplicate-prompt-actions { display:flex; justify-content:flex-end; }
+.duplicate-error { color:var(--red); font-size:12px; }
+.duplicate-saved { border-color:#b7ddc5; background:var(--green-bg); color:var(--primary-dark); font-size:13px; }
+.duplicate-saved button { justify-self:start; }
 @media (max-width: 600px) { .public-submit-page { padding: 24px 20px 40px; } }
+@media(max-width:560px){.duplicate-item{align-items:stretch;flex-direction:column}.duplicate-item button{width:100%}}
 </style>

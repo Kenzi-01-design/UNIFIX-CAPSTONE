@@ -20,6 +20,7 @@
       v-else-if="!isAuthenticated && publicPage === 'report'"
       public-mode
       :captcha-required="isSupabaseConfigured"
+      :prefill-location-id="locationPrefillId"
       @back="publicPage = 'home'"
       @view-reports="navigateTo('reports')"
       @report-submitted="handlePublicReportSubmitted"
@@ -66,6 +67,7 @@
 
           <SubmitReportView
             v-else-if="currentView === 'submit'"
+            :prefill-location-id="locationPrefillId"
             @view-reports="navigateTo('reports')"
             @report-submitted="handleReportSubmitted"
           />
@@ -176,7 +178,8 @@ const {
 const { toasts, showToast } = useToast();
 
 const currentView = ref('dashboard');
-const publicPage = ref('home');
+const locationPrefillId = new URLSearchParams(window.location.search).get('location') || '';
+const publicPage = ref(window.location.pathname.replace(/\/+$/, '') === '/report' ? 'report' : 'home');
 const activeReportFilter = ref({});
 const isModalOpen = ref(false);
 const selectedReportId = ref(null);

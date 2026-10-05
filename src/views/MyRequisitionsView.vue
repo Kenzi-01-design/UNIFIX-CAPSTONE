@@ -13,6 +13,10 @@
               <span class="request-id">{{ req.id }}</span>
               <span :class="['tag', req.status]">{{ formatStatus(req.status) }}</span>
             </div>
+            <div class="job-order-actions">
+              <button class="btn-secondary" type="button" @click="openJobOrder(req, 'print')">Print job order</button>
+              <button class="btn-secondary" type="button" @click="openJobOrder(req, 'pdf')">Download PDF</button>
+            </div>
             <div class="rc-title">{{ req.title }}</div>
             <div class="request-meta">{{ req.dept }} · {{ req.date }}</div>
             <p class="request-details">{{ req.details }}</p>
@@ -85,6 +89,7 @@ import { useRequests } from '../composables/useRequests.js';
 import { useAuth } from '../composables/useAuth.js';
 import { useToast } from '../composables/useToast.js';
 import PhotoGallery from '../components/PhotoGallery.vue';
+import { printJobOrder } from '../lib/jobOrder.js';
 
 const { requests, setRequestFeedback, reopenOwnRequest } = useRequests();
 const { activeUserName } = useAuth();
@@ -130,12 +135,22 @@ async function reopenRequest(requestId) {
 function formatStatus(status) {
   return String(status || 'submitted').replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
+
+function openJobOrder(request, action) {
+  try {
+    printJobOrder(request, action);
+  } catch (error) {
+    showToast(error.message || 'The job order could not be opened.', 'error');
+  }
+}
 </script>
 
 <style scoped>
 .requisitions-panel { width: 100%; max-width: none; min-height: calc(100vh - 48px); display: flex; flex-direction: column; }
 .requisitions-content { flex: 1; padding: 16px; min-height: 0; overflow-y: auto; }
 .requisition-card { margin-bottom: 14px; border-left: 4px solid var(--primary); }
+.job-order-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.job-order-actions button { margin-top:0; padding:7px 10px; font-size:11px; }
 .rc-title { margin-top: 6px; }
 .request-id { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text-3); }
 .request-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }

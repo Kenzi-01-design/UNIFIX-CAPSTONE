@@ -65,6 +65,28 @@
       >
         Audit Log
       </button>
+      <button
+        v-if="currentRole === 'Admin'"
+        type="button"
+        class="admin-tab"
+        :class="{ active: activeAdminTab === 'duplicates' }"
+        role="tab"
+        :aria-selected="activeAdminTab === 'duplicates'"
+        @click="activeAdminTab = 'duplicates'"
+      >
+        Merge Duplicates
+      </button>
+      <button
+        v-if="currentRole === 'Admin'"
+        type="button"
+        class="admin-tab"
+        :class="{ active: activeAdminTab === 'facilities' }"
+        role="tab"
+        :aria-selected="activeAdminTab === 'facilities'"
+        @click="activeAdminTab = 'facilities'"
+      >
+        Locations & Maintenance
+      </button>
     </div>
 
     <div class="admin-grid">
@@ -320,6 +342,8 @@
                   <button class="admin-action-btn assign" @click="handleRequestRemark(req.id, req.adminRemark)">Save Remark</button>
                 </td>
                 <td v-if="['Admin', 'Assistant'].includes(currentRole)" class="verification-actions">
+                  <button class="admin-action-btn assign" @click="openRequestJobOrder(req, 'print')">Print Job Order</button>
+                  <button class="admin-action-btn assign" @click="openRequestJobOrder(req, 'pdf')">Download PDF</button>
                   <button v-if="currentRole === 'Admin'" class="admin-action-btn assign" @click="pickRequestForAssignment(req.id)">
                     {{ req.assignedTo ? 'Reassign' : 'Assign' }}
                   </button>
@@ -352,12 +376,56 @@
         </div>
         <AuditLogPanel global />
       </div>
+
+      <section v-if="activeAdminTab === 'duplicates' && currentRole === 'Admin'" class="panel duplicate-merge-panel">
+        <div class="panel-header">
+          <span class="panel-title">Merge duplicate open reports</span>
+          <span class="panel-action">Merged reports follow the primary report's status</span>
+        </div>
+        <p class="duplicate-merge-intro">Choose two open reports with the same category and location. The selected secondary report is marked as a duplicate and future status changes follow the primary report.</p>
+        <div v-if="!mergeableReports.length" class="facility-empty-state">There are no open reports eligible for merging.</div>
+        <form v-else class="duplicate-merge-form" @submit.prevent="mergeReports">
+          <label>Primary report
+            <select v-model="mergeParentId" required @change="mergeChildId = ''">
+              <option value="">Select the report to keep</option>
+              <option v-for="report in mergeableReports" :key="report.id" :value="report.id">
+                {{ report.id }} · {{ report.title }} · {{ report.loc }}
+              </option>
+            </select>
+          </label>
+          <label>Duplicate report
+            <select v-model="mergeChildId" required :disabled="!mergeParentId">
+              <option value="">Select the duplicate</option>
+              <option v-for="report in mergeChildren" :key="report.id" :value="report.id">
+                {{ report.id }} · {{ report.title }}
+              </option>
+            </select>
+          </label>
+          <button class="btn-primary" type="submit" :disabled="!mergeParentId || !mergeChildId || merging">
+            {{ merging ? 'Merging…' : 'Merge selected reports' }}
+          </button>
+        </form>
+        <div v-if="selectedMergeParent" class="duplicate-notes">
+          <h3>Reporter votes / notes for {{ selectedMergeParent.id }}<span v-if="!notesLoading"> · {{ duplicateNotes.length }} vote{{ duplicateNotes.length === 1 ? '' : 's' }}</span></h3>
+          <p v-if="notesLoading" role="status">Loading reporter notes…</p>
+          <p v-else-if="notesError" class="duplicate-merge-error" role="alert">{{ notesError }}</p>
+          <p v-else-if="!duplicateNotes.length">No reporter votes have been added to this report.</p>
+          <ul v-else>
+            <li v-for="(item, index) in duplicateNotes" :key="`${item.created_at}-${index}`">
+              <span>{{ item.note || 'Reporter confirmed this is the same issue.' }}</span><small>{{ formatDate(item.created_at) }}</small>
+            </li>
+          </ul>
+        </div>
+        <p v-if="mergeError" class="duplicate-merge-error" role="alert">{{ mergeError }}</p>
+      </section>
+
+      <FacilitiesMaintenancePanel v-if="activeAdminTab === 'facilities' && currentRole === 'Admin'" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, nextTick, onMounted } from 'vue';
+import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue';
 import { useReports } from '../composables/useReports.js';
 import { useRequests } from '../composables/useRequests.js';
 import { useToast } from '../composables/useToast.js';
@@ -366,8 +434,11 @@ import SlaBadge from '../components/SlaBadge.vue';
 import SlaSettingsPanel from '../components/SlaSettingsPanel.vue';
 import PhotoGallery from '../components/PhotoGallery.vue';
 import AuditLogPanel from '../components/AuditLogPanel.vue';
+import FacilitiesMaintenancePanel from '../components/FacilitiesMaintenancePanel.vue';
 import { useReportFeedback } from '../composables/useReportFeedback.js';
 import { isOverdue } from '../lib/sla.js';
+import { printJobOrder } from '../lib/jobOrder.js';
+import { useDuplicateReports } from '../composables/useDuplicateReports.js';
 
 const props = defineProps({
   currentRole: {
@@ -384,6 +455,7 @@ const {
   assignReport,
   resolveReport,
   rejectReport,
+  mergeDuplicateReports,
   assignNextInQueue,
   setReportRisk,
   setReportPriority,
@@ -400,13 +472,39 @@ const {
 } = useRequests();
 const { feedback, loading: feedbackLoading, loadError: feedbackLoadError, loadReportFeedback } = useReportFeedback();
 const { showToast } = useToast();
+const {
+  duplicateNotes,
+  notesLoading,
+  notesError,
+  loadDuplicateNotes
+} = useDuplicateReports();
 
 const activeAdminTab = ref('reports');
 const assignmentPanel = ref(null);
 const assignmentIdInput = ref(null);
 const rejectionReasons = reactive({});
+const mergeParentId = ref('');
+const mergeChildId = ref('');
+const merging = ref(false);
+const mergeError = ref('');
 
 const currentRole = computed(() => props.currentRole);
+const mergeableReports = computed(() => reports.value.filter((report) =>
+  report.duplicateOf == null || report.duplicateOf === ''
+).filter((report) => !['closed', 'resolved', 'action-taken'].includes(report.status)));
+const selectedMergeParent = computed(() => mergeableReports.value.find((report) => report.id === mergeParentId.value));
+const mergeChildren = computed(() => {
+  const parent = selectedMergeParent.value;
+  if (!parent) return [];
+  return mergeableReports.value.filter((report) =>
+    report.id !== parent.id
+    && report.cat.toLowerCase() === parent.cat.toLowerCase()
+    && report.loc.toLowerCase() === parent.loc.toLowerCase()
+  );
+});
+watch(mergeParentId, (reportId) => {
+  void loadDuplicateNotes(reportId).catch(() => {});
+});
 
 onMounted(() => { void loadReportFeedback(); });
 
@@ -479,6 +577,29 @@ function handleReportRemark(id, remark) {
 function handleRequestRemark(id, remark) {
   if (currentRole.value !== 'Admin') return;
   if (setRequestRemark(id, remark)) showToast(`Remark saved for ${id}.`, 'success');
+}
+
+async function mergeReports() {
+  merging.value = true;
+  mergeError.value = '';
+  try {
+    await mergeDuplicateReports(mergeParentId.value, mergeChildId.value);
+    mergeParentId.value = '';
+    mergeChildId.value = '';
+    showToast('Duplicate report merged successfully.', 'success');
+  } catch (error) {
+    mergeError.value = error.message || 'The reports could not be merged.';
+  } finally {
+    merging.value = false;
+  }
+}
+
+function openRequestJobOrder(request, action) {
+  try {
+    printJobOrder(request, action);
+  } catch (error) {
+    showToast(error.message || 'The job order could not be opened.', 'error');
+  }
 }
 
 const assignForm = reactive({
@@ -743,10 +864,17 @@ function capitalize(str) {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
+
+function formatDate(value) {
+  const date = new Date(value || '');
+  return Number.isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleString();
+}
 </script>
 
 <style scoped>
 .assigned-personnel-list { display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; margin-bottom: 8px; }
+.admin-panel-tabs { overflow-x:auto; }
+.admin-panel-tabs .admin-tab { min-width:120px; flex:0 0 auto; }
 .assigned-personnel-empty { color: var(--text-3); font-size: 12px; padding: 6px 0; }
 .personnel-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 999px; background: #e8f5e9; color: var(--primary); font-size: 12px; font-weight: 700; }
 .personnel-chip button { border: 0; background: transparent; color: inherit; font: inherit; font-size: 17px; line-height: 1; cursor: pointer; padding: 0; }
@@ -759,5 +887,19 @@ function capitalize(str) {
 .personnel-list-item b { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 17px; }
 .verification-actions { min-width: 180px; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
 .verification-actions textarea { width: 100%; min-height: 48px; padding: 7px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; font-size: 11px; }
+.duplicate-merge-panel { padding:18px; }
+.duplicate-merge-intro { margin-bottom:14px; color:var(--text-2); font-size:13px; }
+.duplicate-merge-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.duplicate-merge-form label { display:grid; gap:5px; color:var(--text-2); font-size:12px; font-weight:700; }
+.duplicate-merge-form select { width:100%; min-height:40px; padding:8px; border:1px solid var(--border-dark); border-radius:6px; background:var(--surface); color:var(--text); font:inherit; }
+.duplicate-merge-form button { grid-column:1/-1; justify-self:start; margin-top:0; }
+.duplicate-merge-error { margin-top:10px; color:var(--red); font-size:12px; }
+.duplicate-notes { margin-top:18px; padding:14px; border-radius:8px; background:var(--surface-2); }
+.duplicate-notes h3 { margin-bottom:8px; font-size:13px; }
+.duplicate-notes p,.duplicate-notes small { color:var(--text-3); font-size:12px; }
+.duplicate-notes ul { display:grid; gap:8px; list-style:none; }
+.duplicate-notes li { display:grid; gap:3px; padding:9px; border:1px solid var(--border); border-radius:6px; background:var(--surface); font-size:12px; }
+.facility-empty-state { padding:22px; color:var(--text-3); font-size:13px; text-align:center; }
 @media (max-width: 520px) { .personnel-list { grid-template-columns: 1fr; } }
+@media(max-width:620px){.duplicate-merge-form{grid-template-columns:1fr}.duplicate-merge-form button{grid-column:auto}}
 </style>

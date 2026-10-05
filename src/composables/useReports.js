@@ -233,6 +233,11 @@ function toDatabaseReport(report) {
 }
 
 function syncReport(report, allowInsert = false) {
+  if ((!isSupabaseConfigured || isDemoMode) && report.duplicateOf == null) {
+    reports.value
+      .filter((child) => child.duplicateOf === report.id)
+      .forEach((child) => { child.status = report.status; });
+  }
   if (!isSupabaseConfigured) return Promise.resolve();
   const payload = toDatabaseReport(report);
   const query = allowInsert
@@ -281,6 +286,7 @@ async function loadReportsFromSupabase() {
       reopenedAt: report.reopened_at || '',
       reworkCount: report.rework_count || 0,
       status: report.status,
+      duplicateOf: report.duplicate_of || '',
       assignedTo: report.assigned_to || '',
       assignedPersonnel: Array.isArray(report.assigned_personnel) ? report.assigned_personnel : [],
       techState: report.technician_state || 'unassigned',
@@ -441,6 +447,7 @@ export function useReports() {
       saveReports();
       throw error;
     }
+
     recordDemoAudit({
       entityType: 'report',
       entityId: report.id,
@@ -449,6 +456,39 @@ export function useReports() {
       newValue: { priority }
     });
     return report;
+  }
+
+  async function mergeDuplicateReports(parentId, childId) {
+    if (isSupabaseConfigured && !isDemoMode) {
+      const { error } = await supabase.rpc('merge_duplicate_reports', {
+        p_parent_id: parentId,
+        p_child_id: childId
+      });
+      if (error) throw error;
+      await loadReportsFromSupabase();
+      return true;
+    }
+    const parent = reports.value.find((report) => report.id === parentId);
+    const child = reports.value.find((report) => report.id === childId);
+    if (!parent || !child || parent === child || parent.duplicateOf || child.duplicateOf
+        || parent.cat.toLowerCase() !== child.cat.toLowerCase()
+        || parent.loc.toLowerCase() !== child.loc.toLowerCase()
+        || ['closed', 'resolved', 'action-taken'].includes(parent.status)
+        || ['closed', 'resolved', 'action-taken'].includes(child.status)) {
+      throw new Error('Choose two open reports with the same category and location.');
+    }
+    const previousStatus = child.status;
+    child.duplicateOf = parent.id;
+    child.status = 'resolved';
+    recordDemoAudit({
+      entityType: 'report',
+      entityId: child.id,
+      action: 'merged_as_duplicate',
+      oldValue: { status: previousStatus },
+      newValue: { status: 'resolved', duplicate_of: parent.id }
+    });
+    saveReports();
+    return true;
   }
 
   function setReportRisk(reportId, risk) {
@@ -725,6 +765,7 @@ export function useReports() {
     isAssignedTo: (report, name) => normalizePersonnel(report).includes(name),
     findRecommendedTech,
     addReport,
+    mergeDuplicateReports,
     setReportRisk,
     setReportPriority,
     setReportRemark,
