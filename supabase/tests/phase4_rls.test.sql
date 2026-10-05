@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(19);
 
 insert into public.user_profiles (id, name, email, role, department)
 values
@@ -27,8 +27,10 @@ values
   ('phase5-rls-duplicate-parent', 'Duplicate parent fixture', 'A parent report for merge testing.', 'Other', 'Merge location', 'Other Reporter', null, 'Oct 05, 2026', '[]'::jsonb, null, 'for-verification', 'completed'),
   ('phase5-rls-duplicate-child', 'Duplicate child fixture', 'A child report for merge testing.', 'Other', 'Merge location', 'Other Reporter', null, 'Oct 05, 2026', '[]'::jsonb, null, 'pending', 'unassigned');
 
-insert into public.requests (id, title, category, department, details, requester, requester_email, request_date)
-values ('phase4-rls-other-request', 'RLS other request fixture', 'Other', 'Other Department', 'A sample request for isolation testing.', 'Other Employee', 'other-employee@nvsu.edu.ph', 'Oct 05, 2026');
+insert into public.requests (id, title, category, department, details, requester, requester_email, request_date, assigned_personnel, assigned_to, technician_state)
+values
+  ('phase4-rls-other-request', 'RLS other request fixture', 'Other', 'Other Department', 'A sample request for isolation testing.', 'Other Employee', 'other-employee@nvsu.edu.ph', 'Oct 05, 2026', '[]'::jsonb, null, 'unassigned'),
+  ('phase4-rls-assigned-request', 'RLS assigned request fixture', 'Other', 'Testing', 'A sample assigned request for personnel workflow testing.', 'Other Employee', 'other-employee@nvsu.edu.ph', 'Oct 05, 2026', '["Juan dela Cruz"]'::jsonb, 'Juan dela Cruz', 'assigned');
 
 set local role anon;
 select set_config('request.jwt.claims', '{"role":"anon"}', true);
@@ -49,12 +51,15 @@ reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"role":"authenticated","email":"prof.reyes@nvsu.edu.ph"}', true);
-update public.sla_settings set target_hours = target_hours + 1 where priority = 'urgent';
-select is((select target_hours from public.sla_settings where priority = 'urgent'), 4, 'Employee cannot change the SLA target');
 select throws_ok(
   $$update public.user_profiles set role = 'Admin' where lower(email) = 'prof.reyes@nvsu.edu.ph'$$,
   'P0001',
   'Employee cannot promote their own role'
+);
+select throws_ok(
+  $$update public.user_profiles set registration_status = 'approved' where lower(email) = 'prof.reyes@nvsu.edu.ph'$$,
+  'P0001',
+  'Employee cannot approve their own registration'
 );
 select throws_ok(
   $$insert into public.requests (id, title, category, department, details, requester, request_date, assigned_personnel)
@@ -77,8 +82,6 @@ reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"role":"authenticated","email":"admin.user@nvsu.edu.ph"}', true);
-update public.sla_settings set target_hours = 5 where priority = 'urgent';
-select is((select target_hours from public.sla_settings where priority = 'urgent'), 5, 'Admin can change SLA targets');
 update public.user_profiles set role = 'Assistant' where email = 'phase4-target@nvsu.edu.ph';
 select is((select role from public.user_profiles where email = 'phase4-target@nvsu.edu.ph'), 'Assistant', 'Admin can change user roles');
 select throws_ok(
@@ -110,6 +113,20 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"role":"authenticated","email":"juan.delacruz@nvsu.edu.ph"}', true);
 select is((select count(*) from public.reports where id = 'phase4-rls-assigned-report'), 1::bigint, 'Personnel can read assigned reports');
 select is((select count(*) from public.reports where id = 'phase4-rls-unassigned-report'), 0::bigint, 'Personnel cannot read unassigned reports');
+update public.reports set status = 'in-progress', technician_state = 'accepted'
+where id = 'phase4-rls-assigned-report';
+select is(
+  (select technician_state from public.reports where id = 'phase4-rls-assigned-report'),
+  'accepted',
+  'Personnel can accept an assigned report without accessing request-only email fields'
+);
+update public.requests set status = 'in-progress', technician_state = 'accepted'
+where id = 'phase4-rls-assigned-request';
+select is(
+  (select technician_state from public.requests where id = 'phase4-rls-assigned-request'),
+  'accepted',
+  'Personnel can accept an assigned request without accessing report-only email fields'
+);
 select throws_ok(
   $$update public.reports set status = 'for-verification', technician_state = 'completed' where id = 'phase4-rls-assigned-report'$$,
   'P0001',

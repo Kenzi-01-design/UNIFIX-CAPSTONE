@@ -5,7 +5,7 @@ for authentication, Postgres, Storage, and Edge Functions.
 
 ## 1. Prepare Supabase
 
-1. Create a production Supabase project and confirm that email/password authentication is enabled.
+1. Create a production Supabase project and confirm that email/password authentication and email confirmation are enabled. Add the production site URL and local development URL to the Auth redirect allowlist.
 2. In the SQL Editor, apply the migrations in order:
    `202610050001_phase1_tracking_photos_sla_feedback.sql`,
    `202610050002_phase2_notifications_audit_verification.sql`,
@@ -16,11 +16,20 @@ for authentication, Postgres, Storage, and Edge Functions.
    `202610050007_fix_analytics_date_alias.sql`, and
    `202610050008_reload_postgrest_schema_cache.sql`,
    `202610050009_deactivate_schema_demo_profiles.sql`, and
-   `202610050010_add_work_item_query_indexes.sql`.
+   `202610050010_add_work_item_query_indexes.sql`, and
+   `202610050011_enable_work_item_realtime.sql`, and
+   `202610050012_fix_work_item_email_trigger.sql`, and
+   `202610050013_fix_shared_work_item_triggers.sql`,
+   `202610050014_fix_pg_trgm_setting_permission.sql`,
+   `202610050015_fix_duplicate_field_shared_trigger.sql`, and
+   `202610050016_remove_sla_and_audit_features.sql`, and
+   `202610050017_user_registration_approval.sql`. If it was applied before
+   older Auth users were created, rerun the updated migration: it backfills
+   existing Auth users who do not have a profile as pending, inactive Employees.
    For a new project, run the complete `supabase/schema.sql` script. It notifies
    PostgREST to reload its schema cache after all tables and functions are created.
 3. Review RLS and Storage policies in the Dashboard. Do not enable broad anonymous read access to reports, requests, user profiles, notifications, or photos.
-4. Create Auth accounts and matching active `user_profiles` rows. Assign roles in the database; never accept a role from client-controlled registration.
+4. For self-registration, apply `202610050017_user_registration_approval.sql` before opening registration. Configure Supabase Auth email confirmation and allowed redirect URLs for each app origin. New registrations receive the fixed Employee role and remain inactive until an Admin approves them in User Management; assign elevated roles only during that review. Never trust client-submitted roles.
 5. Configure Cloudflare Turnstile with the production host name.
 
 ## 2. Set frontend environment variables
@@ -55,7 +64,7 @@ Set backend secrets in the Supabase project:
 ```bash
 supabase secrets set TURNSTILE_SECRET_KEY=your-turnstile-secret
 supabase secrets set TURNSTILE_ALLOWED_HOSTNAME=unifix.example.edu
-supabase secrets set PUBLIC_APP_ORIGIN=https://unifix.example.edu
+supabase secrets set PUBLIC_APP_ORIGINS=https://unifix.example.edu
 supabase secrets set NOTIFICATION_WEBHOOK_SECRET=replace-with-a-long-random-secret
 supabase secrets set RESEND_API_KEY=your-resend-key
 supabase secrets set NOTIFICATION_FROM_EMAIL="UNIFIX <notifications@example.edu>"
@@ -73,18 +82,23 @@ Deploy the functions:
 ```bash
 supabase functions deploy submit-public-report
 supabase functions deploy track-report
-supabase functions deploy submit-evaluation
+supabase functions deploy swift-worker
 supabase functions deploy deliver-notification
 ```
 
-`submit-public-report`, `track-report`, and `submit-evaluation` validate the
+`submit-public-report`, `track-report`, and `swift-worker` validate the
 request origin, bound request sizes, and use database-backed rate limits. The
 first and last functions write through the server-side service role; neither key
 is sent to the browser. Public evaluations do not collect identity fields.
+Deploy from the linked production project. For local browser testing against
+that project, add the exact local origin used by the dev server to
+`PUBLIC_APP_ORIGINS` (for example, append
+`,http://127.0.0.1:4173`); remove local origins after testing. Do not use `*`.
+The function must be deployed before the evaluation form can submit.
 
 In **Database → Webhooks**, configure the Phase 2 `INSERT` notification webhook
-and its `x-notification-secret` header. Use the cron setup for overdue alerts
-and preventive work orders in `README.md` if automatic scheduling is required.
+and its `x-notification-secret` header. Configure a scheduled job only for
+preventive-maintenance generation if automatic scheduling is required.
 
 ## 4. Build and deploy
 

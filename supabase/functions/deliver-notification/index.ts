@@ -92,88 +92,7 @@ async function deliver(id: string) {
   }
 }
 
-async function queueOverdueNotifications() {
-  const now = new Date().toISOString();
-  const dayKey = now.slice(0, 10);
-  const activeStatuses = '("closed","resolved","action-taken")';
-  const [reportsResult, requestsResult, adminsResult] = await Promise.all([
-    client.from('reports').select('id,title,due_at,tracking_code,status').lt('due_at', now).not('status', 'in', activeStatuses),
-    client.from('requests').select('id,title,due_at,tracking_code,status').lt('due_at', now).not('status', 'in', activeStatuses),
-    client.from('user_profiles').select('email,phone').eq('role', 'Admin').eq('is_active', true)
-  ]);
-  for (const result of [reportsResult, requestsResult, adminsResult]) {
-    if (result.error) throw result.error;
-  }
-
-  const workItems = [
-    ...(reportsResult.data || []).map((item) => ({ ...item, entity_type: 'report' })),
-    ...(requestsResult.data || []).map((item) => ({ ...item, entity_type: 'request' }))
-  ];
-  const admins = adminsResult.data || [];
-  let queued = 0;
-
-  for (const admin of admins) {
-    const { data: preferences, error: preferenceError } = await client
-      .from('user_preferences')
-      .select('inapp_notifications,email_notifications,sms_notifications')
-      .eq('user_email', admin.email)
-      .maybeSingle();
-    if (preferenceError) throw preferenceError;
-
-    for (const item of workItems) {
-      const dedupe = `overdue:${dayKey}:${item.entity_type}:${item.id}:${admin.email.toLowerCase()}`;
-      const message = `${item.entity_type === 'report' ? 'Report' : 'Request'} ${item.id} is past its resolution deadline: ${item.title}`;
-      if (preferences?.inapp_notifications !== false) {
-        const { error } = await client.from('notifications').insert({
-          user_email: admin.email,
-          event_type: 'work_overdue',
-          title: 'Overdue work item',
-          message,
-          entity_type: item.entity_type,
-          entity_id: item.id,
-          tracking_code: item.tracking_code,
-          dedupe_key: `${dedupe}:inapp`
-        });
-        if (error && error.code !== '23505') throw error;
-      }
-      if (preferences?.email_notifications !== false) {
-        const { data, error } = await client.from('notification_deliveries').upsert({
-          channel: 'email',
-          recipient: admin.email,
-          subject: 'UNIFIX overdue work item',
-          body: `${message}${item.tracking_code ? `\nTracking code: ${item.tracking_code}` : ''}`,
-          event_type: 'work_overdue',
-          entity_type: item.entity_type,
-          entity_id: item.id,
-          tracking_code: item.tracking_code,
-          dedupe_key: `${dedupe}:email`
-        }, { onConflict: 'dedupe_key', ignoreDuplicates: true }).select('id');
-        if (error) throw error;
-        for (const delivery of data || []) {
-          queued += 1;
-          await deliver(delivery.id);
-        }
-      }
-      if (preferences?.sms_notifications && admin.phone) {
-        const { data, error } = await client.from('notification_deliveries').upsert({
-          channel: 'sms',
-          recipient: admin.phone,
-          body: `UNIFIX overdue: ${item.id} is past its resolution deadline.`,
-          event_type: 'work_overdue',
-          entity_type: item.entity_type,
-          entity_id: item.id,
-          tracking_code: item.tracking_code,
-          dedupe_key: `${dedupe}:sms`
-        }, { onConflict: 'dedupe_key', ignoreDuplicates: true }).select('id');
-        if (error) throw error;
-        for (const delivery of data || []) {
-          queued += 1;
-          await deliver(delivery.id);
-        }
-      }
-    }
-  }
-
+async function retryFailedNotifications() {
   const { data: failed, error: failedError } = await client
     .from('notification_deliveries')
     .select('id')
@@ -181,7 +100,7 @@ async function queueOverdueNotifications() {
     .limit(50);
   if (failedError) throw failedError;
   for (const delivery of failed || []) await deliver(delivery.id);
-  return queued;
+  return failed?.length || 0;
 }
 
 Deno.serve(async (request) => {
@@ -190,9 +109,9 @@ Deno.serve(async (request) => {
 
   try {
     const body = await request.json();
-    if (body?.action === 'overdue-sweep') {
-      const queued = await queueOverdueNotifications();
-      return Response.json({ queued });
+    if (body?.action === 'retry-failed') {
+      const retried = await retryFailedNotifications();
+      return Response.json({ retried });
     }
     const id = body?.record?.id ?? body?.id;
     if (typeof id !== 'string') return Response.json({ error: 'Delivery id is required.' }, { status: 400 });

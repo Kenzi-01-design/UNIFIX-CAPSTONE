@@ -101,7 +101,6 @@ returns table (id text, title text, location text, status text, similarity real)
 language plpgsql
 security definer
 set search_path = public, extensions
-set pg_trgm.similarity_threshold = '0.2'
 as $$
 declare
   request_key text;
@@ -130,7 +129,6 @@ begin
     and lower(r.location) = lower(btrim(p_location))
     and r.duplicate_of is null
     and r.status not in ('closed', 'resolved', 'action-taken')
-    and lower(r.title) % lower(btrim(p_title))
     and similarity(lower(r.title), lower(btrim(p_title))) >= 0.20
   order by 5 desc, r.created_at desc
   limit 5;

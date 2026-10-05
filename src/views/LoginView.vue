@@ -98,6 +98,11 @@
         Sign In to UNIFIX
       </button>
 
+      <p class="login-register-link">
+        Need an account?
+        <button type="button" @click="$emit('register')">Submit a registration request</button>
+      </p>
+
       <p style="margin-top: 20px; font-size: 12px; color: var(--text-3); text-align: center;">
         Need technical assistance? Contact
         <strong style="color: var(--text-2)">ict@nvsu.edu.ph</strong>
@@ -116,7 +121,7 @@ import { isDemoMode, isSupabaseConfigured } from '../lib/supabase.js';
 import UiIcon from '../components/UiIcon.vue';
 
 defineProps({ showBack: Boolean });
-const emit = defineEmits(['logged-in', 'back']);
+const emit = defineEmits(['logged-in', 'back', 'register']);
 
 const { login, loadSettings, sendPasswordReset, activeUserName } = useAuth();
 const { technicians } = useReports();
@@ -184,4 +189,6 @@ async function handlePasswordReset() {
 <style scoped>
 .login-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; margin-bottom: 24px; padding: 0; border: 0; background: transparent; color: var(--primary); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .login-back span { display: grid; place-items: center; width: 24px; height: 24px; padding-bottom: 1px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface); font-size: 16px; line-height: 1; transition: var(--transition); }.login-back:hover span { transform: translateX(-3px); background: var(--primary-bg); }
+.login-register-link { margin:16px 0 0; color:var(--text-2); text-align:center; font-size:13px; }
+.login-register-link button { padding:0; border:0; background:none; color:var(--primary); font:inherit; font-weight:700; cursor:pointer; }
 </style>

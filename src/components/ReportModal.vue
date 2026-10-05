@@ -22,11 +22,6 @@
           <span :class="['tag', report.risk]">{{ capitalize(report.risk) }}</span>
         </div>
         <div class="modal-row">
-          <strong>Priority / deadline:</strong>
-          <span :class="['tag', `priority-${report.priority || 'low'}`]">{{ capitalize(report.priority || 'low') }}</span>
-          <SlaBadge :due-at="report.dueAt" :completed="['closed', 'resolved'].includes(report.status)" />
-        </div>
-        <div class="modal-row">
           <strong>Assigned Tech:</strong> 
           <span>{{ report.assignedTo || 'Unassigned' }}</span>
         </div>
@@ -61,8 +56,6 @@
             <span>Attached photo</span>
           </div>
         </div>
-
-        <AuditLogPanel v-if="['Admin', 'Assistant', 'Personnel'].includes(currentRole)" entity-type="report" :entity-id="report.id" />
 
         <section v-if="isOwnCompletedReport" class="report-feedback">
           <strong>Rate this completed work</strong>
@@ -161,8 +154,6 @@ import { computed, ref, watch } from 'vue';
 import { resolvePhotoUrl } from '../lib/photos.js';
 import { useReportFeedback } from '../composables/useReportFeedback.js';
 import { useReports } from '../composables/useReports.js';
-import AuditLogPanel from './AuditLogPanel.vue';
-import SlaBadge from './SlaBadge.vue';
 
 const props = defineProps({
   isOpen: {

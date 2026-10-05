@@ -12,7 +12,14 @@
         <div class="stat-delta up">↑ Active tracking</div>
       </div>
 
-      <div class="stat-card orange" @click="$emit('navigate', 'admin')">
+      <div
+        class="stat-card orange"
+        role="button"
+        tabindex="0"
+        @click="$emit('open-requests')"
+        @keydown.enter.prevent="$emit('open-requests')"
+        @keydown.space.prevent="$emit('open-requests')"
+      >
         <div class="stat-header">
           <span class="stat-label">Total Requests</span>
           <div class="stat-icon"><UiIcon name="request" /></div>
@@ -39,7 +46,14 @@
         <div class="stat-delta up">{{ resolvedPercentage }}% closed</div>
       </div>
 
-      <div class="stat-card green" @click="$emit('navigate', 'admin')">
+      <div
+        class="stat-card green"
+        role="button"
+        tabindex="0"
+        @click="$emit('open-requests', 'closed')"
+        @keydown.enter.prevent="$emit('open-requests', 'closed')"
+        @keydown.space.prevent="$emit('open-requests', 'closed')"
+      >
         <div class="stat-header">
           <span class="stat-label">Resolved Requests</span>
           <div class="stat-icon"><UiIcon name="request" /></div>
@@ -118,7 +132,7 @@
           <div
             v-for="report in recentReports"
             :key="report.id"
-            :class="['report-row', { overdue: isOverdue(report.dueAt) && !isClosed(report.status) }]"
+            class="report-row"
             @click="$emit('open-report', report.id)"
           >
             <div class="report-cat-icon" :style="{ background: report.catBg || '#f0f0f0' }">
@@ -127,15 +141,14 @@
             <div class="report-info">
               <div class="title">{{ report.title }}</div>
               <div class="meta">{{ report.loc }}</div>
-              <SlaBadge :due-at="report.dueAt" :completed="isClosed(report.status)" />
             </div>
             <span :class="['tag', report.status]">{{ formatStatus(report.status) }}</span>
           </div>
           <div
             v-for="request in recentRequests"
             :key="`request-${request.id}`"
-            :class="['report-row', { overdue: isOverdue(request.dueAt) && request.techState !== 'completed' }]"
-            @click="$emit('navigate', 'admin')"
+            class="report-row"
+            @click="$emit('open-requests')"
           >
             <div class="report-cat-icon" style="background: var(--primary-bg)">
               <UiIcon name="request" />
@@ -143,7 +156,6 @@
             <div class="report-info">
               <div class="title">{{ request.title }}</div>
               <div class="meta">{{ request.id }} · {{ request.dept }}</div>
-              <SlaBadge :due-at="request.dueAt" :completed="isClosed(request.status)" />
             </div>
             <span :class="['tag', request.status]">{{ formatStatus(request.status) }}</span>
           </div>
@@ -208,9 +220,7 @@ import { useReports } from '../composables/useReports.js';
 import { useRequests } from '../composables/useRequests.js';
 import { useAuth } from '../composables/useAuth.js';
 import UiIcon from '../components/UiIcon.vue';
-import SlaBadge from '../components/SlaBadge.vue';
 const AnalyticsDashboard = defineAsyncComponent(() => import('../components/AnalyticsDashboard.vue'));
-import { isOverdue } from '../lib/sla.js';
 
 const props = defineProps({
   currentRole: {
@@ -219,7 +229,7 @@ const props = defineProps({
   }
 });
 
-defineEmits(['navigate', 'open-report', 'filter-reports']);
+defineEmits(['navigate', 'open-report', 'filter-reports', 'open-requests']);
 
 const { reports, technicians, isAssignedTo } = useReports();
 const { requests, isAssignedTo: isRequestAssignedTo } = useRequests();
@@ -262,10 +272,6 @@ const pendingCount = computed(() => reports.value.filter(r => r.status === 'pend
 const resolvedCount = computed(() => reports.value.filter((report) => isClosed(report.status)).length);
 const resolvedRequestCount = computed(() => requests.value.filter((request) => isClosed(request.status)).length);
 const urgentCount = computed(() => reports.value.filter(r => r.status === 'urgent').length);
-const overdueCount = computed(() => [
-  ...reports.value.filter((report) => !isClosed(report.status)),
-  ...requests.value.filter((request) => !isClosed(request.status))
-].filter((item) => isOverdue(item.dueAt)).length);
 const inProgressCount = computed(() => reports.value.filter(r => r.status === 'in-progress').length);
 
 const resolvedPercentage = computed(() => {
@@ -273,12 +279,8 @@ const resolvedPercentage = computed(() => {
   return Math.round((resolvedCount.value / totalCount.value) * 100);
 });
 
-const recentReports = computed(() => [...reports.value]
-  .sort((a, b) => Number(!isClosed(b.status) && isOverdue(b.dueAt)) - Number(!isClosed(a.status) && isOverdue(a.dueAt)))
-  .slice(0, 5));
-const recentRequests = computed(() => [...requests.value]
-  .sort((a, b) => Number(!isClosed(b.status) && isOverdue(b.dueAt)) - Number(!isClosed(a.status) && isOverdue(a.dueAt)))
-  .slice(0, 5));
+const recentReports = computed(() => [...reports.value].slice(0, 5));
+const recentRequests = computed(() => [...requests.value].slice(0, 5));
 
 const categoriesTracked = [
   { name: 'Electrical', label: 'Elec' },

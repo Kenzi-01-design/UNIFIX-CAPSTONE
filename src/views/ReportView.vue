@@ -50,7 +50,7 @@
         <div
           v-for="r in filteredReports"
           :key="r.id"
-          :class="['report-card', r.risk, { overdue: !['closed', 'resolved'].includes(r.status) && isOverdue(r.dueAt) }]"
+          :class="['report-card', r.risk]"
           @click="$emit('open-report', r.id)"
         >
           <div class="rc-top">
@@ -70,10 +70,6 @@
 
           <div class="rc-title">{{ r.title }}</div>
           <div class="rc-location"><UiIcon name="location" :size="15" /> {{ r.loc }}</div>
-          <div class="sla-row">
-            <span :class="['tag', `priority-${r.priority || 'low'}`]">{{ capitalize(r.priority || 'low') }} priority</span>
-            <SlaBadge :due-at="r.dueAt" :completed="['closed', 'resolved'].includes(r.status)" />
-          </div>
 
           <div class="rc-footer">
             <span class="rc-reporter">
@@ -98,8 +94,6 @@ import { ref, computed, watch } from 'vue';
 import { useReports } from '../composables/useReports.js';
 import { useAuth } from '../composables/useAuth.js';
 import UiIcon from '../components/UiIcon.vue';
-import SlaBadge from '../components/SlaBadge.vue';
-import { isOverdue } from '../lib/sla.js';
 
 const props = defineProps({
   initialFilter: {
@@ -117,7 +111,7 @@ const searchQuery = ref(props.initialFilter.search || '');
 const filterCategory = ref(props.initialFilter.category || '');
 const filterStatus = ref(props.initialFilter.status || '');
 const filterDate = ref(props.initialFilter.date || '');
-const scopeFilter = ref(['Admin', 'Assistant'].includes(currentRole.value) ? 'all' : 'my');
+const scopeFilter = ref(['Admin', 'Assistant', 'Personnel'].includes(currentRole.value) ? 'all' : 'my');
 
 function isCurrentUsersReport(report) {
   if (report.reporterEmail && activeUserEmail.value) {
@@ -190,7 +184,7 @@ const filteredReports = computed(() => {
     if (!matchesDate(r.date)) return false;
 
     return true;
-  }).sort((a, b) => Number(!['closed', 'resolved'].includes(b.status) && isOverdue(b.dueAt)) - Number(!['closed', 'resolved'].includes(a.status) && isOverdue(a.dueAt)));
+  }).sort((a, b) => new Date(b.updatedAt || b.date || 0) - new Date(a.updatedAt || a.date || 0));
 });
 
 function formatStatus(status) {
@@ -205,6 +199,4 @@ function capitalize(str) {
 </script>
 
 <style scoped>
-.sla-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
-.report-card.overdue { border-left: 4px solid var(--red); }
 </style>

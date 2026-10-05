@@ -18,6 +18,8 @@ describe('role access', () => {
     }
     expect(canAccessView('Admin', 'user-management')).toBe(true);
     expect(canAccessView('Admin', 'evaluation-results')).toBe(true);
+    expect(canAccessView('Admin', 'requests')).toBe(true);
+    expect(canAccessView('Assistant', 'requests')).toBe(false);
   });
 
   it('limits employee, assistant, and personnel to their intended screens', () => {
@@ -26,6 +28,8 @@ describe('role access', () => {
     expect(canAccessView('Assistant', 'admin')).toBe(true);
     expect(canAccessView('Assistant', 'settings')).toBe(true);
     expect(canAccessView('Personnel', 'tasks')).toBe(true);
+    expect(canAccessView('Personnel', 'reports')).toBe(true);
+    expect(canAccessView('Personnel', 'requests')).toBe(true);
     expect(canAccessView('Personnel', 'submit')).toBe(false);
   });
 });

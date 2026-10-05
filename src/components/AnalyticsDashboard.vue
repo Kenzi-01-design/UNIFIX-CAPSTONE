@@ -52,15 +52,6 @@
           </div>
         </article>
         <article class="analytics-chart-card">
-          <h3>Priority distribution</h3>
-          <div v-if="!data.priorities.length" class="analytics-chart-empty">No records in this range.</div>
-          <div v-for="item in bars(data.priorities)" :key="item.name" class="analytics-bar-row">
-            <span>{{ item.name || 'Unspecified' }}</span>
-            <div class="analytics-bar-track priority"><i :style="{ width: `${item.percent}%` }"></i></div>
-            <b>{{ item.count }}</b>
-          </div>
-        </article>
-        <article class="analytics-chart-card">
           <h3>Top recurring locations</h3>
           <div v-if="!data.locations.length" class="analytics-chart-empty">No records in this range.</div>
           <div v-for="item in bars(data.locations)" :key="item.name" class="analytics-bar-row">
@@ -93,7 +84,7 @@
           </div>
         </article>
       </div>
-      <p class="analytics-footnote">SLA compliance is based on completed work with a recorded deadline. Rework rate is the share of work items rejected at least once.</p>
+      <p class="analytics-footnote">Rework rate is the share of work items rejected at least once.</p>
     </template>
   </section>
 </template>
@@ -171,22 +162,18 @@ function localAnalytics() {
     value[isClosed(item.status) ? 'completed' : 'open'] += 1;
     assigned.set(name, value);
   }));
-  const doneWithSla = completed.filter((item) => item.dueAt && item.completedAt);
   return {
     stats: {
       total: rows.length,
       open: active.length,
-      overdue: active.filter((item) => item.dueAt && new Date(item.dueAt) < new Date()).length,
       completed: completed.length,
       avgResolutionDays: elapsed.length ? Math.round(elapsed.reduce((sum, value) => sum + value, 0) / elapsed.length * 100) / 100 : null,
-      slaCompliance: doneWithSla.length ? Math.round(doneWithSla.filter((item) => new Date(item.completedAt) <= new Date(item.dueAt)).length / doneWithSla.length * 1000) / 10 : 0,
       averageRating: feedbackRows.length ? Math.round(feedbackRows.reduce((sum, item) => sum + Number(item.rating), 0) / feedbackRows.length * 100) / 100 : null,
       reworkRate: rows.length ? Math.round(rows.filter((item) => Number(item.reworkCount) > 0).length / rows.length * 1000) / 10 : 0
     },
     categories: countBy('category'),
     locations: countBy('location').slice(0, 10),
     trend,
-    priorities: countBy('priority'),
     personnel: [...assigned.values()].sort((a, b) => b.open - a.open)
   };
 }
@@ -239,10 +226,8 @@ const kpis = computed(() => {
   return [
     { label: 'Total work items', value: stats.total ?? 0, tone: 'blue' },
     { label: 'Open', value: stats.open ?? 0, tone: 'orange' },
-    { label: 'Overdue', value: stats.overdue ?? 0, tone: 'red' },
     { label: 'Completed in period', value: stats.completed ?? 0, tone: 'green' },
     { label: 'Avg. resolution', value: stats.avgResolutionDays == null ? '—' : `${stats.avgResolutionDays} d`, tone: 'blue' },
-    { label: 'SLA compliance', value: `${stats.slaCompliance ?? 0}%`, tone: 'green' },
     { label: 'Average rating', value: stats.averageRating == null ? '—' : `${stats.averageRating} / 5`, tone: 'orange' },
     { label: 'Rework rate', value: `${stats.reworkRate ?? 0}%`, tone: 'red' }
   ];
@@ -271,9 +256,6 @@ function exportCsv() {
     ['Category', 'Count'],
     ...(data.value.categories || []).map((item) => [item.name, item.count]),
     [],
-    ['Priority', 'Count'],
-    ...(data.value.priorities || []).map((item) => [item.name, item.count]),
-    [],
     ['Location', 'Count'],
     ...(data.value.locations || []).map((item) => [item.name, item.count]),
     [],
@@ -296,7 +278,6 @@ function printSummary() {
   printWindow.opener = null;
   const kpiRows = kpis.value.map((item) => `<tr><th>${escapeHtml(item.label)}</th><td>${escapeHtml(item.value)}</td></tr>`).join('');
   const categoryRows = (data.value.categories || []).map((item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.count)}</td></tr>`).join('');
-  const priorityRows = (data.value.priorities || []).map((item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.count)}</td></tr>`).join('');
   const locationRows = (data.value.locations || []).map((item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.count)}</td></tr>`).join('');
   const trendRows = (data.value.trend || []).map((item) => `<tr><td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.count)}</td></tr>`).join('');
   const personnelRows = (data.value.personnel || []).map((item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.open)}</td><td>${escapeHtml(item.completed)}</td></tr>`).join('');
@@ -309,7 +290,6 @@ function printSummary() {
     <p>${escapeHtml(fromDate.value)} to ${escapeHtml(toDate.value)}${category.value ? ` · ${escapeHtml(category.value)}` : ' · All categories'}</p>
     <h2>Key performance indicators</h2><table>${kpiRows}</table>
     <h2>Reports by category</h2><table><tr><th>Category</th><th>Count</th></tr>${categoryRows}</table>
-    <h2>Priority distribution</h2><table><tr><th>Priority</th><th>Count</th></tr>${priorityRows}</table>
     <h2>Top recurring locations</h2><table><tr><th>Location</th><th>Count</th></tr>${locationRows}</table>
     <h2>Submission trend</h2><table><tr><th>Date</th><th>Submissions</th></tr>${trendRows}</table>
     <h2>Personnel workload</h2><table><tr><th>Personnel</th><th>Open</th><th>Completed</th></tr>${personnelRows}</table>
@@ -341,7 +321,6 @@ onMounted(() => { void loadAnalytics(); });
 .analytics-bar-row>span { overflow:hidden; color:var(--text-2); text-overflow:ellipsis; white-space:nowrap; }
 .analytics-bar-row>b { text-align:right; }.analytics-bar-track,.analytics-workload-track { height:9px; overflow:hidden; border-radius:10px; background:var(--surface-3); }
 .analytics-bar-track i,.analytics-workload-track i { display:block; height:100%; border-radius:inherit; background:var(--primary-light); }
-.analytics-bar-track.priority i { background:var(--accent-light); }
 .analytics-trend { display:flex; height:128px; align-items:flex-end; gap:3px; padding:8px 0; border-bottom:1px solid var(--border); }
 .analytics-trend>div { display:flex; height:100%; min-width:3px; flex:1; align-items:flex-end; }
 .analytics-trend i { display:block; width:100%; min-height:3px; border-radius:3px 3px 0 0; background:var(--primary-light); }

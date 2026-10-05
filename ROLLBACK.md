@@ -67,7 +67,7 @@ If a production issue is caused by environment or host config:
 - [ ] Verify public report flow works
 - [ ] Verify login and role routes work
 - [ ] Verify notifications still fire correctly
-- [ ] Verify audit history and SLA logic remain consistent
+- [ ] Verify report/request workflows and analytics remain consistent
 - [ ] Check if any partial or duplicate records were created during the incident
 - [ ] Communicate the rollback to stakeholders and note the impacted window
 

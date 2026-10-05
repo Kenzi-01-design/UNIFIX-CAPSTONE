@@ -2,10 +2,7 @@ import { ref } from 'vue';
 import { useNotifications } from './useNotifications.js';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { createDemoTrackingCode } from '../lib/tracking.js';
-import { calculateDueAt } from '../lib/sla.js';
 import { removeUploadedPhotos, uploadPhotoFiles } from '../lib/photos.js';
-import { useSlaSettings } from './useSlaSettings.js';
-import { recordDemoAudit } from './useAuditLog.js';
 import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork } from '../lib/workflow.js';
 import { validateRequestInput } from '../lib/validation.js';
 
@@ -72,11 +69,23 @@ function loadPersistedRequests() {
 const requests = ref(loadPersistedRequests());
 let requestsChannel = null;
 let requestsLoadGeneration = 0;
+let requestsSubscriptionWanted = false;
+let requestsRetryTimer = null;
+let requestsRetryAttempt = 0;
 
 function stopRequestsSubscription() {
+  requestsSubscriptionWanted = false;
+  requestsRetryAttempt = 0;
+  if (requestsRetryTimer) {
+    clearTimeout(requestsRetryTimer);
+    requestsRetryTimer = null;
+  }
   if (requestsChannel) {
-    void supabase.removeChannel(requestsChannel);
+    const channel = requestsChannel;
     requestsChannel = null;
+    void supabase.removeChannel(channel).catch((error) => {
+      console.error('Could not stop the requests realtime subscription.', error);
+    });
   }
 }
 
@@ -102,7 +111,6 @@ function toDatabaseRequest(request) {
     requester: request.requester,
     requester_email: request.requesterEmail || null,
     risk: request.risk || 'low',
-    priority: request.priority || 'low',
     status: request.status,
     admin_response: request.adminResponse || null,
     admin_remark: request.adminRemark || null,
@@ -128,9 +136,12 @@ function syncRequest(request, allowInsert = false) {
   const payload = toDatabaseRequest(request);
   const query = allowInsert
     ? supabase.from('requests').insert(payload).select('*').single()
-    : supabase.from('requests').update(payload).eq('id', request.id);
+    : supabase.from('requests').update(payload).eq('id', request.id).select('id').maybeSingle();
   return query.then(({ data, error }) => {
     if (error) throw error;
+    if (!allowInsert && !data) {
+      throw new Error('The request was not updated. Check that your account can manage this request.');
+    }
     return data;
   });
 }
@@ -164,8 +175,6 @@ async function loadRequestsFromSupabase() {
       requester: request.requester,
       requesterEmail: request.requester_email || '',
       risk: request.risk || 'low',
-      priority: request.priority || 'low',
-      dueAt: request.due_at || '',
       updatedAt: request.updated_at || request.created_at,
       reviewedAt: request.reviewed_at || '',
       assignedAt: request.assigned_at || '',
@@ -194,9 +203,20 @@ async function loadRequestsFromSupabase() {
     }));
 }
 
+function scheduleRequestsRetry() {
+  if (!requestsSubscriptionWanted || requestsRetryTimer) return;
+  const delay = Math.min(1000 * (2 ** requestsRetryAttempt), 30_000);
+  requestsRetryAttempt += 1;
+  requestsRetryTimer = setTimeout(() => {
+    requestsRetryTimer = null;
+    subscribeToRequests();
+  }, delay);
+}
+
 function subscribeToRequests() {
+  requestsSubscriptionWanted = true;
   if (!isSupabaseConfigured || requestsChannel) return;
-  requestsChannel = supabase
+  const channel = supabase
     .channel('requests-live-updates')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, () => {
       void loadRequestsFromSupabase().catch((error) => {
@@ -205,15 +225,21 @@ function subscribeToRequests() {
     })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
+        requestsRetryAttempt = 0;
         void loadRequestsFromSupabase().catch((error) => {
           console.error('Could not load requests after subscribing to updates.', error);
         });
       }
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        console.warn(`Requests realtime channel status: ${status}`);
-        requestsChannel = null;
+      if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) {
+        console.error(`Requests realtime subscription lost: ${status}. Reconnecting.`);
+        if (requestsChannel === channel) requestsChannel = null;
+        void supabase.removeChannel(channel).catch((error) => {
+          console.error('Could not remove the failed requests realtime channel.', error);
+        });
+        scheduleRequestsRetry();
       }
     });
+  requestsChannel = channel;
 }
 
 void loadRequestsFromSupabase().catch((error) => {
@@ -221,7 +247,6 @@ void loadRequestsFromSupabase().catch((error) => {
 });
 
 export function useRequests() {
-  const { settings: slaSettings } = useSlaSettings();
   const { pushDemoNotification, pushTechAssignmentNotification } = useNotifications();
   function notifyDemoRequester(request, eventType, title, message) {
     if (isSupabaseConfigured || !request.requester) return;
@@ -250,7 +275,6 @@ export function useRequests() {
       trackingCode: createDemoTrackingCode(),
       ...reqData,
       risk: reqData.risk || 'low',
-      priority: reqData.priority || 'low',
       status: 'submitted',
       adminResponse: '',
       adminRemark: '',
@@ -272,7 +296,6 @@ export function useRequests() {
         year: 'numeric'
       })
     };
-    newReq.dueAt = calculateDueAt(newReq.priority, slaSettings.value);
     if (photoFiles.length) {
       newReq.photoAttachments = await uploadPhotoFiles(photoFiles, {
         entityType: 'requests',
@@ -282,12 +305,6 @@ export function useRequests() {
     }
     requests.value.unshift(newReq);
     saveRequests();
-    recordDemoAudit({
-      entityType: 'request',
-      entityId: newReq.id,
-      action: 'created',
-      newValue: { status: newReq.status, priority: newReq.priority }
-    });
     if (!isSupabaseConfigured) {
       ['Admin', 'Assistant'].forEach((role) => pushDemoNotification(role, role === 'Admin' ? 'Admin User' : 'Admin Assistant', {
         eventType: 'work_received',
@@ -303,7 +320,6 @@ export function useRequests() {
       const saved = await syncRequest(newReq, true);
       Object.assign(newReq, {
         trackingCode: saved.tracking_code,
-        dueAt: saved.due_at,
         updatedAt: saved.updated_at
       });
       saveRequests();
@@ -326,10 +342,12 @@ export function useRequests() {
 
     const previousStatus = req.status;
     const previousCompletedAt = req.completedAt;
+    const previousVerifiedAt = req.verifiedAt;
     const previousAdminResponse = req.adminResponse;
     const previousActionDate = req.actionDate;
     req.status = 'closed';
     req.completedAt = new Date().toISOString();
+    req.verifiedAt = null;
     req.adminResponse = responseNote || 'Action taken by Campus Administration.';
     req.actionDate = new Date().toLocaleDateString('en-US', {
       month: 'short',
@@ -339,17 +357,13 @@ export function useRequests() {
     saveRequests();
     try {
       await syncRequest(req);
-      recordDemoAudit({
-        entityType: 'request',
-        entityId: req.id,
-        action: 'status_changed',
-        oldValue: { status: previousStatus },
-        newValue: { status: 'closed' }
-      });
+      req.verifiedAt = req.verifiedAt || new Date().toISOString();
+      saveRequests();
       notifyDemoRequester(req, 'work_completed', 'Request completed', `Your request ${req.id} has been verified and closed.`);
     } catch (error) {
       req.status = previousStatus;
       req.completedAt = previousCompletedAt;
+      req.verifiedAt = previousVerifiedAt;
       req.adminResponse = previousAdminResponse;
       req.actionDate = previousActionDate;
       saveRequests();
@@ -376,13 +390,6 @@ export function useRequests() {
     try {
       await syncRequest(request);
       notifyDemoRequester(request, 'status_changed', 'Rework requested', `Your request ${request.id} was returned for further work.`);
-      recordDemoAudit({
-        entityType: 'request',
-        entityId: request.id,
-        action: 'status_changed',
-        oldValue: { status: 'for-verification' },
-        newValue: { status: 'in-progress', rejection_reason: safeReason }
-      });
       return true;
     } catch (error) {
       Object.assign(request, previous);
@@ -409,13 +416,6 @@ export function useRequests() {
     request.reopenReason = safeReason;
     request.reopenedAt = new Date().toISOString();
     request.reworkCount = (request.reworkCount || 0) + 1;
-    recordDemoAudit({
-      entityType: 'request',
-      entityId: request.id,
-      action: 'status_changed',
-      oldValue: { status: 'closed' },
-      newValue: { status: 'in-progress', reopen_reason: safeReason }
-    });
     request.techState = request.assignedPersonnel?.length ? 'assigned' : 'unassigned';
     saveRequests();
     notifyDemoRequester(request, 'status_changed', 'Request reopened', `Your request ${request.id} was reopened for further work.`);
@@ -431,33 +431,6 @@ export function useRequests() {
     request.risk = risk;
     saveRequests();
     syncRequestInBackground(request);
-    return request;
-  }
-
-  async function setRequestPriority(requestId, priority) {
-    if (!['low', 'medium', 'high', 'urgent'].includes(priority)) return null;
-    const request = requests.value.find((item) => item.id.toLowerCase() === requestId.toLowerCase());
-    if (!request) return null;
-    const previousPriority = request.priority;
-    const previousDueAt = request.dueAt;
-    request.priority = priority;
-    request.dueAt = calculateDueAt(priority, slaSettings.value);
-    saveRequests();
-    try {
-      await syncRequest(request);
-    } catch (error) {
-      request.priority = previousPriority;
-      request.dueAt = previousDueAt;
-      saveRequests();
-      throw error;
-    }
-    recordDemoAudit({
-      entityType: 'request',
-      entityId: request.id,
-      action: 'priority_changed',
-      oldValue: { priority: previousPriority },
-      newValue: { priority }
-    });
     return request;
   }
 
@@ -486,26 +459,32 @@ export function useRequests() {
     return request;
   }
 
-  function assignRequest(requestId, personnel, note = '', targetDate = '') {
+  async function assignRequest(requestId, personnel, note = '', targetDate = '') {
     const request = requests.value.find((item) => item.id.toLowerCase() === requestId.toLowerCase());
     if (!request || ['closed', 'resolved', 'action-taken', 'for-verification'].includes(request.status)) return null;
 
-    const previousAssignees = request.assignedPersonnel || [];
+    const previousAssignees = Array.isArray(request.assignedPersonnel) ? [...request.assignedPersonnel] : [];
+    const previous = {
+      assignedPersonnel: previousAssignees,
+      assignedTo: request.assignedTo,
+      techState: request.techState,
+      assignNote: request.assignNote,
+      targetDate: request.targetDate
+    };
     request.assignedPersonnel = [...new Set((Array.isArray(personnel) ? personnel : [personnel]).filter(Boolean))];
     request.assignedTo = request.assignedPersonnel.join(', ');
     request.techState = 'assigned';
     request.assignNote = note;
     request.targetDate = targetDate;
-    request.assignedPersonnel.forEach((name) => pushTechAssignmentNotification(name, request, 'assigned'));
-    recordDemoAudit({
-      entityType: 'request',
-      entityId: request.id,
-      action: 'assignment_changed',
-      oldValue: { assigned_personnel: previousAssignees },
-      newValue: { assigned_personnel: request.assignedPersonnel }
-    });
     saveRequests();
-    syncRequestInBackground(request);
+    try {
+      await syncRequest(request);
+    } catch (error) {
+      Object.assign(request, previous);
+      saveRequests();
+      throw error;
+    }
+    request.assignedPersonnel.forEach((name) => pushTechAssignmentNotification(name, request, 'assigned'));
     return request;
   }
 
@@ -513,7 +492,9 @@ export function useRequests() {
     const assigned = Array.isArray(request.assignedPersonnel)
       ? request.assignedPersonnel
       : (request.assignedTo || '').split(',').map((item) => item.trim()).filter(Boolean);
-    return assigned.includes(name);
+    return assigned.some(
+      (assignedName) => assignedName.trim().toLowerCase() === String(name || '').trim().toLowerCase()
+    );
   }
 
   async function requestAccept(requestId, currentPersonnel) {
@@ -583,13 +564,6 @@ export function useRequests() {
     saveRequests();
     try {
       await syncRequest(request);
-      recordDemoAudit({
-        entityType: 'request',
-        entityId: request.id,
-        action: 'status_changed',
-        oldValue: { status: previousStatus },
-        newValue: { status: 'for-verification' }
-      });
       notifyDemoRequester(request, 'status_changed', 'Request awaiting verification', `Personnel submitted request ${request.id} for verification.`);
       return true;
     } catch (error) {
@@ -621,7 +595,6 @@ export function useRequests() {
     rejectRequest,
     reopenOwnRequest,
     setRequestRisk,
-    setRequestPriority,
     setRequestRemark,
     setRequestFeedback,
     assignRequest,

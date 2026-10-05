@@ -255,7 +255,7 @@ Deno.serve(async (request) => {
       risk: data.risk, status: data.status, assignedTo: '', techState: data.technician_state,
       reporter: data.reporter, date: data.report_date, photo: null,
       reporterEmail: data.reporter_email,
-      trackingCode: data.tracking_code, priority: data.priority, dueAt: data.due_at,
+      trackingCode: data.tracking_code,
       photoAttachments: data.photo_attachments || []
     } }, 200, origin);
   } catch (error) {

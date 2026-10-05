@@ -205,7 +205,6 @@ async function generateDueWorkOrders() {
       cat: schedule.category,
       loc: schedule.locationLabel || 'Campus',
       reporter: 'Preventive Maintenance',
-      priority: 'medium'
     });
     do {
       schedule.nextDue = nextDueDate(schedule, schedule.nextDue);

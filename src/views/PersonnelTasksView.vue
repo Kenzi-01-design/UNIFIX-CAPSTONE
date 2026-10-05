@@ -101,11 +101,6 @@
                 </div>
                 <div class="rc-location"><UiIcon name="location" :size="15" /> {{ r.loc }}</div>
                 <PhotoGallery :attachments="r.photoAttachments || []" :title="r.title" />
-                <div class="task-deadline">
-                  <span :class="['tag', `priority-${r.priority || 'low'}`]">{{ capitalize(r.priority || 'low') }} priority</span>
-                  <SlaBadge :due-at="r.dueAt" :completed="['closed', 'resolved', 'action-taken'].includes(r.status)" />
-                </div>
-
                 <div class="rc-footer">
                   <span class="rc-reporter"><UiIcon name="reporter" :size="15" /> {{ r.reporter }}</span>
                   <span :class="['tag', r.risk]">{{ capitalize(r.risk) }}</span>
@@ -197,7 +192,6 @@ import { useAuth } from '../composables/useAuth.js';
 import { useToast } from '../composables/useToast.js';
 import UiIcon from '../components/UiIcon.vue';
 import PhotoPicker from '../components/PhotoPicker.vue';
-import SlaBadge from '../components/SlaBadge.vue';
 import PhotoGallery from '../components/PhotoGallery.vue';
 
 const { reports, techAccept, techStart, techComplete, isAssignedTo } = useReports();

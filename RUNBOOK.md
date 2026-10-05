@@ -17,15 +17,7 @@ This runbook covers the most common operational tasks for a live UNIFIX deployme
 3. Confirm the user no longer receives notifications or assignment updates.
 4. Review any still-open work items to reassign or close them.
 
-## 3. Change SLA settings
-
-1. Log in as an admin.
-2. Open the SLA configuration page.
-3. Update the target resolution time for each priority level.
-4. Confirm the existing and future work items recalculate `due_at` correctly.
-5. Check the dashboard overdue badges after the change.
-
-## 4. Reset a password
+## 3. Reset a password
 
 1. Use the Supabase Auth password reset flow.
 2. Verify the user receives the reset email from the configured provider.
@@ -60,7 +52,7 @@ This runbook covers the most common operational tasks for a live UNIFIX deployme
 - Check the frontend health endpoint.
 - Review Supabase logs for auth and database errors.
 - Review Edge Function invocations for rate-limit, timeout, and secret errors.
-- Review the app dashboard for overdue and SLA exceptions.
+- Review the app dashboard for operational errors and workflow backlogs.
 
 ## 9. Reassign or resolve an item after incident
 

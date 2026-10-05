@@ -8,6 +8,7 @@
       v-if="!isAuthenticated && publicPage === 'home'"
       @open-report="publicPage = 'report'"
       @open-login="publicPage = 'login'"
+      @open-register="publicPage = 'register'"
       @open-track="publicPage = 'track'"
       @open-evaluation="publicPage = 'evaluation'"
     />
@@ -34,10 +35,17 @@
       @report-submitted="handlePublicReportSubmitted"
     />
 
+    <RegisterView
+      v-else-if="!isAuthenticated && publicPage === 'register'"
+      @back="publicPage = 'home'"
+      @open-login="publicPage = 'login'"
+    />
+
     <LoginView
       v-else-if="!isAuthenticated"
       show-back
       @back="publicPage = 'home'"
+      @register="publicPage = 'register'"
       @logged-in="handleLoginSuccess"
     />
 
@@ -49,6 +57,7 @@
         :user-name="activeUserName"
         :current-view="currentView"
         :reports-badge-count="badgeCount"
+        :requests-badge-count="requestBadgeCount"
         @navigate="navigateTo"
         @logout="handleLogout"
       />
@@ -71,6 +80,7 @@
         @navigate="navigateTo"
         @open-report="openReportModalById"
         @filter-reports="openReportsWithFilter"
+        @open-requests="openRequestsWithFilter"
         />
 
           <SubmitReportView
@@ -102,6 +112,12 @@
             v-else-if="currentView === 'reports'"
             :initial-filter="activeReportFilter"
             @open-report="openReportModalById"
+          />
+
+          <RequestsView
+            v-else-if="currentView === 'requests' && ['Admin', 'Personnel'].includes(currentRole)"
+            :initial-status="activeRequestStatus"
+            @open-request="openRequestModalById"
           />
 
           <PersonnelTasksView
@@ -146,6 +162,11 @@
         @tech-start="handleModalTechStart"
         @tech-complete="handleModalTechComplete"
       />
+      <RequestModal
+        :is-open="isRequestModalOpen"
+        :request="selectedRequest"
+        @close="closeRequestModal"
+      />
     </div>
   </div>
 </template>
@@ -166,10 +187,12 @@ import { canAccessView } from './lib/access.js';
 import SideBar from './components/SideBar.vue';
 import Topbar from './components/TopBar.vue';
 import ReportModal from './components/ReportModal.vue';
+import RequestModal from './components/RequestModal.vue';
 import ToastContainer from './components/ToastContainer.vue';
 
 // Views
 import LoginView from './views/LoginView.vue';
+import RegisterView from './views/RegisterView.vue';
 import HomeView from './views/HomeView.vue';
 import TrackReportView from './views/TrackReportView.vue';
 import DashboardView from './views/DashboardView.vue';
@@ -179,6 +202,7 @@ import MyRequisitionsView from './views/MyRequisitionsView.vue';
 import ActivityLogView from './views/ActivityLogView.vue';
 import UserManagementView from './views/UserManagementView.vue';
 import ReportView from './views/ReportView.vue';
+import RequestsView from './views/RequestsView.vue';
 import PersonnelTasksView from './views/PersonnelTasksView.vue';
 import ProfileView from './views/ProfileView.vue';
 import SettingsView from './views/SettingsView.vue';
@@ -199,6 +223,7 @@ const {
   techComplete
 } = useReports();
 const {
+  requests,
   loadRequests,
   subscribeToRequests,
   stopRequestsSubscription,
@@ -217,8 +242,11 @@ const currentView = ref('dashboard');
 const locationPrefillId = new URLSearchParams(window.location.search).get('location') || '';
 const publicPage = ref(window.location.pathname.replace(/\/+$/, '') === '/report' ? 'report' : 'home');
 const activeReportFilter = ref({});
+const activeRequestStatus = ref('');
 const isModalOpen = ref(false);
 const selectedReportId = ref(null);
+const isRequestModalOpen = ref(false);
+const selectedRequestId = ref(null);
 
 let inactivityTimer = null;
 
@@ -230,6 +258,7 @@ const viewTitles = {
   'activity-log': 'Activity & Request History',
   'user-management': 'User Management',
   reports: 'Reports Overview',
+  requests: 'Requests Overview',
   tasks: 'My Assigned Tasks',
   admin: 'Administration Panel',
   profile: 'Profile Overview',
@@ -244,9 +273,18 @@ const badgeCount = computed(() => {
   return reports.value.filter((r) => r.status === 'urgent' || r.status === 'pending').length;
 });
 
+const requestBadgeCount = computed(() => {
+  return requests.value.filter((request) => ['submitted', 'in-progress', 'for-verification'].includes(request.status)).length;
+});
+
 const selectedReport = computed(() => {
   if (!selectedReportId.value) return null;
   return reports.value.find((r) => r.id.toLowerCase() === selectedReportId.value.toLowerCase()) || null;
+});
+
+const selectedRequest = computed(() => {
+  if (!selectedRequestId.value) return null;
+  return requests.value.find((request) => request.id.toLowerCase() === selectedRequestId.value.toLowerCase()) || null;
 });
 
 async function refreshAuthenticatedData() {
@@ -281,6 +319,8 @@ watch([isAuthenticated, currentRole, activeUserEmail], ([authenticated, role, em
   if (!authenticated) {
     isModalOpen.value = false;
     selectedReportId.value = null;
+    isRequestModalOpen.value = false;
+    selectedRequestId.value = null;
     return;
   }
   if (!canAccessView(role, currentView.value)) {
@@ -288,6 +328,8 @@ watch([isAuthenticated, currentRole, activeUserEmail], ([authenticated, role, em
     activeReportFilter.value = {};
     isModalOpen.value = false;
     selectedReportId.value = null;
+    isRequestModalOpen.value = false;
+    selectedRequestId.value = null;
   }
   void refreshAuthenticatedData();
 }, { immediate: true });
@@ -330,6 +372,19 @@ function navigateTo(view) {
   if (view !== 'reports') {
     activeReportFilter.value = {};
   }
+  if (view !== 'requests') {
+    activeRequestStatus.value = '';
+  }
+  resetInactivityTimer();
+}
+
+function openRequestsWithFilter(status = '') {
+  if (!canAccessView(currentRole.value, 'requests')) {
+    showToast('Requests are not available for your account role.', 'info');
+    return;
+  }
+  activeRequestStatus.value = status;
+  currentView.value = 'requests';
   resetInactivityTimer();
 }
 
@@ -379,6 +434,7 @@ async function handleMarkAllRead() {
 
 // Modal Handlers
 function openReportModalById(reportId) {
+  closeRequestModal();
   selectedReportId.value = reportId;
   isModalOpen.value = true;
 }
@@ -386,6 +442,17 @@ function openReportModalById(reportId) {
 function closeReportModal() {
   isModalOpen.value = false;
   selectedReportId.value = null;
+}
+
+function openRequestModalById(requestId) {
+  closeReportModal();
+  selectedRequestId.value = requestId;
+  isRequestModalOpen.value = true;
+}
+
+function closeRequestModal() {
+  isRequestModalOpen.value = false;
+  selectedRequestId.value = null;
 }
 
 function handleModalAssign(reportId) {

@@ -1,21 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { calculateDueAt, DEFAULT_SLA_SETTINGS, formatTimeRemaining, isOverdue } from './sla.js';
 import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork } from './workflow.js';
 import { validateReportInput, validateRequestInput } from './validation.js';
 import { calculateSusScore } from '../composables/useEvaluation.js';
-
-describe('SLA calculations', () => {
-  it('computes the configured urgent deadline from the supplied clock', () => {
-    const now = Date.UTC(2026, 9, 5, 0, 0);
-    expect(calculateDueAt('urgent', DEFAULT_SLA_SETTINGS, now)).toBe('2026-10-05T04:00:00.000Z');
-  });
-
-  it('identifies an overdue deadline and formats the remaining time', () => {
-    const now = Date.UTC(2026, 9, 5, 4, 0);
-    expect(isOverdue('2026-10-05T03:59:59.000Z', now)).toBe(true);
-    expect(formatTimeRemaining('2026-10-05T05:30:00.000Z', now)).toBe('1h 30m left');
-  });
-});
 
 describe('work verification transitions', () => {
   const startedAssignment = {

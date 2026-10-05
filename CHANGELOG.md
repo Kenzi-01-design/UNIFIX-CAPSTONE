@@ -1,5 +1,10 @@
 # Changelog
 
+## Current maintenance release
+
+- Removed the SLA/deadline feature, priority controls, and the administrative audit log from the application and canonical schema.
+- Added a migration to remove those database objects from existing installations while preserving report and request workflows.
+
 ## Phase 1 — Core usability
 
 - Added compressed private photo attachments, database-generated tracking codes, public tracking, configurable SLA deadlines, and report feedback.

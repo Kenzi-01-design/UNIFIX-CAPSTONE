@@ -17,14 +17,14 @@ Supabase is prepared as the database layer for reports, requests, and login even
 2. Copy `.env.example` to `.env.local`.
 3. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the project API settings.
 4. Run the complete `supabase/schema.sql` script in the Supabase SQL Editor for a new project. For an existing project, apply the additive scripts in `supabase/migrations/` in filename order. Both paths request a PostgREST schema-cache reload after the database objects are installed.
-5. Create the matching accounts in **Authentication → Users** using the emails in `user_profiles`.
+5. Users can submit registrations from the public **Create account** page. Apply `202610050017_user_registration_approval.sql`; each new Auth account then gets a pending, inactive Employee profile, which an Admin must approve and assign a role to before sign-in is enabled.
 6. Deploy the public and notification Edge Functions after setting the CAPTCHA, allowed-origin, and notification values below.
 
 ### Phase 1 capabilities
 
 - Report and request images are compressed in the browser and stored in the private `report-photos` bucket (up to three JPG/PNG/WebP images per work item, at most 5 MB each).
 - Every report and request receives a database-generated tracking code. The public tracking page reveals only milestone status, a generic assigned team label, and the last update time.
-- Administrators can set Low, Medium, High, and Urgent SLA target times. Active report and request lists show remaining or overdue time.
+- Administrators can review and assign reports and requests, and verify completed work.
 - A reporter can submit one 1–5 rating and optional comment after a report is completed. Administrators and assistants can see report average ratings.
 
 ### Public report CAPTCHA
@@ -50,7 +50,7 @@ function to be called without a user JWT; Turnstile verification is the gate.
 
 - Reports and requests now move from **In progress** to **For verification** when personnel submit completed work. Admins or assistants can verify and close the item, or reject it with a reason to return it for rework. The submitter can reopen a closed item within seven days using its tracking code; authenticated callers can also use an owner-checked reopen RPC.
 - In-app notification feeds are private to each signed-in email and update through Supabase Realtime. Notification settings separately control in-app, email, and SMS delivery.
-- Status, assignment, priority, and submission events are recorded in the append-only `audit_log`. Staff can see per-report activity; administrators can filter and export the global audit history.
+- Notification feeds are private to each signed-in email and update through Supabase Realtime. Notification settings separately control in-app, email, and SMS delivery.
 - Email uses Resend. SMS uses the optional Semaphore adapter and stays disabled in the UI unless `VITE_SMS_NOTIFICATIONS_ENABLED=true` is set in the deployed frontend and the matching provider credentials are configured in Supabase.
 
 Apply `supabase/migrations/202610050002_phase2_notifications_audit_verification.sql` to an existing project, or use the updated `supabase/schema.sql` for a fresh project. Set the server-only provider credentials (never put these in a `VITE_` variable):
@@ -71,38 +71,9 @@ In **Database → Webhooks**, create an `INSERT` webhook on `public.notification
 `NOTIFICATION_WEBHOOK_SECRET`. The Edge Function authenticates this shared-secret
 header; its JWT verification is disabled in `supabase/config.toml`.
 
-To notify administrators about overdue work, enable `pg_cron`, `pg_net`, and Vault
-for the Supabase project. In the SQL Editor, store the function URL and the same
-webhook secret in Vault, then schedule an hourly `POST` (replace the placeholders
-before running this SQL):
-
-```sql
-select vault.create_secret(
-  'https://<project-ref>.supabase.co/functions/v1/deliver-notification',
-  'unifix_notification_function_url'
-);
-select vault.create_secret('<same-random-secret>', 'unifix_notification_webhook_secret');
-
-select cron.schedule(
-  'unifix-overdue-sweep',
-  '0 * * * *',
-  $job$
-    select net.http_post(
-      url := (select decrypted_secret from vault.decrypted_secrets
-              where name = 'unifix_notification_function_url'),
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'x-notification-secret', (select decrypted_secret from vault.decrypted_secrets
-                                  where name = 'unifix_notification_webhook_secret')
-      ),
-      body := '{"action":"overdue-sweep"}'::jsonb
-    );
-  $job$
-);
-```
-
-The sweep deduplicates overdue alerts by work item, administrator, and calendar
-day. Failed email/SMS deliveries are retried on the next sweep.
+The notification delivery function supports retrying failed deliveries through
+its authenticated `retry-failed` action. Preventive-maintenance work generation
+is scheduled separately as described below.
 
 The schema migration backfills requester contact emails where a profile can be
 matched. Public report status emails are optional and sent only when the reporter
@@ -147,7 +118,7 @@ The schema creates reports, requests, login events, user profiles, and persisted
 - assigned personnel can progress only their own work orders; and
 - users can edit only their own contact details and notification preferences.
 
-The Phase 1 migration creates the private `report-photos` bucket and its storage policies, the `sla_settings` and `report_feedback` tables, tracking-code/deadline triggers, and a private rate-limit store used by `track-report`. The tracking function requires the existing `PUBLIC_APP_ORIGIN` (or `PUBLIC_APP_ORIGINS`) Supabase secret to allow the deployed frontend origin.
+The Phase 1 migration creates the private `report-photos` bucket and its storage policies, report feedback, tracking-code triggers, and a private rate-limit store used by `track-report`. For an existing project, apply all migrations in filename order, including `202610050016_remove_sla_and_audit_features.sql`.
 
 Create the matching Supabase Auth users before signing in. Profile records use the same email address as the Auth user; roles are never accepted from the browser in production.
 
@@ -160,7 +131,7 @@ The database policies require Supabase Auth and match authenticated email addres
 - The app is installable as a PWA, caches its application shell after the first online visit, and shows an offline fallback. Public report drafts (including compressed photo files) can be saved in IndexedDB on the device. Drafts are restored on reconnect but are **not silently submitted**: users must review the content, reconnect, and complete Turnstile verification before sending.
 - Anonymous SUS and ISO/IEC 25010 evaluation is available from the public home page and signed-in navigation. The survey stores only ratings and a respondent-selected role. No name, email, or account identifier is saved. Public writes go through a size-limited, origin-checked Edge Function with database-backed rate limiting; the Admin results page returns aggregates only.
 - Personnel report reads are restricted to reports assigned to them or reports they personally submitted. New evaluation responses have RLS enabled and cannot be read directly by any client role.
-- Vitest covers SLA calculation and report/request verification transitions. The pgTAP RLS suite is in `supabase/tests/phase4_rls.test.sql`. Run `pnpm test` for unit tests and `pnpm test:rls` against a local/staging Supabase instance.
+- Vitest covers report/request verification transitions. The pgTAP RLS suite is in `supabase/tests/phase4_rls.test.sql`. Run `pnpm test` for unit tests and `pnpm test:rls` against a local/staging Supabase instance.
 - `pnpm security:check` scans the built frontend bundle for a service-role environment reference or JWT. `vercel.json`, `public/_headers`, and `public/_redirects` configure deployment security headers and SPA routing.
 - Deployment steps are in [DEPLOYMENT.md](DEPLOYMENT.md). Role-specific instructions are indexed in [USER_MANUAL.md](USER_MANUAL.md), and release notes are in [CHANGELOG.md](CHANGELOG.md).
 
@@ -178,7 +149,7 @@ The security bundle scan requires a completed production build. The RLS test
 requires the Supabase CLI and a disposable local or staging database. Apply
 `supabase/migrations/202610050004_phase4_evaluation_security.sql` after the
 Phase 1–3 migrations, or use the complete `supabase/schema.sql` for a new
-project. Deploy `submit-evaluation` as described in [DEPLOYMENT.md](DEPLOYMENT.md).
+project. Deploy `swift-worker` as described in [DEPLOYMENT.md](DEPLOYMENT.md).
 Apply all numbered migrations through `202610050010` in sequence on an existing
 project.
 
@@ -211,8 +182,8 @@ provider setup is covered in the Phase 1/2 sections and deployment guide.
 | Assign personnel / manage users and roles | No | No | No | No | Yes |
 | Update assigned work progress | No | No | No | Assigned work only | Yes |
 | Verify completed work | No | No | Yes | No | Yes |
-| Configure SLAs, locations, and maintenance schedules | No | No | No | No | Yes |
-| View analytics and global audit | No | No | Analytics | No | Yes |
+| Configure locations and maintenance schedules | No | No | No | No | Yes |
+| View analytics | No | No | Analytics | No | Yes |
 | View evaluation aggregates | No | No | No | No | Yes |
 | Submit optional anonymous evaluation | Yes | Yes | Yes | Yes | Yes |
 
@@ -230,8 +201,6 @@ erDiagram
   REPORTS ||--o{ REPORT_DUPLICATE_VOTES : collects
   REPORTS o|--o{ REPORTS : "merged into"
   LOCATIONS o|--o{ MAINTENANCE_SCHEDULES : schedules
-  REPORTS ||--o{ AUDIT_LOG : "activity (polymorphic)"
-  REQUESTS ||--o{ AUDIT_LOG : "activity (polymorphic)"
 
   USER_PROFILES {
     text id PK
@@ -250,16 +219,12 @@ erDiagram
     text reporter_email
     text duplicate_of FK
     text status
-    text priority
-    timestamptz due_at
   }
   REQUESTS {
     text id PK
     text tracking_code UK
     text requester_email
     text status
-    text priority
-    timestamptz due_at
   }
   REPORT_FEEDBACK {
     uuid id PK
@@ -282,10 +247,6 @@ erDiagram
     uuid location_id FK
     date next_due
     text frequency
-  }
-  SLA_SETTINGS {
-    text priority PK
-    integer target_hours
   }
   NOTIFICATIONS {
     uuid id PK
@@ -313,12 +274,11 @@ erDiagram
 ```
 
 The notifications/delivery records use recipient and entity identifiers rather
-than a direct database foreign key. Audit entries are polymorphic (`entity_type`
-and `entity_id`); `user_preferences.user_email` is also an email-keyed logical
-association rather than an enforced foreign key.
+than a direct database foreign key. `user_preferences.user_email` is also an
+email-keyed logical association rather than an enforced foreign key.
 
 Run `supabase/seed-demo.sql` **only in a disposable demo project** to create
-representative overdue, open, assigned, completed, and rated work records for
+representative open, assigned, completed, and rated work records for
 the analytics dashboard. It refuses to run unless the same SQL session first
 executes `set unifix.allow_demo_seed = 'true';`. Use this explicit override only
 on a disposable project; never run the seed against production.

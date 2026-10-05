@@ -47,28 +47,6 @@
         v-if="currentRole === 'Admin'"
         type="button"
         class="admin-tab"
-        :class="{ active: activeAdminTab === 'sla' }"
-        role="tab"
-        :aria-selected="activeAdminTab === 'sla'"
-        @click="activeAdminTab = 'sla'"
-      >
-        SLA Settings
-      </button>
-      <button
-        v-if="currentRole === 'Admin'"
-        type="button"
-        class="admin-tab"
-        :class="{ active: activeAdminTab === 'audit' }"
-        role="tab"
-        :aria-selected="activeAdminTab === 'audit'"
-        @click="activeAdminTab = 'audit'"
-      >
-        Audit Log
-      </button>
-      <button
-        v-if="currentRole === 'Admin'"
-        type="button"
-        class="admin-tab"
         :class="{ active: activeAdminTab === 'duplicates' }"
         role="tab"
         :aria-selected="activeAdminTab === 'duplicates'"
@@ -106,7 +84,6 @@
                 <th>Title</th>
                 <th>Category</th>
                 <th>Location</th>
-                <th>Priority / Deadline</th>
                 <th>Rating</th>
                 <th>Risk</th>
                 <th>Status</th>
@@ -115,26 +92,11 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in orderedReports" :key="r.id" :class="{ 'sla-overdue-row': !['closed', 'resolved'].includes(r.status) && isOverdue(r.dueAt) }">
+              <tr v-for="r in orderedReports" :key="r.id">
                 <td><span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-3)">{{ r.id }}</span></td>
                 <td><span style="font-weight:600;font-size:13px">{{ truncate(r.title, 28) }}</span></td>
                 <td><UiIcon :name="r.cat" :size="16" /> {{ r.cat }}</td>
                 <td style="font-size:12px;color:var(--text-3)">{{ r.loc.split('·')[0] }}</td>
-                <td>
-                  <select
-                    v-if="currentRole === 'Admin'"
-                    class="risk-select"
-                    :value="r.priority || 'low'"
-                    @change="handleReportPriority(r.id, $event.target.value)"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                  <span v-else :class="['tag', `priority-${r.priority || 'low'}`]">{{ capitalize(r.priority || 'low') }}</span>
-                  <SlaBadge :due-at="r.dueAt" :completed="['closed', 'resolved'].includes(r.status)" />
-                </td>
                 <td>{{ formatRating(r.id) }}</td>
                 <td>
                   <select
@@ -188,7 +150,7 @@
               {{ selectedWorkItemLabel }}
             </div>
             <div class="form-group">
-              <label>Report ID</label>
+              <label>Work item ID</label>
               <input ref="assignmentIdInput" type="text" v-model="assignForm.id" placeholder="#1045 or #REQ-201" @input="syncFormWithWorkItem" />
             </div>
             <div class="form-group">
@@ -201,6 +163,9 @@
                 </span>
               </div>
               <div class="personnel-list" aria-label="Available personnel">
+                <div v-if="!technicians.length" class="assigned-personnel-empty">
+                  No active Personnel profiles are available.
+                </div>
                 <button
                   v-for="t in technicians"
                   :key="t.name"
@@ -214,7 +179,7 @@
                 </button>
               </div>
             </div>
-            <div class="form-group">
+            <div v-if="selectedReport" class="form-group">
               <label>Update Status</label>
               <select v-model="assignForm.status">
                 <option value="pending">Pending</option>
@@ -228,14 +193,14 @@
             </div>
             <div class="form-group">
               <label>Admin Instructions</label>
-              <textarea v-model="assignForm.note" placeholder="Add work instructions or priority details..." rows="3"></textarea>
+              <textarea v-model="assignForm.note" placeholder="Add work instructions..." rows="3"></textarea>
             </div>
             <div class="assign-btns">
               <button class="btn-secondary" style="flex: 1" @click="handleAutoPick">
                 Auto-Pick Next
               </button>
-              <button class="btn-primary" style="flex: 1; margin-top: 0" @click="handleAssign">
-                Assign Ticket
+              <button class="btn-primary" style="flex: 1; margin-top: 0" :disabled="assigning || !technicians.length" @click="handleAssign">
+                {{ assigning ? 'Saving assignment…' : 'Assign Ticket' }}
               </button>
             </div>
             <div class="assign-queue-wrap">
@@ -265,8 +230,6 @@
         </div>
       </div>
 
-      <SlaSettingsPanel v-if="currentRole === 'Admin' && activeAdminTab === 'sla'" />
-
       <!-- 3. Faculty Requisitions & Action Taken Panel -->
       <div v-if="activeAdminTab === 'requests'" class="panel admin-requests-panel">
         <div class="panel-header">
@@ -284,14 +247,13 @@
                 <th>Title & Details</th>
                 <th>Date</th>
                 <th>Status</th>
-                <th>Priority / Deadline</th>
                 <th>Risk</th>
                 <th v-if="currentRole === 'Admin'">Admin Remark</th>
                 <th v-if="['Admin', 'Assistant'].includes(currentRole)">Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="req in orderedRequests" :key="req.id" :class="{ 'sla-overdue-row': !['closed', 'action-taken'].includes(req.status) && isOverdue(req.dueAt) }">
+              <tr v-for="req in orderedRequests" :key="req.id">
                 <td>
                   <span style="font-family:'DM Mono',monospace; font-size:12px; color:var(--text-3)">{{ req.id }}</span>
                 </td>
@@ -304,25 +266,14 @@
                   <strong>{{ req.title }}</strong>
                   <div style="font-size: 12px; color: var(--text-2); margin-top: 4px;">{{ req.details }}</div>
                   <PhotoGallery :attachments="req.photoAttachments || []" :title="req.title" />
+                  <div v-if="currentRole === 'Admin' && req.feedback" class="request-feedback-note">
+                    <strong>Employee feedback<span v-if="req.feedbackDate"> · {{ req.feedbackDate }}</span></strong>
+                    <div>{{ req.feedback }}</div>
+                  </div>
                 </td>
                 <td style="font-size: 12px; color: var(--text-3)">{{ req.date }}</td>
                 <td>
                   <span :class="['tag', req.status]">{{ formatStatus(req.status) }}</span>
-                </td>
-                <td>
-                  <select
-                    v-if="currentRole === 'Admin'"
-                    class="risk-select"
-                    :value="req.priority || 'low'"
-                    @change="handleRequestPriority(req.id, $event.target.value)"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                  <span v-else :class="['tag', `priority-${req.priority || 'low'}`]">{{ capitalize(req.priority || 'low') }}</span>
-                  <SlaBadge :due-at="req.dueAt" :completed="['closed', 'action-taken'].includes(req.status)" />
                 </td>
                 <td>
                   <select
@@ -342,8 +293,8 @@
                   <button class="admin-action-btn assign" @click="handleRequestRemark(req.id, req.adminRemark)">Save Remark</button>
                 </td>
                 <td v-if="['Admin', 'Assistant'].includes(currentRole)" class="verification-actions">
-                  <button class="admin-action-btn assign" @click="openRequestJobOrder(req, 'print')">Print Job Order</button>
-                  <button class="admin-action-btn assign" @click="openRequestJobOrder(req, 'pdf')">Download PDF</button>
+                  <button class="admin-action-btn assign" :disabled="!isJobOrderVerified(req)" @click="openRequestJobOrder(req, 'print')">Print Job Order</button>
+                  <button class="admin-action-btn assign" :disabled="!isJobOrderVerified(req)" @click="openRequestJobOrder(req, 'pdf')">Download PDF</button>
                   <button v-if="currentRole === 'Admin' && !['closed', 'resolved', 'action-taken', 'for-verification'].includes(req.status)" class="admin-action-btn assign" @click="pickRequestForAssignment(req.id)">
                     {{ req.assignedTo ? 'Reassign' : 'Assign' }}
                   </button>
@@ -369,14 +320,6 @@
           </table>
         </div>
       </div>
-      <div v-if="activeAdminTab === 'audit' && currentRole === 'Admin'" class="panel admin-audit-panel">
-        <div class="panel-header">
-          <span class="panel-title">Global Audit Log</span>
-          <span class="panel-action">Administrative history</span>
-        </div>
-        <AuditLogPanel global />
-      </div>
-
       <section v-if="activeAdminTab === 'duplicates' && currentRole === 'Admin'" class="panel duplicate-merge-panel">
         <div class="panel-header">
           <span class="panel-title">Merge duplicate open reports</span>
@@ -430,14 +373,10 @@ import { useReports } from '../composables/useReports.js';
 import { useRequests } from '../composables/useRequests.js';
 import { useToast } from '../composables/useToast.js';
 import UiIcon from '../components/UiIcon.vue';
-import SlaBadge from '../components/SlaBadge.vue';
-import SlaSettingsPanel from '../components/SlaSettingsPanel.vue';
 import PhotoGallery from '../components/PhotoGallery.vue';
-import AuditLogPanel from '../components/AuditLogPanel.vue';
 import FacilitiesMaintenancePanel from '../components/FacilitiesMaintenancePanel.vue';
 import { useReportFeedback } from '../composables/useReportFeedback.js';
-import { isOverdue } from '../lib/sla.js';
-import { printJobOrder } from '../lib/jobOrder.js';
+import { isJobOrderVerified, printJobOrder } from '../lib/jobOrder.js';
 import { useDuplicateReports } from '../composables/useDuplicateReports.js';
 import { encodeCsv } from '../lib/csv.js';
 
@@ -445,12 +384,17 @@ const props = defineProps({
   currentRole: {
     type: String,
     default: 'Admin'
+  },
+  initialTab: {
+    type: String,
+    default: 'reports'
   }
 });
 
 const {
   reports,
   technicians,
+  loadTechnicians,
   getActiveLoad,
   findRecommendedTech,
   assignReport,
@@ -459,7 +403,6 @@ const {
   mergeDuplicateReports,
   assignNextInQueue,
   setReportRisk,
-  setReportPriority,
   setReportRemark
 } = useReports();
 const {
@@ -467,7 +410,6 @@ const {
   acknowledgeRequest,
   rejectRequest,
   setRequestRisk,
-  setRequestPriority,
   setRequestRemark,
   assignRequest
 } = useRequests();
@@ -480,9 +422,10 @@ const {
   loadDuplicateNotes
 } = useDuplicateReports();
 
-const activeAdminTab = ref('reports');
+const activeAdminTab = ref(props.initialTab);
 const assignmentPanel = ref(null);
 const assignmentIdInput = ref(null);
+const assigning = ref(false);
 const rejectionReasons = reactive({});
 const mergeParentId = ref('');
 const mergeChildId = ref('');
@@ -507,7 +450,20 @@ watch(mergeParentId, (reportId) => {
   void loadDuplicateNotes(reportId).catch(() => {});
 });
 
-onMounted(() => { void loadReportFeedback(); });
+onMounted(async () => {
+  void loadReportFeedback().catch((error) => {
+    console.error('Could not load report feedback.', error);
+  });
+  if (currentRole.value === 'Admin') {
+    try {
+      await loadTechnicians();
+    } catch (error) {
+      console.error('Could not load active maintenance personnel.', error);
+      showToast('Available personnel could not be loaded. Check profile permissions and try again.', 'error');
+    }
+  }
+  void feedbackResult;
+});
 
 async function focusAssignmentForm() {
   activeAdminTab.value = 'assignment';
@@ -532,26 +488,6 @@ function handleRequestRisk(id, risk) {
   showToast(`${id} risk marked ${capitalize(risk)}.`, 'success');
 }
 
-async function handleReportPriority(id, priority) {
-  if (currentRole.value !== 'Admin') return;
-  try {
-    const updated = await setReportPriority(id, priority);
-    if (updated) showToast(`${id} priority set to ${capitalize(priority)}.`, 'success');
-  } catch (error) {
-    showToast(error.message || `Unable to update ${id}'s priority.`, 'error');
-  }
-}
-
-async function handleRequestPriority(id, priority) {
-  if (currentRole.value !== 'Admin') return;
-  try {
-    const updated = await setRequestPriority(id, priority);
-    if (updated) showToast(`${id} priority set to ${capitalize(priority)}.`, 'success');
-  } catch (error) {
-    showToast(error.message || `Unable to update ${id}'s priority.`, 'error');
-  }
-}
-
 function formatRating(reportId) {
   if (feedbackLoadError.value) return 'Unavailable';
   if (feedbackLoading.value) return 'Loading…';
@@ -561,14 +497,8 @@ function formatRating(reportId) {
   return `${average.toFixed(1)} / 5 (${ratings.length})`;
 }
 
-const orderedReports = computed(() => [...reports.value].sort((a, b) =>
-  Number(!['closed', 'resolved'].includes(b.status) && isOverdue(b.dueAt))
-  - Number(!['closed', 'resolved'].includes(a.status) && isOverdue(a.dueAt))
-));
-const orderedRequests = computed(() => [...requests.value].sort((a, b) =>
-  Number(!['closed', 'action-taken'].includes(b.status) && isOverdue(b.dueAt))
-  - Number(!['closed', 'action-taken'].includes(a.status) && isOverdue(a.dueAt))
-));
+const orderedReports = computed(() => reports.value);
+const orderedRequests = computed(() => requests.value);
 
 function handleReportRemark(id, remark) {
   if (currentRole.value !== 'Admin') return;
@@ -652,7 +582,7 @@ function syncFormWithWorkItem() {
     const recommended = findRecommendedTech(selectedReport.value);
     assignForm.techs = Array.isArray(selectedReport.value.assignedPersonnel)
       ? [...selectedReport.value.assignedPersonnel]
-      : (selectedReport.value.assignedTo ? selectedReport.value.assignedTo.split(',').map((name) => name.trim()) : [recommended.name]);
+      : (selectedReport.value.assignedTo ? selectedReport.value.assignedTo.split(',').map((name) => name.trim()) : (recommended ? [recommended.name] : []));
     assignForm.status = selectedReport.value.status === 'pending' ? 'in-progress' : selectedReport.value.status;
     assignForm.note = selectedReport.value.assignNote || '';
     assignForm.targetDate = selectedReport.value.targetDate || '';
@@ -683,7 +613,7 @@ function removeTechnician(name) {
   assignForm.techs = assignForm.techs.filter((tech) => tech !== name);
 }
 
-function handleAssign() {
+async function handleAssign() {
   if (!assignForm.id.trim()) {
     showToast('Please specify a Report or Request ID.', 'error');
     return;
@@ -692,22 +622,39 @@ function handleAssign() {
     showToast('Add at least one personnel member.', 'error');
     return;
   }
-  const updated = selectedReport.value
-    ? assignReport(assignForm.id, assignForm.techs, assignForm.status, assignForm.note, assignForm.targetDate)
-    : assignRequest(assignForm.id, assignForm.techs, assignForm.note, assignForm.targetDate);
-  if (updated) {
-    showToast(`${updated.id} assigned to ${assignForm.techs.join(', ')} ✅`, 'success');
-  } else {
+  if (!selectedWorkItem.value) {
     showToast('Report or Request ID not found.', 'error');
+    return;
+  }
+  assigning.value = true;
+  try {
+    const updated = selectedReport.value
+      ? await assignReport(assignForm.id, assignForm.techs, assignForm.status, assignForm.note, assignForm.targetDate)
+      : await assignRequest(assignForm.id, assignForm.techs, assignForm.note, assignForm.targetDate);
+    if (updated) {
+      showToast(`${updated.id} assigned to ${assignForm.techs.join(', ')}.`, 'success');
+    } else {
+      showToast('This item cannot be assigned in its current state.', 'error');
+    }
+  } catch (error) {
+    console.error('Could not save work assignment.', error);
+    showToast(error.message || 'The assignment could not be saved. Please try again.', 'error');
+  } finally {
+    assigning.value = false;
   }
 }
 
-function handleAutoPick() {
-  const result = assignNextInQueue();
-  if (result) {
-    showToast(`${result.report.id} auto-assigned to ${result.tech.name}`, 'success');
-  } else {
-    showToast('No unassigned reports currently in queue.', 'info');
+async function handleAutoPick() {
+  try {
+    const result = await assignNextInQueue();
+    if (result) {
+      showToast(`${result.report.id} auto-assigned to ${result.tech.name}`, 'success');
+    } else {
+      showToast('No unassigned reports currently in queue.', 'info');
+    }
+  } catch (error) {
+    console.error('Could not auto-assign the next report.', error);
+    showToast(error.message || 'The report could not be auto-assigned.', 'error');
   }
 }
 
@@ -871,6 +818,8 @@ function formatDate(value) {
 </script>
 
 <style scoped>
+.request-feedback-note { margin-top: 8px; padding: 9px 11px; border-left: 3px solid var(--primary); border-radius: 5px; background: var(--surface-2); color: var(--text-2); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.request-feedback-note strong { display: block; margin-bottom: 3px; color: var(--text); }
 .assigned-personnel-list { display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; margin-bottom: 8px; }
 .admin-panel-tabs { overflow-x:auto; }
 .admin-panel-tabs .admin-tab { min-width:120px; flex:0 0 auto; }

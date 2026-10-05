@@ -6,4 +6,4 @@
 4. Use the request tracking code when contacting support. A request can be reopened by its owner within seven days of verified completion when that workflow is available.
 5. Select **System Evaluation** to optionally submit an anonymous usability and software-quality survey.
 
-Employees can read only their own requests and cannot assign work, change roles, or modify SLA settings.
+Employees can read only their own requests and cannot assign work or change roles.

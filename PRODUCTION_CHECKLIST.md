@@ -15,7 +15,7 @@ This checklist is intended for the final pre-launch review before a real Supabas
 - [ ] Production Supabase project exists in the correct region.
 - [ ] Email/password auth is enabled and configured.
 - [ ] Auth redirect/site URLs include the production host and correct callback paths.
-- [ ] RLS is enabled on all tables, including reports, requests, notifications, audit logs, evaluation responses, and SLA settings.
+- [ ] RLS is enabled on all client-accessible tables, including reports, requests, notifications, evaluation responses, locations, and maintenance schedules.
 - [ ] Final migration chain has been run in order against the production project.
 - [ ] Storage bucket `report-photos` exists as private and has appropriate policies.
 - [ ] File type and size limits match the app design.
@@ -47,11 +47,10 @@ This checklist is intended for the final pre-launch review before a real Supabas
 
 - [ ] `submit-public-report` is deployed and uses server-side CAPTCHA verification.
 - [ ] `track-report` is deployed with rate limits and restricted payload fields.
-- [ ] `submit-evaluation` is deployed and only allows eligible public/employee roles.
+- [ ] `swift-worker` is deployed and only allows eligible public/employee roles.
 - [ ] `deliver-notification` is deployed with correct secret header checks.
 - [ ] Webhooks are configured against the notification delivery table.
 - [ ] Cron or scheduled jobs are configured for:
-  - [ ] overdue sweeps
   - [ ] preventive maintenance generation
 - [ ] Scheduled jobs are idempotent and do not create duplicate records when retried.
 
@@ -60,9 +59,6 @@ This checklist is intended for the final pre-launch review before a real Supabas
 - [ ] Status transitions follow the approved state machine.
 - [ ] Rework and verification flow works from completion to verification to closed or rejected.
 - [ ] Reopen requests are limited to the seven-day window.
-- [ ] Due dates and overdue logic use Asia/Manila time correctly.
-- [ ] Completed work is not shown as overdue.
-- [ ] Audit log records status, assignment, and priority changes as append-only entries.
 - [ ] Notification preferences are respected.
 - [ ] Duplicate detection / merge logic is tested in staging.
 
@@ -73,7 +69,7 @@ This checklist is intended for the final pre-launch review before a real Supabas
 - [ ] Employee can submit service requests and view only permitted content.
 - [ ] Assistant can review work and verify/close items without admin-only controls.
 - [ ] Personnel can access assigned work but not unassigned or unrelated work.
-- [ ] Admin can manage SLA/settings and audit/analytics while restricted routes remain locked for others.
+- [ ] Admin can manage users, facilities, maintenance, and analytics while restricted routes remain locked for others.
 
 ## 8. Final sign-off
 

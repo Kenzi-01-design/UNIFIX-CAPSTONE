@@ -6,4 +6,4 @@
 4. For work awaiting verification, review the completion details before accepting or rejecting it. A rejection requires a clear reason for rework.
 5. Use **System Evaluation** to submit an optional anonymous survey.
 
-Assistants can review records and analytics, but Admin-only functions—user and role management, SLA editing, facility configuration, global audit administration, and evaluation results—are not available to this role.
+Assistants can review records and analytics, but Admin-only functions—user and role management, facility configuration, and evaluation results—are not available to this role.

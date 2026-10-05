@@ -1,11 +1,8 @@
-import { ref } from 'vue';
+import { reactive, ref } from 'vue';
 import { useNotifications } from './useNotifications.js';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { createDemoTrackingCode } from '../lib/tracking.js';
-import { calculateDueAt } from '../lib/sla.js';
 import { removeUploadedPhotos, uploadPhotoFiles } from '../lib/photos.js';
-import { useSlaSettings } from './useSlaSettings.js';
-import { recordDemoAudit } from './useAuditLog.js';
 import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork } from '../lib/workflow.js';
 import { validateReportInput } from '../lib/validation.js';
 
@@ -14,7 +11,6 @@ const STORAGE_KEY = 'unifix-reports-v2';
 const initialReports = [
   {
     id: '#1048',
-    priority: 'urgent',
     title: 'Flickering lights in Lab 204',
     cat: 'Electrical',
     catIcon: 'Electrical',
@@ -31,7 +27,6 @@ const initialReports = [
   },
   {
     id: '#1047',
-    priority: 'medium',
     title: 'Leaking pipe near restroom A',
     cat: 'Plumbing',
     catIcon: 'Plumbing',
@@ -48,7 +43,6 @@ const initialReports = [
   },
   {
     id: '#1046',
-    priority: 'low',
     title: 'Broken chair armrest in Room 112',
     cat: 'Furniture',
     catIcon: 'Furniture',
@@ -65,7 +59,6 @@ const initialReports = [
   },
   {
     id: '#1045',
-    priority: 'medium',
     title: 'AC not cooling in Faculty Office',
     cat: 'HVAC',
     catIcon: 'HVAC',
@@ -82,7 +75,6 @@ const initialReports = [
   },
   {
     id: '#1044',
-    priority: 'low',
     title: 'Projector bulb burned out',
     cat: 'Electrical',
     catIcon: 'Electrical',
@@ -99,7 +91,6 @@ const initialReports = [
   },
   {
     id: '#1043',
-    priority: 'high',
     title: 'Network switch failure in Library',
     cat: 'Network',
     catIcon: 'Network',
@@ -116,7 +107,6 @@ const initialReports = [
   },
   {
     id: '#1042',
-    priority: 'urgent',
     title: 'Flooded basement after rain',
     cat: 'Civil',
     catIcon: 'Civil',
@@ -133,7 +123,6 @@ const initialReports = [
   },
   {
     id: '#1041',
-    priority: 'medium',
     title: 'Broken door lock — Office 402',
     cat: 'Security',
     catIcon: 'Security',
@@ -150,7 +139,6 @@ const initialReports = [
   },
   {
     id: '#1040',
-    priority: 'low',
     title: 'No hot water in Dormitory A',
     cat: 'Plumbing',
     catIcon: 'Plumbing',
@@ -167,7 +155,7 @@ const initialReports = [
   }
 ];
 
-const technicians = [
+const DEMO_TECHNICIANS = [
   { name: 'Juan dela Cruz', specialty: 'Electrical' },
   { name: 'Pedro Reyes', specialty: 'Plumbing' },
   { name: 'Ana Torres', specialty: 'HVAC' },
@@ -175,6 +163,7 @@ const technicians = [
   { name: 'Liza Cruz', specialty: 'Civil' },
   { name: 'Maria Santos', specialty: 'Sanitation' }
 ];
+const technicians = reactive(DEMO_TECHNICIANS.map((technician) => ({ ...technician })));
 
 function loadPersistedReports() {
   if (isSupabaseConfigured) return [];
@@ -196,11 +185,23 @@ function loadPersistedReports() {
 const reports = ref(loadPersistedReports());
 let reportsChannel = null;
 let reportsLoadGeneration = 0;
+let reportsSubscriptionWanted = false;
+let reportsRetryTimer = null;
+let reportsRetryAttempt = 0;
 
 function stopReportsSubscription() {
+  reportsSubscriptionWanted = false;
+  reportsRetryAttempt = 0;
+  if (reportsRetryTimer) {
+    clearTimeout(reportsRetryTimer);
+    reportsRetryTimer = null;
+  }
   if (reportsChannel) {
-    void supabase.removeChannel(reportsChannel);
+    const channel = reportsChannel;
     reportsChannel = null;
+    void supabase.removeChannel(channel).catch((error) => {
+      console.error('Could not stop the reports realtime subscription.', error);
+    });
   }
 }
 
@@ -236,7 +237,6 @@ function toDatabaseReport(report) {
     category_background: report.catBg || null,
     location: report.loc,
     risk: report.risk || 'low',
-    priority: report.priority || 'low',
     status: report.status,
     assigned_to: report.assignedTo || null,
     assigned_personnel: normalizePersonnel(report),
@@ -265,9 +265,12 @@ function syncReport(report, allowInsert = false) {
   const payload = toDatabaseReport(report);
   const query = allowInsert
     ? supabase.from('reports').insert(payload).select('*').single()
-    : supabase.from('reports').update(payload).eq('id', report.id);
+    : supabase.from('reports').update(payload).eq('id', report.id).select('id').maybeSingle();
   return query.then(({ data, error }) => {
     if (error) throw error;
+    if (!allowInsert && !data) {
+      throw new Error('The report was not updated. Check that your account can manage this report.');
+    }
     return data;
   });
 }
@@ -301,8 +304,6 @@ async function loadReportsFromSupabase() {
       catBg: report.category_background,
       loc: report.location,
       risk: report.risk,
-      priority: report.priority || 'low',
-      dueAt: report.due_at || '',
       updatedAt: report.updated_at || report.created_at,
       reviewedAt: report.reviewed_at || '',
       assignedAt: report.assigned_at || '',
@@ -330,9 +331,20 @@ async function loadReportsFromSupabase() {
     }));
 }
 
+function scheduleReportsRetry() {
+  if (!reportsSubscriptionWanted || reportsRetryTimer) return;
+  const delay = Math.min(1000 * (2 ** reportsRetryAttempt), 30_000);
+  reportsRetryAttempt += 1;
+  reportsRetryTimer = setTimeout(() => {
+    reportsRetryTimer = null;
+    subscribeToReports();
+  }, delay);
+}
+
 function subscribeToReports() {
+  reportsSubscriptionWanted = true;
   if (!isSupabaseConfigured || reportsChannel) return;
-  reportsChannel = supabase
+  const channel = supabase
     .channel('reports-live-updates')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, () => {
       void loadReportsFromSupabase().catch((error) => {
@@ -341,15 +353,21 @@ function subscribeToReports() {
     })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
+        reportsRetryAttempt = 0;
         void loadReportsFromSupabase().catch((error) => {
           console.error('Could not load reports after subscribing to updates.', error);
         });
       }
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        console.warn(`Reports realtime channel status: ${status}`);
-        reportsChannel = null;
+      if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) {
+        console.error(`Reports realtime subscription lost: ${status}. Reconnecting.`);
+        if (reportsChannel === channel) reportsChannel = null;
+        void supabase.removeChannel(channel).catch((error) => {
+          console.error('Could not remove the failed reports realtime channel.', error);
+        });
+        scheduleReportsRetry();
       }
     });
+  reportsChannel = channel;
 }
 
 void loadReportsFromSupabase().catch((error) => {
@@ -368,7 +386,26 @@ export function useReports() {
       entityId: report.id
     });
   }
-  const { settings: slaSettings } = useSlaSettings();
+
+  async function loadTechnicians() {
+    if (!isSupabaseConfigured) return technicians;
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('name, department')
+      .eq('role', 'Personnel')
+      .eq('is_active', true)
+      .order('name', { ascending: true });
+    if (error) throw error;
+    technicians.splice(
+      0,
+      technicians.length,
+      ...(data || []).map((profile) => ({
+        name: profile.name,
+        specialty: profile.department || 'Maintenance'
+      }))
+    );
+    return technicians;
+  }
 
   function saveReports() {
       if (isSupabaseConfigured) return;
@@ -386,7 +423,7 @@ export function useReports() {
   }
 
   function findRecommendedTech(report) {
-    if (!report) return technicians[0];
+    if (!report || !technicians.length) return technicians[0] || null;
     const ranked = [...technicians]
       .map((tech) => {
         const specialtyMatch = report.cat
@@ -410,7 +447,6 @@ export function useReports() {
       trackingCode: createDemoTrackingCode(),
       ...newReportData,
       risk: newReportData.risk || 'low',
-      priority: newReportData.priority || 'low',
       status: 'pending',
       assignedTo: '',
       techState: 'unassigned',
@@ -421,7 +457,6 @@ export function useReports() {
         year: 'numeric'
       })
     };
-    report.dueAt = calculateDueAt(report.priority, slaSettings.value);
     if (photoFiles.length) {
       report.photoAttachments = await uploadPhotoFiles(photoFiles, {
         entityType: 'reports',
@@ -431,12 +466,6 @@ export function useReports() {
     }
     reports.value.unshift(report);
     saveReports();
-    recordDemoAudit({
-      entityType: 'report',
-      entityId: report.id,
-      action: 'created',
-      newValue: { status: report.status, priority: report.priority }
-    });
     if (!isSupabaseConfigured) {
       ['Admin', 'Assistant'].forEach((role) => pushDemoNotification(role, role === 'Admin' ? 'Admin User' : 'Admin Assistant', {
         eventType: 'work_received',
@@ -452,7 +481,6 @@ export function useReports() {
       const saved = await syncReport(report, true);
       Object.assign(report, {
         trackingCode: saved.tracking_code,
-        dueAt: saved.due_at,
         updatedAt: saved.updated_at
       });
       saveReports();
@@ -467,34 +495,6 @@ export function useReports() {
       }
       throw error;
     }
-  }
-
-  async function setReportPriority(reportId, priority) {
-    if (!['low', 'medium', 'high', 'urgent'].includes(priority)) return null;
-    const report = reports.value.find((r) => r.id.toLowerCase() === reportId.toLowerCase());
-    if (!report) return null;
-    const previousPriority = report.priority;
-    const previousDueAt = report.dueAt;
-    report.priority = priority;
-    report.dueAt = calculateDueAt(priority, slaSettings.value);
-    saveReports();
-    try {
-      await syncReport(report);
-    } catch (error) {
-      report.priority = previousPriority;
-      report.dueAt = previousDueAt;
-      saveReports();
-      throw error;
-    }
-
-    recordDemoAudit({
-      entityType: 'report',
-      entityId: report.id,
-      action: 'priority_changed',
-      oldValue: { priority: previousPriority },
-      newValue: { priority }
-    });
-    return report;
   }
 
   async function mergeDuplicateReports(parentId, childId) {
@@ -519,13 +519,6 @@ export function useReports() {
     const previousStatus = child.status;
     child.duplicateOf = parent.id;
     child.status = 'resolved';
-    recordDemoAudit({
-      entityType: 'report',
-      entityId: child.id,
-      action: 'merged_as_duplicate',
-      oldValue: { status: previousStatus },
-      newValue: { status: 'resolved', duplicate_of: parent.id }
-    });
     saveReports();
     return true;
   }
@@ -551,28 +544,34 @@ export function useReports() {
     return report;
   }
 
-  function assignReport(reportId, techNames, status = 'in-progress', note = '', targetDate = '') {
+  async function assignReport(reportId, techNames, status = 'in-progress', note = '', targetDate = '') {
     const report = reports.value.find((r) => r.id.toLowerCase() === reportId.toLowerCase());
     if (!report || ['closed', 'resolved', 'action-taken', 'for-verification'].includes(report.status)) return null;
 
     const previousAssignees = normalizePersonnel(report);
+    const previous = {
+      assignedPersonnel: [...previousAssignees],
+      assignedTo: report.assignedTo,
+      techState: report.techState,
+      status: report.status,
+      assignNote: report.assignNote,
+      targetDate: report.targetDate
+    };
     report.assignedPersonnel = [...new Set((Array.isArray(techNames) ? techNames : [techNames]).filter(Boolean))];
     syncAssignmentLabel(report);
     report.techState = 'assigned';
     report.status = status;
     report.assignNote = note;
     report.targetDate = targetDate;
-    recordDemoAudit({
-      entityType: 'report',
-      entityId: report.id,
-      action: 'assignment_changed',
-      oldValue: { assigned_personnel: previousAssignees },
-      newValue: { assigned_personnel: report.assignedPersonnel }
-    });
-
-    report.assignedPersonnel.forEach((name) => pushTechAssignmentNotification(name, report, status));
     saveReports();
-    syncReportInBackground(report);
+    try {
+      await syncReport(report);
+    } catch (error) {
+      Object.assign(report, previous);
+      saveReports();
+      throw error;
+    }
+    report.assignedPersonnel.forEach((name) => pushTechAssignmentNotification(name, report, report.status));
     return report;
   }
 
@@ -593,13 +592,6 @@ export function useReports() {
     saveReports();
     try {
       await syncReport(report);
-      recordDemoAudit({
-        entityType: 'report',
-        entityId: report.id,
-        action: 'status_changed',
-        oldValue: { status: previous.status },
-        newValue: { status: 'closed' }
-      });
       notifyDemoReporter(report, 'work_completed', 'Report completed', `Your report ${report.id} has been verified and closed.`);
       normalizePersonnel(report).forEach((name) => pushTechAssignmentNotification(name, report, 'closed'));
       return true;
@@ -627,13 +619,6 @@ export function useReports() {
     saveReports();
     try {
       await syncReport(report);
-      recordDemoAudit({
-        entityType: 'report',
-        entityId: report.id,
-        action: 'status_changed',
-        oldValue: { status: 'for-verification' },
-        newValue: { status: 'in-progress', rejection_reason: safeReason }
-      });
       notifyDemoReporter(report, 'status_changed', 'Rework requested', `Your report ${report.id} was returned for further work.`);
       return true;
     } catch (error) {
@@ -662,19 +647,12 @@ export function useReports() {
     report.reopenedAt = new Date().toISOString();
     report.reworkCount = (report.reworkCount || 0) + 1;
     report.techState = normalizePersonnel(report).length ? 'assigned' : 'unassigned';
-    recordDemoAudit({
-      entityType: 'report',
-      entityId: report.id,
-      action: 'status_changed',
-      oldValue: { status: 'closed' },
-      newValue: { status: 'in-progress', reopen_reason: safeReason }
-    });
     saveReports();
     notifyDemoReporter(report, 'status_changed', 'Report reopened', `Your report ${report.id} was reopened for further work.`);
     return true;
   }
 
-  function assignNextInQueue() {
+  async function assignNextInQueue() {
     const queue = reports.value
       .filter((r) => !r.assignedTo && !['closed', 'resolved'].includes(r.status))
       .sort((a, b) => {
@@ -689,15 +667,9 @@ export function useReports() {
 
     const top = queue[0];
     const recommended = findRecommendedTech(top);
-    top.assignedPersonnel = [recommended.name];
-    syncAssignmentLabel(top);
-    top.techState = 'assigned';
-    if (top.status === 'urgent') top.status = 'in-progress';
-
-    pushTechAssignmentNotification(recommended.name, top, top.status);
-    saveReports();
-    syncReportInBackground(top);
-    return { report: top, tech: recommended };
+    const status = top.status === 'urgent' ? 'in-progress' : top.status;
+    const report = await assignReport(top.id, [recommended.name], status, top.assignNote, top.targetDate);
+    return report ? { report, tech: recommended } : null;
   }
 
   async function techAccept(reportId, currentTechName) {
@@ -768,13 +740,6 @@ export function useReports() {
     saveReports();
     try {
       await syncReport(report);
-      recordDemoAudit({
-        entityType: 'report',
-        entityId: report.id,
-        action: 'status_changed',
-        oldValue: { status: previousStatus },
-        newValue: { status: 'for-verification' }
-      });
       notifyDemoReporter(report, 'status_changed', 'Report awaiting verification', `Personnel submitted report ${report.id} for verification.`);
       return true;
     } catch (error) {
@@ -799,16 +764,18 @@ export function useReports() {
     reports,
     technicians,
     loadReports: loadReportsFromSupabase,
+    loadTechnicians,
     subscribeToReports,
     stopReportsSubscription,
     clearReportsForAccountChange,
     getActiveLoad,
-    isAssignedTo: (report, name) => normalizePersonnel(report).includes(name),
+    isAssignedTo: (report, name) => normalizePersonnel(report).some(
+      (assignedName) => assignedName.trim().toLowerCase() === String(name || '').trim().toLowerCase()
+    ),
     findRecommendedTech,
     addReport,
     mergeDuplicateReports,
     setReportRisk,
-    setReportPriority,
     setReportRemark,
     assignReport,
     resolveReport,

@@ -58,9 +58,14 @@
         phone text not null default '',
         location text not null default 'Main Campus',
         is_active boolean not null default true,
+        registration_status text not null default 'approved'
+          check (registration_status in ('pending', 'approved', 'rejected')),
         created_at timestamptz not null default now(),
         updated_at timestamptz not null default now()
         );
+    alter table public.user_profiles
+      add column if not exists registration_status text not null default 'approved'
+      check (registration_status in ('pending', 'approved', 'rejected'));
 
     -- Per-user UI preferences belong on the server too.  Keeping these separate
     -- from the identity profile makes it safe to extend them without granting
@@ -283,7 +288,7 @@
                                 raise exception 'Requests can be acknowledged only after personnel completes the work';
                         elsif public.current_user_role() = 'Personnel' and tg_table_name = 'reports' then
                 -- Technicians can advance only work assigned to them; assignment,
-                -- report content, priority, and reporter identity remain immutable.
+                -- report content and reporter identity remain immutable.
                 if not exists (
                     select 1 from jsonb_array_elements_text(old.assigned_personnel) as assigned(name)
                     where lower(assigned.name) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
@@ -381,7 +386,8 @@
               or new.email <> old.email
               or new.role <> old.role
               or new.department <> old.department
-              or new.is_active <> old.is_active then
+              or new.is_active <> old.is_active
+              or new.registration_status <> old.registration_status then
               raise exception 'Only contact details may be updated';
             end if;
           end if;
@@ -404,15 +410,53 @@
           before update on public.user_profiles
           for each row execute function public.enforce_profile_update_scope();
 
+        create or replace function public.handle_new_user_registration()
+        returns trigger
+        language plpgsql
+        security definer
+        set search_path = public
+        as $$
+        begin
+          if new.email is not null then
+            if exists (
+              select 1
+              from public.user_profiles profile
+              where lower(profile.email) = lower(new.email)
+                and profile.id <> new.id::text
+            ) then
+              raise exception 'A university profile already exists for this email address';
+            end if;
+            insert into public.user_profiles (
+              id, name, email, role, department, phone, location, is_active, registration_status
+            ) values (
+              new.id::text,
+              left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'name'), ''), 'New User'), 120),
+              lower(new.email),
+              'Employee',
+              left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'department'), ''), ''), 160),
+              left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'phone'), ''), ''), 40),
+              left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'location'), ''), 'Main Campus'), 160),
+              false,
+              'pending'
+            )
+            on conflict (email) do nothing;
+          end if;
+          return new;
+        end;
+        $$;
+
+        revoke all on function public.handle_new_user_registration() from public, anon, authenticated;
+        drop trigger if exists on_auth_user_registered on auth.users;
+        create trigger on_auth_user_registered
+          after insert on auth.users
+          for each row execute function public.handle_new_user_registration();
+
         revoke all on function public.enforce_profile_update_scope() from public;
         grant execute on function public.enforce_profile_update_scope() to authenticated;
 
--- Phase 1 add-ons. Keep this block aligned with
--- supabase/migrations/202610050001_phase1_tracking_photos_sla_feedback.sql.
+-- Phase 1 add-ons for tracking, photos, and feedback.
 alter table public.reports
   add column if not exists tracking_code text,
-  add column if not exists priority text not null default 'low',
-  add column if not exists due_at timestamptz,
   add column if not exists updated_at timestamptz not null default now(),
   add column if not exists reviewed_at timestamptz,
   add column if not exists assigned_at timestamptz,
@@ -422,52 +466,12 @@ alter table public.reports
 
 alter table public.requests
   add column if not exists tracking_code text,
-  add column if not exists priority text not null default 'low',
-  add column if not exists due_at timestamptz,
   add column if not exists updated_at timestamptz not null default now(),
   add column if not exists reviewed_at timestamptz,
   add column if not exists assigned_at timestamptz,
   add column if not exists in_progress_at timestamptz,
   add column if not exists completed_at timestamptz,
   add column if not exists photo_attachments jsonb not null default '[]'::jsonb;
-
-do $$
-begin
-  if not exists (select 1 from pg_constraint where conname = 'reports_priority_check') then
-    alter table public.reports add constraint reports_priority_check
-      check (priority in ('low', 'medium', 'high', 'urgent'));
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'requests_priority_check') then
-    alter table public.requests add constraint requests_priority_check
-      check (priority in ('low', 'medium', 'high', 'urgent'));
-  end if;
-end $$;
-
-create table if not exists public.sla_settings (
-  priority text primary key check (priority in ('low', 'medium', 'high', 'urgent')),
-  target_hours integer not null check (target_hours > 0 and target_hours <= 8760),
-  updated_at timestamptz not null default now()
-);
-
-insert into public.sla_settings (priority, target_hours)
-values ('low', 168), ('medium', 72), ('high', 24), ('urgent', 4)
-on conflict (priority) do nothing;
-
-alter table public.sla_settings enable row level security;
-revoke all on public.sla_settings from anon, authenticated;
-grant select on public.sla_settings to authenticated;
-grant insert, update, delete on public.sla_settings to authenticated;
-
-drop policy if exists "Authenticated roles can read SLA settings" on public.sla_settings;
-create policy "Authenticated roles can read SLA settings" on public.sla_settings
-  for select to authenticated
-  using (public.current_user_role() in ('Admin', 'Assistant', 'Employee', 'Personnel', 'Student'));
-
-drop policy if exists "Admins can manage SLA settings" on public.sla_settings;
-create policy "Admins can manage SLA settings" on public.sla_settings
-  for all to authenticated
-  using (public.current_user_role() = 'Admin')
-  with check (public.current_user_role() = 'Admin');
 
 create table if not exists public.tracking_code_counters (
   tracking_year integer primary key,
@@ -488,15 +492,12 @@ security definer
 set search_path = public
 as $$
 declare
-  work_priority text;
-  target_hours integer;
   v_tracking_year integer;
   tracking_number bigint;
   work_status text;
   technician_status text;
   assignees jsonb;
 begin
-  work_priority := coalesce(new.priority, 'low');
   work_status := coalesce(new.status, '');
   technician_status := coalesce(new.technician_state, '');
   assignees := coalesce(new.assigned_personnel, '[]'::jsonb);
@@ -511,18 +512,6 @@ begin
     new.tracking_code := 'UNI-' || v_tracking_year::text || '-' || lpad(tracking_number::text, 4, '0');
   elsif new.tracking_code is distinct from old.tracking_code then
     new.tracking_code := old.tracking_code;
-  end if;
-
-  if tg_op = 'INSERT' then
-    select settings.target_hours into target_hours
-    from public.sla_settings settings
-    where settings.priority = work_priority;
-    new.due_at := now() + make_interval(hours => coalesce(target_hours, 168));
-  elsif new.priority is distinct from old.priority or new.due_at is null then
-    select settings.target_hours into target_hours
-    from public.sla_settings settings
-    where settings.priority = work_priority;
-    new.due_at := now() + make_interval(hours => coalesce(target_hours, 168));
   end if;
 
   new.updated_at := now();
@@ -572,20 +561,18 @@ create unique index if not exists requests_tracking_code_unique on public.reques
 
 update public.reports set
   tracking_code = null,
-  due_at = null,
   reviewed_at = case when status not in ('pending', 'urgent') then coalesce(reviewed_at, created_at) else reviewed_at end,
   assigned_at = case when jsonb_array_length(assigned_personnel) > 0 then coalesce(assigned_at, created_at) else assigned_at end,
   in_progress_at = case when technician_state in ('accepted', 'started') or status = 'in-progress' then coalesce(in_progress_at, created_at) else in_progress_at end,
   completed_at = case when technician_state = 'completed' or status in ('resolved', 'action-taken') then coalesce(completed_at, created_at) else completed_at end
-where tracking_code is null or due_at is null;
+where tracking_code is null;
 update public.requests set
   tracking_code = null,
-  due_at = null,
   reviewed_at = case when status not in ('submitted', '') then coalesce(reviewed_at, created_at) else reviewed_at end,
   assigned_at = case when jsonb_array_length(assigned_personnel) > 0 then coalesce(assigned_at, created_at) else assigned_at end,
   in_progress_at = case when technician_state in ('accepted', 'started') or status = 'in-progress' then coalesce(in_progress_at, created_at) else in_progress_at end,
   completed_at = case when technician_state = 'completed' or status in ('resolved', 'action-taken') then coalesce(completed_at, created_at) else completed_at end
-where tracking_code is null or due_at is null;
+where tracking_code is null;
 
 create or replace function public.enforce_role_update_scope()
 returns trigger
@@ -756,7 +743,7 @@ drop policy if exists "Users can delete their own report photos" on storage.obje
 create policy "Users can delete their own report photos" on storage.objects
   for delete to authenticated
   using (bucket_id = 'report-photos' and owner_id = auth.uid()::text);
--- Phase 2: notifications, audit history, and verified completion workflow.
+-- Phase 2: notifications and verified completion workflow.
 
 alter table public.reports
   add column if not exists reporter_email text,
@@ -844,57 +831,6 @@ create index if not exists notification_deliveries_pending_idx
 alter table public.notification_deliveries enable row level security;
 revoke all on public.notification_deliveries from public, anon, authenticated;
 grant all on public.notification_deliveries to service_role;
-
-create table if not exists public.audit_log (
-  id uuid primary key default gen_random_uuid(),
-  entity_type text not null check (entity_type in ('report', 'request')),
-  entity_id text not null,
-  action text not null,
-  actor_email text,
-  actor_role text,
-  old_value jsonb,
-  new_value jsonb,
-  created_at timestamptz not null default now()
-);
-create index if not exists audit_log_entity_created_idx
-  on public.audit_log (entity_type, entity_id, created_at);
-create index if not exists audit_log_created_idx on public.audit_log (created_at desc);
-alter table public.audit_log enable row level security;
-revoke all on public.audit_log from public, anon, authenticated;
-grant select on public.audit_log to authenticated;
-drop policy if exists "Admins can read global audit log" on public.audit_log;
-create policy "Admins can read global audit log" on public.audit_log
-  for select to authenticated using (public.current_user_role() = 'Admin');
-drop policy if exists "Users can read relevant work item audit history" on public.audit_log;
-drop policy if exists "Staff can read relevant work item audit history" on public.audit_log;
-create policy "Staff can read relevant work item audit history" on public.audit_log
-  for select to authenticated using (
-    public.current_user_role() in ('Admin', 'Assistant')
-    or (
-      public.current_user_role() = 'Personnel'
-      and (
-        (entity_type = 'report' and exists (
-          select 1 from public.reports r
-          where r.id = entity_id
-            and exists (
-              select 1 from jsonb_array_elements_text(r.assigned_personnel) assigned(name)
-              join public.user_profiles p on lower(p.name) = lower(assigned.name)
-              where lower(p.email) = lower(auth.jwt() ->> 'email')
-            )
-        ))
-        or
-        (entity_type = 'request' and exists (
-          select 1 from public.requests q
-          where q.id = entity_id
-            and exists (
-              select 1 from jsonb_array_elements_text(q.assigned_personnel) assigned(name)
-              join public.user_profiles p on lower(p.name) = lower(assigned.name)
-              where lower(p.email) = lower(auth.jwt() ->> 'email')
-            )
-        ))
-      )
-    )
-  );
 
 drop policy if exists "Assistants can verify reports" on public.reports;
 create policy "Assistants can verify reports" on public.reports
@@ -1025,62 +961,6 @@ $$;
 revoke all on function public.notify_work_item_staff(text, text, text, text, text, text)
   from public, anon, authenticated;
 
-create or replace function public.audit_work_item_changes()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if tg_op = 'INSERT' then
-    insert into public.audit_log (entity_type, entity_id, action, actor_email, actor_role, new_value)
-    values (
-      case when tg_table_name = 'reports' then 'report' else 'request' end,
-      new.id, 'created',
-      coalesce(auth.jwt() ->> 'email', case when tg_table_name = 'reports' then new.reporter_email else new.requester_email end),
-      coalesce(public.current_user_role(), case when auth.role() = 'service_role' then 'Public' else null end),
-      jsonb_build_object('status', new.status, 'priority', new.priority)
-    );
-    return new;
-  end if;
-
-  if new.status is distinct from old.status then
-    insert into public.audit_log (entity_type, entity_id, action, actor_email, actor_role, old_value, new_value)
-    values (
-      case when tg_table_name = 'reports' then 'report' else 'request' end,
-      new.id, 'status_changed',
-      coalesce(auth.jwt() ->> 'email', case when tg_table_name = 'reports' then new.reporter_email else new.requester_email end),
-      coalesce(public.current_user_role(), case when auth.role() = 'service_role' then 'Public' else null end),
-      jsonb_build_object('status', old.status), jsonb_build_object('status', new.status)
-    );
-  end if;
-  if new.assigned_personnel is distinct from old.assigned_personnel
-      or new.assigned_to is distinct from old.assigned_to then
-    insert into public.audit_log (entity_type, entity_id, action, actor_email, actor_role, old_value, new_value)
-    values (
-      case when tg_table_name = 'reports' then 'report' else 'request' end,
-      new.id, 'assignment_changed',
-      coalesce(auth.jwt() ->> 'email', case when tg_table_name = 'reports' then new.reporter_email else new.requester_email end),
-      coalesce(public.current_user_role(), case when auth.role() = 'service_role' then 'Public' else null end),
-      jsonb_build_object('assigned_count', jsonb_array_length(coalesce(old.assigned_personnel, '[]'::jsonb))),
-      jsonb_build_object('assigned_count', jsonb_array_length(coalesce(new.assigned_personnel, '[]'::jsonb)))
-    );
-  end if;
-  if new.priority is distinct from old.priority then
-    insert into public.audit_log (entity_type, entity_id, action, actor_email, actor_role, old_value, new_value)
-    values (
-      case when tg_table_name = 'reports' then 'report' else 'request' end,
-      new.id, 'priority_changed',
-      coalesce(auth.jwt() ->> 'email', case when tg_table_name = 'reports' then new.reporter_email else new.requester_email end),
-      coalesce(public.current_user_role(), case when auth.role() = 'service_role' then 'Public' else null end),
-      jsonb_build_object('priority', old.priority), jsonb_build_object('priority', new.priority)
-    );
-  end if;
-  return new;
-end;
-$$;
-revoke all on function public.audit_work_item_changes() from public, anon, authenticated;
-
 create or replace function public.notify_work_item_changes()
 returns trigger
 language plpgsql
@@ -1096,7 +976,7 @@ declare
   assignment_names jsonb;
 begin
   if tg_op = 'INSERT' then
-    item_owner_email := case when tg_table_name = 'reports' then new.reporter_email else new.requester_email end;
+    item_owner_email := coalesce(to_jsonb(new) ->> 'reporter_email', to_jsonb(new) ->> 'requester_email');
     perform public.notify_work_item_staff(
       'work_received', 'New work item received',
       'A new ' || entity_kind || ' is ready for review: ' || item_title,
@@ -1112,7 +992,7 @@ begin
     return new;
   end if;
 
-  item_owner_email := case when tg_table_name = 'reports' then new.reporter_email else new.requester_email end;
+  item_owner_email := coalesce(to_jsonb(new) ->> 'reporter_email', to_jsonb(new) ->> 'requester_email');
   if new.assigned_personnel is distinct from old.assigned_personnel
       or new.assigned_to is distinct from old.assigned_to then
     assignment_names := coalesce(new.assigned_personnel, '[]'::jsonb);
@@ -1159,12 +1039,6 @@ end;
 $$;
 revoke all on function public.notify_work_item_changes() from public, anon, authenticated;
 
-drop trigger if exists audit_reports_changes on public.reports;
-create trigger audit_reports_changes after insert or update on public.reports
-  for each row execute function public.audit_work_item_changes();
-drop trigger if exists audit_requests_changes on public.requests;
-create trigger audit_requests_changes after insert or update on public.requests
-  for each row execute function public.audit_work_item_changes();
 drop trigger if exists notify_reports_changes on public.reports;
 create trigger notify_reports_changes after insert or update on public.reports
   for each row execute function public.notify_work_item_changes();
@@ -1185,12 +1059,11 @@ declare
   close_status text;
 begin
   if tg_table_name = 'reports' then
-    owner_email := new.reporter_email;
     close_status := 'closed';
   else
-    owner_email := new.requester_email;
     close_status := 'closed';
   end if;
+  owner_email := coalesce(to_jsonb(new) ->> 'reporter_email', to_jsonb(new) ->> 'requester_email');
   start_status := old.status;
 
   if auth.role() = 'service_role' then
@@ -1245,9 +1118,8 @@ begin
     ) or new.assigned_to is distinct from old.assigned_to
       or new.assigned_personnel is distinct from old.assigned_personnel
       or new.rework_count is distinct from old.rework_count
-      or new.priority is distinct from old.priority
-      or new.reporter_email is distinct from old.reporter_email
-      or new.requester_email is distinct from old.requester_email then
+      or coalesce(to_jsonb(new) ->> 'reporter_email', to_jsonb(new) ->> 'requester_email')
+        is distinct from coalesce(to_jsonb(old) ->> 'reporter_email', to_jsonb(old) ->> 'requester_email') then
       raise exception 'Personnel may update only assigned work and its completion details';
     end if;
     if tg_table_name = 'reports' then
@@ -1586,7 +1458,6 @@ returns table (id text, title text, location text, status text, similarity real)
 language plpgsql
 security definer
 set search_path = public, extensions
-set pg_trgm.similarity_threshold = '0.2'
 as $$
 declare
   request_key text;
@@ -1615,7 +1486,6 @@ begin
     and lower(r.location) = lower(btrim(p_location))
     and r.duplicate_of is null
     and r.status not in ('closed', 'resolved', 'action-taken')
-    and lower(r.title) % lower(btrim(p_title))
     and similarity(lower(r.title), lower(btrim(p_title))) >= 0.20
   order by 5 desc, r.created_at desc
   limit 5;
@@ -1811,7 +1681,7 @@ begin
     assignees := case when schedule.default_assignee = '' then '[]'::jsonb
                       else jsonb_build_array(schedule.default_assignee) end;
     insert into public.reports (
-      id, title, description, category, location, risk, priority, status,
+      id, title, description, category, location, risk, status,
       assigned_to, assigned_personnel, technician_state, reporter, report_date
     )
     values (
@@ -1822,7 +1692,7 @@ begin
         select concat_ws(' · ', building, nullif(floor, ''), nullif(room, ''))
           from public.locations where id = schedule.location_id
       ), 'Campus'),
-      'low', 'medium', 'pending',
+      'low', 'pending',
       nullif(schedule.default_assignee, ''), assignees,
       case when schedule.default_assignee = '' then 'unassigned' else 'assigned' end,
       'Preventive Maintenance', current_date::text
@@ -1873,12 +1743,12 @@ begin
   end if;
 
   with work as (
-    select r.id, r.category, r.location, r.priority, r.status, r.due_at,
+    select r.id, r.category, r.location, r.status,
            r.created_at, r.completed_at, r.rework_count,
            case when jsonb_typeof(r.assigned_personnel) = 'array' then r.assigned_personnel else '[]'::jsonb end as assigned_personnel
       from public.reports r
     union all
-    select q.id, q.category, q.department, q.priority, q.status, q.due_at,
+    select q.id, q.category, q.department, q.status,
            q.created_at, q.completed_at, q.rework_count,
            case when jsonb_typeof(q.assigned_personnel) = 'array' then q.assigned_personnel else '[]'::jsonb end
       from public.requests q
@@ -1898,13 +1768,10 @@ begin
     'stats', jsonb_build_object(
       'total', (select count(*) from filtered),
       'open', (select count(*) from filtered where status not in ('closed', 'resolved', 'action-taken')),
-      'overdue', (select count(*) from filtered where status not in ('closed', 'resolved', 'action-taken') and due_at < now()),
       'completed', (select count(*) from work where completed_at::date between p_from_date and p_to_date
                     and (p_category is null or p_category = '' or category = p_category)),
       'avgResolutionDays', (select round(avg(extract(epoch from (completed_at - created_at)) / 86400)::numeric, 2)
                             from filtered where completed_at is not null and completed_at >= created_at),
-      'slaCompliance', coalesce((select round(100.0 * count(*) filter (where completed_at <= due_at) / nullif(count(*), 0), 1)
-                                 from filtered where completed_at is not null and due_at is not null), 0),
       'averageRating', (select round(avg(fb.rating)::numeric, 2)
                         from public.report_feedback fb join public.reports r on r.id = fb.report_id
                         where r.created_at::date between p_from_date and p_to_date
@@ -1918,8 +1785,6 @@ begin
                            from (select location, count(*) amount from filtered group by location order by amount desc limit 10) l), '[]'::jsonb),
     'trend', coalesce((select jsonb_agg(jsonb_build_object('date', trend_date, 'count', amount) order by trend_date)
                        from (select created_at::date as trend_date, count(*) amount from filtered group by created_at::date) t), '[]'::jsonb),
-    'priorities', coalesce((select jsonb_agg(jsonb_build_object('name', priority, 'count', amount) order by amount desc)
-                            from (select priority, count(*) amount from filtered group by priority) p), '[]'::jsonb),
     'personnel', coalesce((select jsonb_agg(jsonb_build_object('name', name, 'open', open_count, 'completed', completed_count) order by open_count desc)
                            from personnel), '[]'::jsonb)
   ) into result;
@@ -2007,7 +1872,6 @@ create policy "Users can create own reports" on public.reports
       limit 1
     ))
     and status = 'pending'
-    and priority = 'low'
     and risk = 'low'
     and technician_state = 'unassigned'
     and coalesce(assigned_to, '') = ''
@@ -2028,7 +1892,6 @@ create policy "Users can create own requests" on public.requests
       limit 1
     ))
     and status = 'submitted'
-    and priority = 'low'
     and risk = 'low'
     and technician_state = 'unassigned'
     and coalesce(assigned_to, '') = ''
@@ -2465,11 +2328,11 @@ begin
   if tg_table_name = 'reports'
     and user_role = 'Admin'
     and new.status = 'resolved'
-      and new.duplicate_of is distinct from old.duplicate_of
+      and (to_jsonb(new) ->> 'duplicate_of') is distinct from (to_jsonb(old) ->> 'duplicate_of')
       and old.status not in ('closed', 'resolved', 'action-taken')
       and exists (
         select 1 from public.reports parent
-        where parent.id = new.duplicate_of
+        where parent.id = (to_jsonb(new) ->> 'duplicate_of')
           and parent.status not in ('closed', 'resolved', 'action-taken')
       ) then
     allow_duplicate_status := true;
@@ -2491,10 +2354,10 @@ begin
 
   if tg_table_name = 'reports'
     and pg_trigger_depth() > 1
-    and new.duplicate_of is not null
+    and (to_jsonb(new) ->> 'duplicate_of') is not null
     and exists (
       select 1 from public.reports parent
-      where parent.id = new.duplicate_of and parent.status = new.status
+      where parent.id = (to_jsonb(new) ->> 'duplicate_of') and parent.status = new.status
     ) then
     return new;
   end if;$new$;
@@ -2591,14 +2454,10 @@ $$;
 
 create index if not exists reports_created_at_idx on public.reports (created_at desc);
 create index if not exists reports_status_created_at_idx on public.reports (status, created_at desc);
-create index if not exists reports_due_at_open_idx on public.reports (due_at)
-  where due_at is not null and status not in ('closed', 'resolved', 'action-taken');
 create index if not exists reports_assigned_to_idx on public.reports (assigned_to)
   where assigned_to is not null;
 create index if not exists requests_created_at_idx on public.requests (created_at desc);
 create index if not exists requests_status_created_at_idx on public.requests (status, created_at desc);
-create index if not exists requests_due_at_open_idx on public.requests (due_at)
-  where due_at is not null and status not in ('closed', 'resolved', 'action-taken');
 create index if not exists requests_assigned_to_idx on public.requests (assigned_to)
   where assigned_to is not null;
 create index if not exists maintenance_schedules_active_due_idx

@@ -103,6 +103,15 @@
           <span class="nav-badge">{{ reportsBadgeCount }}</span>
         </div>
         <div
+          v-if="['Admin', 'Personnel'].includes(currentRole)"
+          class="nav-item"
+          :class="{ active: currentView === 'requests' }"
+          @click="$emit('navigate', 'requests')"
+        >
+          <span class="nav-icon"><UiIcon name="requests" /></span> Requests
+          <span class="nav-badge">{{ requestsBadgeCount }}</span>
+        </div>
+        <div
           v-if="currentRole === 'Personnel'"
           class="nav-item"
           :class="{ active: currentView === 'tasks' }"
@@ -188,6 +197,10 @@ const props = defineProps({
     default: 'dashboard'
   },
   reportsBadgeCount: {
+    type: Number,
+    default: 0
+  },
+  requestsBadgeCount: {
     type: Number,
     default: 0
   }

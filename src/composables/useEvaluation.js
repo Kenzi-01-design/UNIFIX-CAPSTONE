@@ -1,4 +1,5 @@
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
+import { getEvaluationSubmissionErrorMessage } from '../lib/evaluationErrors.js';
 
 export const SUS_QUESTIONS = [
   'I think that I would like to use this system frequently.',
@@ -107,10 +108,10 @@ export function useEvaluation() {
     validateSubmission(submission);
     if (isSupabaseConfigured && !isDemoMode) {
       if (!navigator.onLine) throw new Error('Reconnect to submit the anonymous evaluation.');
-      const { data, error } = await supabase.functions.invoke('submit-evaluation', {
+      const { data, error } = await supabase.functions.invoke('swift-worker', {
         body: { ...submission, submissionKey: crypto.randomUUID() }
       });
-      if (error) throw error;
+      if (error) throw new Error(await getEvaluationSubmissionErrorMessage(error));
       if (!data?.submitted) throw new Error('The evaluation service returned an invalid response.');
       return data;
     }

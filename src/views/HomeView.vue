@@ -8,6 +8,7 @@
         <button class="hero-tab report-tab" @click="$emit('open-report')">Submit a Report <span>↗</span></button>
         <button class="hero-tab track-tab" @click="$emit('open-track')">Track a Report</button>
         <button class="hero-tab evaluation-tab" @click="$emit('open-evaluation')">Evaluate</button>
+        <button class="hero-tab login-tab" @click="$emit('open-register')">Create account</button>
         <button class="hero-tab login-tab" @click="$emit('open-login')">Login</button>
       </nav>
     </header>
@@ -39,7 +40,7 @@
 
 <script setup>
 import UiIcon from '../components/UiIcon.vue';
-defineEmits(['open-report', 'open-login', 'open-track', 'open-evaluation']);
+defineEmits(['open-report', 'open-login', 'open-track', 'open-evaluation', 'open-register']);
 </script>
 
 <style scoped>
