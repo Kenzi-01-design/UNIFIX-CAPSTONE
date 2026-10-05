@@ -25,6 +25,8 @@
         <option value="">All Status</option>
         <option value="pending">Pending</option>
         <option value="in-progress">In Progress</option>
+        <option value="for-verification">For Verification</option>
+        <option value="closed">Closed</option>
         <option value="resolved">Resolved</option>
         <option value="urgent">Urgent</option>
       </select>
@@ -48,7 +50,7 @@
         <div
           v-for="r in filteredReports"
           :key="r.id"
-          :class="['report-card', r.risk, { overdue: r.status !== 'resolved' && isOverdue(r.dueAt) }]"
+          :class="['report-card', r.risk, { overdue: !['closed', 'resolved'].includes(r.status) && isOverdue(r.dueAt) }]"
           @click="$emit('open-report', r.id)"
         >
           <div class="rc-top">
@@ -70,7 +72,7 @@
           <div class="rc-location"><UiIcon name="location" :size="15" /> {{ r.loc }}</div>
           <div class="sla-row">
             <span :class="['tag', `priority-${r.priority || 'low'}`]">{{ capitalize(r.priority || 'low') }} priority</span>
-            <SlaBadge :due-at="r.dueAt" :completed="r.status === 'resolved'" />
+            <SlaBadge :due-at="r.dueAt" :completed="['closed', 'resolved'].includes(r.status)" />
           </div>
 
           <div class="rc-footer">
@@ -175,12 +177,12 @@ const filteredReports = computed(() => {
     if (!matchesDate(r.date)) return false;
 
     return true;
-  }).sort((a, b) => Number(b.status !== 'resolved' && isOverdue(b.dueAt)) - Number(a.status !== 'resolved' && isOverdue(a.dueAt)));
+  }).sort((a, b) => Number(!['closed', 'resolved'].includes(b.status) && isOverdue(b.dueAt)) - Number(!['closed', 'resolved'].includes(a.status) && isOverdue(a.dueAt)));
 });
 
 function formatStatus(status) {
   if (!status) return '';
-  return status === 'in-progress' ? 'In Progress' : capitalize(status);
+  return String(status).replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function capitalize(str) {

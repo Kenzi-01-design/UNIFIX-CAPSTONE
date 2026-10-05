@@ -580,6 +580,23 @@ body {
   border-radius: 50%;
   border: 2px solid white;
 }
+.notification-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--red-light);
+  color: white;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
 .page-content {
   padding: 32px;
   flex: 1;
@@ -2269,10 +2286,23 @@ tbody td {
   color: var(--text);
 }
 .notif-mark {
+  border: 0;
+  padding: 0;
+  background: transparent;
   font-size: 11px;
   font-weight: 600;
   color: var(--primary);
   cursor: pointer;
+}
+.notif-mark:disabled {
+  color: var(--text-3);
+  cursor: default;
+}
+.notif-empty {
+  margin: 0;
+  padding: 18px;
+  color: var(--text-3);
+  font-size: 12px;
 }
 .notif-item {
   display: flex;

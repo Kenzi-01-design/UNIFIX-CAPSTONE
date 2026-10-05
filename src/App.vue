@@ -49,6 +49,7 @@
         <Topbar
           :title="currentViewTitle"
           :notifications="notifications"
+          :loading="notificationsLoading"
           @trigger-search="navigateTo('reports')"
           @mark-all-read="handleMarkAllRead"
         />
@@ -165,7 +166,13 @@ import SettingsView from './views/SettingsView.vue';
 const { currentRole, activeUserName, isAuthenticated, logout, loadSettings } = useAuth();
 const { reports, loadReports, subscribeToReports, resolveReport, techAccept, techStart, techComplete } = useReports();
 const { loadRequests, subscribeToRequests } = useRequests();
-const { notifications, refreshNotifications, markAllRead } = useNotifications();
+const {
+  notifications,
+  loading: notificationsLoading,
+  refreshNotifications,
+  markAllRead,
+  stopNotifications
+} = useNotifications();
 const { toasts, showToast } = useToast();
 
 const currentView = ref('dashboard');
@@ -206,6 +213,12 @@ async function refreshAuthenticatedData() {
   await Promise.all([loadReports(), loadRequests()]);
   subscribeToReports();
   subscribeToRequests();
+  try {
+    await refreshNotifications(currentRole.value, activeUserName.value);
+  } catch (error) {
+    console.error('Failed to load notifications.', error);
+    showToast('Notifications could not be loaded.', 'error');
+  }
 }
 
 watch(isAuthenticated, refreshAuthenticatedData, { immediate: true });
@@ -234,6 +247,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   activityEvents.forEach((event) => window.removeEventListener(event, resetInactivityTimer));
   if (inactivityTimer) clearTimeout(inactivityTimer);
+  stopNotifications();
 });
 
 function navigateTo(view) {
@@ -267,13 +281,13 @@ async function handleLoginSuccess(landingView) {
   currentView.value = currentRole.value === 'Employee' && landingView === 'submit'
     ? 'dashboard'
     : (landingView || 'dashboard');
-  refreshNotifications(currentRole.value, activeUserName.value);
   resetInactivityTimer();
 }
 
 function handleLogout() {
   if (inactivityTimer) clearTimeout(inactivityTimer);
   logout();
+  stopNotifications();
   currentView.value = 'dashboard';
   publicPage.value = 'home';
   showToast('Signed out successfully.', 'info');
@@ -287,9 +301,13 @@ function handlePublicReportSubmitted(newReport) {
   showToast(`Report submitted. Keep tracking code ${newReport.trackingCode}.`, 'success');
 }
 
-function handleMarkAllRead() {
-  markAllRead(currentRole.value, activeUserName.value);
-  showToast('All notifications marked as read.', 'success');
+async function handleMarkAllRead() {
+  try {
+    await markAllRead(currentRole.value, activeUserName.value);
+  } catch (error) {
+    console.error('Could not mark notifications read.', error);
+    showToast('Unable to update notifications. Please try again.', 'error');
+  }
 }
 
 // Modal Handlers

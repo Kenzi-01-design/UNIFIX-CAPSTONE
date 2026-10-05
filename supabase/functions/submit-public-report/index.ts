@@ -123,8 +123,14 @@ Deno.serve(async (request) => {
     const description = text(report?.desc, 4000);
     const category = text(report?.cat, 32);
     const location = text(report?.loc, 300);
+    const reporterEmail = report?.reporterEmail == null || report.reporterEmail === ''
+      ? null
+      : text(report.reporterEmail, 254);
     if (!title || !description || !category || !categories.has(category) || !location) {
       return response({ error: 'The report contains invalid or missing fields.' }, 400, origin);
+    }
+    if (report?.reporterEmail && (!reporterEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reporterEmail))) {
+      return response({ error: 'Enter a valid email address for status updates.' }, 400, origin);
     }
 
     const verification = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
@@ -195,6 +201,7 @@ Deno.serve(async (request) => {
       status: 'pending',
       technician_state: 'unassigned',
       reporter: 'Public Reporter',
+      reporter_email: reporterEmail,
       report_date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       photo_attachments: attachments
     };
@@ -214,6 +221,7 @@ Deno.serve(async (request) => {
       catIcon: data.category_icon, catBg: data.category_background, loc: data.location,
       risk: data.risk, status: data.status, assignedTo: '', techState: data.technician_state,
       reporter: data.reporter, date: data.report_date, photo: null,
+      reporterEmail: data.reporter_email,
       trackingCode: data.tracking_code, priority: data.priority, dueAt: data.due_at,
       photoAttachments: data.photo_attachments || []
     } }, 200, origin);

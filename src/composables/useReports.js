@@ -5,6 +5,7 @@ import { createDemoTrackingCode } from '../lib/tracking.js';
 import { calculateDueAt } from '../lib/sla.js';
 import { removeUploadedPhotos, uploadPhotoFiles } from '../lib/photos.js';
 import { useSlaSettings } from './useSlaSettings.js';
+import { recordDemoAudit } from './useAuditLog.js';
 
 const STORAGE_KEY = 'unifix-reports-v2';
 
@@ -86,7 +87,7 @@ const initialReports = [
     catBg: '#fff4e6',
     loc: 'Main Bldg · Fl 2 · Rm 201',
     risk: 'low',
-    status: 'resolved',
+    status: 'closed',
     assignedTo: 'Juan dela Cruz',
     techState: 'completed',
     reporter: 'Prof. Reyes',
@@ -154,7 +155,7 @@ const initialReports = [
     catBg: '#e8f5e9',
     loc: 'Dormitory A · Fl 1',
     risk: 'medium',
-    status: 'resolved',
+    status: 'closed',
     assignedTo: 'Pedro Reyes',
     techState: 'completed',
     reporter: 'Dormitory Staff',
@@ -218,12 +219,16 @@ function toDatabaseReport(report) {
     assigned_personnel: normalizePersonnel(report),
     technician_state: report.techState || 'unassigned',
     reporter: report.reporter,
+    reporter_email: report.reporterEmail || null,
     report_date: report.date,
     photo: report.photo || null,
     photo_attachments: report.photoAttachments || [],
     assignment_note: report.assignNote || null,
     target_date: report.targetDate || null,
-    admin_remark: report.adminRemark || null
+    admin_remark: report.adminRemark || null,
+    rejection_reason: report.rejectionReason || null,
+    reopen_reason: report.reopenReason || null,
+    rework_count: report.reworkCount || 0
   };
 }
 
@@ -269,11 +274,18 @@ async function loadReportsFromSupabase() {
       assignedAt: report.assigned_at || '',
       inProgressAt: report.in_progress_at || '',
       completedAt: report.completed_at || '',
+      forVerificationAt: report.for_verification_at || '',
+      verifiedAt: report.verified_at || '',
+      rejectionReason: report.rejection_reason || '',
+      reopenReason: report.reopen_reason || '',
+      reopenedAt: report.reopened_at || '',
+      reworkCount: report.rework_count || 0,
       status: report.status,
       assignedTo: report.assigned_to || '',
       assignedPersonnel: Array.isArray(report.assigned_personnel) ? report.assigned_personnel : [],
       techState: report.technician_state || 'unassigned',
       reporter: report.reporter,
+      reporterEmail: report.reporter_email || '',
       date: report.report_date,
       photo: report.photo,
       photoAttachments: Array.isArray(report.photo_attachments) ? report.photo_attachments : [],
@@ -302,7 +314,17 @@ function subscribeToReports() {
 void loadReportsFromSupabase();
 
 export function useReports() {
-  const { pushTechAssignmentNotification } = useNotifications();
+  const { pushTechAssignmentNotification, pushDemoNotification } = useNotifications();
+  function notifyDemoReporter(report, eventType, title, message) {
+    if (isSupabaseConfigured || !report.reporter || report.reporter === 'Public Reporter') return;
+    pushDemoNotification('Employee', report.reporter, {
+      eventType,
+      title,
+      message,
+      entityType: 'report',
+      entityId: report.id
+    });
+  }
   const { settings: slaSettings } = useSlaSettings();
 
   function saveReports() {
@@ -364,7 +386,22 @@ export function useReports() {
     }
     reports.value.unshift(report);
     saveReports();
-    if (!isSupabaseConfigured) return report;
+    recordDemoAudit({
+      entityType: 'report',
+      entityId: report.id,
+      action: 'created',
+      newValue: { status: report.status, priority: report.priority }
+    });
+    if (!isSupabaseConfigured) {
+      ['Admin', 'Assistant'].forEach((role) => pushDemoNotification(role, role === 'Admin' ? 'Admin User' : 'Admin Assistant', {
+        eventType: 'work_received',
+        title: 'New report received',
+        message: `A new report is ready for review: ${report.title}`,
+        entityType: 'report',
+        entityId: report.id
+      }));
+      return report;
+    }
 
     try {
       const saved = await syncReport(report, true);
@@ -404,6 +441,13 @@ export function useReports() {
       saveReports();
       throw error;
     }
+    recordDemoAudit({
+      entityType: 'report',
+      entityId: report.id,
+      action: 'priority_changed',
+      oldValue: { priority: previousPriority },
+      newValue: { priority }
+    });
     return report;
   }
 
@@ -432,12 +476,20 @@ export function useReports() {
     const report = reports.value.find((r) => r.id.toLowerCase() === reportId.toLowerCase());
     if (!report) return null;
 
+    const previousAssignees = normalizePersonnel(report);
     report.assignedPersonnel = [...new Set((Array.isArray(techNames) ? techNames : [techNames]).filter(Boolean))];
     syncAssignmentLabel(report);
     report.techState = 'assigned';
     report.status = status;
     report.assignNote = note;
     report.targetDate = targetDate;
+    recordDemoAudit({
+      entityType: 'report',
+      entityId: report.id,
+      action: 'assignment_changed',
+      oldValue: { assigned_personnel: previousAssignees },
+      newValue: { assigned_personnel: report.assignedPersonnel }
+    });
 
     report.assignedPersonnel.forEach((name) => pushTechAssignmentNotification(name, report, status));
     saveReports();
@@ -445,23 +497,107 @@ export function useReports() {
     return report;
   }
 
-  function resolveReport(reportId) {
+  async function resolveReport(reportId) {
     const report = reports.value.find((r) => r.id.toLowerCase() === reportId.toLowerCase());
-    if (!report || !normalizePersonnel(report).length || report.techState !== 'completed') return null;
-
-    report.status = 'resolved';
+    if (!report || report.status !== 'for-verification' || report.techState !== 'completed') return false;
+    const previous = {
+      status: report.status,
+      completedAt: report.completedAt,
+      verifiedAt: report.verifiedAt,
+      assignNote: report.assignNote
+    };
+    report.status = 'closed';
     report.techState = 'completed';
-    report.assignNote = `Resolved on ${new Date().toLocaleDateString()}`;
-
-    normalizePersonnel(report).forEach((name) => pushTechAssignmentNotification(name, report, 'resolved'));
+    report.completedAt = new Date().toISOString();
+    report.verifiedAt = new Date().toISOString();
+    report.assignNote = `Verified and closed on ${new Date().toLocaleDateString()}`;
     saveReports();
-    syncReportInBackground(report);
-    return report;
+    try {
+      await syncReport(report);
+      recordDemoAudit({
+        entityType: 'report',
+        entityId: report.id,
+        action: 'status_changed',
+        oldValue: { status: previous.status },
+        newValue: { status: 'closed' }
+      });
+      notifyDemoReporter(report, 'work_completed', 'Report completed', `Your report ${report.id} has been verified and closed.`);
+      normalizePersonnel(report).forEach((name) => pushTechAssignmentNotification(name, report, 'closed'));
+      return true;
+    } catch (error) {
+      Object.assign(report, previous);
+      saveReports();
+      throw error;
+    }
+  }
+
+  async function rejectReport(reportId, reason) {
+    const report = reports.value.find((item) => item.id.toLowerCase() === reportId.toLowerCase());
+    const safeReason = String(reason || '').trim();
+    if (!report || report.status !== 'for-verification' || safeReason.length < 5 || safeReason.length > 500) return false;
+    const previous = {
+      status: report.status,
+      techState: report.techState,
+      rejectionReason: report.rejectionReason,
+      reworkCount: report.reworkCount
+    };
+    report.status = 'in-progress';
+    report.techState = 'started';
+    report.rejectionReason = safeReason;
+    report.reworkCount = (report.reworkCount || 0) + 1;
+    saveReports();
+    try {
+      await syncReport(report);
+      recordDemoAudit({
+        entityType: 'report',
+        entityId: report.id,
+        action: 'status_changed',
+        oldValue: { status: 'for-verification' },
+        newValue: { status: 'in-progress', rejection_reason: safeReason }
+      });
+      notifyDemoReporter(report, 'status_changed', 'Rework requested', `Your report ${report.id} was returned for further work.`);
+      return true;
+    } catch (error) {
+      Object.assign(report, previous);
+      saveReports();
+      throw error;
+    }
+  }
+
+  async function reopenOwnReport(reportId, reason) {
+    const report = reports.value.find((item) => item.id.toLowerCase() === reportId.toLowerCase());
+    const safeReason = String(reason || '').trim();
+    if (!report || report.status !== 'closed' || safeReason.length < 5 || safeReason.length > 500) return false;
+    const completedTime = new Date(report.completedAt || report.updatedAt || '').getTime();
+    if (!Number.isFinite(completedTime) || completedTime < Date.now() - 7 * 24 * 60 * 60 * 1000) return false;
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.rpc('reopen_own_work_item', {
+        p_entity_type: 'report',
+        p_entity_id: report.id,
+        p_reason: safeReason
+      });
+      if (error) throw error;
+    }
+    report.status = 'in-progress';
+    report.reopenReason = safeReason;
+    report.reopenedAt = new Date().toISOString();
+    report.reworkCount = (report.reworkCount || 0) + 1;
+    report.techState = normalizePersonnel(report).length ? 'assigned' : 'unassigned';
+    recordDemoAudit({
+      entityType: 'report',
+      entityId: report.id,
+      action: 'status_changed',
+      oldValue: { status: 'closed' },
+      newValue: { status: 'in-progress', reopen_reason: safeReason }
+    });
+    saveReports();
+    notifyDemoReporter(report, 'status_changed', 'Report reopened', `Your report ${report.id} was reopened for further work.`);
+    return true;
   }
 
   function assignNextInQueue() {
     const queue = reports.value
-      .filter((r) => !r.assignedTo && r.status !== 'resolved')
+      .filter((r) => !r.assignedTo && !['closed', 'resolved'].includes(r.status))
       .sort((a, b) => {
         const riskWeight = { high: 3, medium: 2, low: 1 };
         const statusWeight = { urgent: 3, 'in-progress': 2, pending: 1 };
@@ -535,7 +671,7 @@ export function useReports() {
     const previousStatus = report.status;
     const previousAttachments = report.photoAttachments || [];
     report.techState = 'completed';
-    report.status = 'resolved';
+    report.status = 'for-verification';
     try {
       if (completionPhotos.length) {
         report.photoAttachments = await uploadPhotoFiles(completionPhotos, {
@@ -553,6 +689,14 @@ export function useReports() {
     saveReports();
     try {
       await syncReport(report);
+      recordDemoAudit({
+        entityType: 'report',
+        entityId: report.id,
+        action: 'status_changed',
+        oldValue: { status: previousStatus },
+        newValue: { status: 'for-verification' }
+      });
+      notifyDemoReporter(report, 'status_changed', 'Report awaiting verification', `Personnel submitted report ${report.id} for verification.`);
       return true;
     } catch (error) {
       const newAttachments = report.photoAttachments.filter(
@@ -587,6 +731,8 @@ export function useReports() {
     assignReport,
     resolveReport,
     assignNextInQueue,
+    rejectReport,
+    reopenOwnReport,
     techAccept,
     techStart,
     techComplete

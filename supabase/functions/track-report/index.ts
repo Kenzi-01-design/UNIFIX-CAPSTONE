@@ -88,7 +88,7 @@ Deno.serve(async (request) => {
 
     const { data: report, error: lookupError } = await admin
       .from('reports')
-      .select('id, tracking_code, status, technician_state, assigned_personnel, created_at, updated_at, reviewed_at, assigned_at, in_progress_at, completed_at')
+      .select('id, tracking_code, status, technician_state, assigned_personnel, created_at, updated_at, reviewed_at, assigned_at, in_progress_at, for_verification_at, completed_at, rework_count')
       .eq('tracking_code', code)
       .maybeSingle();
     if (lookupError) {
@@ -99,7 +99,7 @@ Deno.serve(async (request) => {
     if (!workItem) {
       const { data: requestItem, error: requestLookupError } = await admin
         .from('requests')
-        .select('id, tracking_code, status, technician_state, assigned_personnel, created_at, updated_at, reviewed_at, assigned_at, in_progress_at, completed_at')
+        .select('id, tracking_code, status, technician_state, assigned_personnel, created_at, updated_at, reviewed_at, assigned_at, in_progress_at, for_verification_at, completed_at, rework_count')
         .eq('tracking_code', code)
         .maybeSingle();
       if (requestLookupError) {
@@ -110,6 +110,41 @@ Deno.serve(async (request) => {
     }
     if (!workItem) return respond(origin, { error: 'No report or request was found for that tracking code.' }, 404);
 
+    if (action === 'reopen') {
+      const reason = typeof payload.reason === 'string' ? payload.reason.trim() : '';
+      if (reason.length < 5 || reason.length > 500) {
+        return respond(origin, { error: 'Provide a reopen reason between 5 and 500 characters.' }, 400);
+      }
+      if (workItem.status !== 'closed' || !workItem.completed_at
+        || new Date(workItem.completed_at).getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000) {
+        return respond(origin, { error: 'This work item can no longer be reopened.' }, 409);
+      }
+      const patch = {
+        status: 'in-progress',
+        reopen_reason: reason,
+        reopened_at: new Date().toISOString(),
+        rework_count: (workItem.rework_count || 0) + 1,
+        technician_state: Array.isArray(workItem.assigned_personnel) && workItem.assigned_personnel.length
+          ? 'assigned'
+          : 'unassigned'
+      };
+      const table = report ? 'reports' : 'requests';
+      const { data: reopenedItem, error: reopenError } = await admin
+        .from(table)
+        .update(patch)
+        .eq('id', workItem.id)
+        .eq('tracking_code', code)
+        .eq('status', 'closed')
+        .select('id')
+        .maybeSingle();
+      if (reopenError) {
+        console.error('Public work item reopen failed.', reopenError);
+        return respond(origin, { error: 'Unable to reopen this work item.' }, 500);
+      }
+      if (!reopenedItem) return respond(origin, { error: 'This work item has already changed and cannot be reopened.' }, 409);
+      return respond(origin, { submitted: true });
+    }
+
     if (action === 'feedback') {
       if (!report) return respond(origin, { error: 'Feedback is available only for completed reports.' }, 400);
       const numericRating = Number(rating);
@@ -117,8 +152,8 @@ Deno.serve(async (request) => {
       if (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5 || safeComment.length > 500) {
         return respond(origin, { error: 'Provide a rating from 1 to 5 and a comment of at most 500 characters.' }, 400);
       }
-      if (workItem.status !== 'resolved' && workItem.status !== 'action-taken' && workItem.technician_state !== 'completed') {
-        return respond(origin, { error: 'Feedback is available after the work is completed.' }, 409);
+      if (workItem.status !== 'closed' && workItem.status !== 'resolved') {
+        return respond(origin, { error: 'Feedback is available after completed work has been verified.' }, 409);
       }
 
       const { error: feedbackError } = await admin.from('report_feedback').insert({
@@ -159,14 +194,17 @@ Deno.serve(async (request) => {
       { label: 'Reviewed', at: workItem.reviewed_at },
       { label: 'Assigned', at: workItem.assigned_at },
       { label: 'In progress', at: workItem.in_progress_at },
+      { label: 'For verification', at: workItem.for_verification_at },
       { label: 'Completed', at: workItem.completed_at }
     ].map((step) => ({ ...step, complete: Boolean(step.at) }));
-    const isCompleted = workItem.status === 'resolved' || workItem.status === 'action-taken' || workItem.technician_state === 'completed';
+    const isCompleted = ['closed', 'resolved', 'action-taken'].includes(workItem.status);
     const hasAssignment = Array.isArray(workItem.assigned_personnel) && workItem.assigned_personnel.length > 0;
     const status = isCompleted
       ? 'Completed'
       : workItem.technician_state === 'started' || workItem.status === 'in-progress'
         ? 'In progress'
+        : workItem.status === 'for-verification'
+          ? 'For verification'
         : hasAssignment
           ? 'Assigned'
           : workItem.reviewed_at
@@ -177,11 +215,14 @@ Deno.serve(async (request) => {
       workItem: {
         trackingCode: workItem.tracking_code,
         status,
+        entityType: report ? 'report' : 'request',
         assignedTeam: hasAssignment ? 'Campus Maintenance Team' : null,
         lastUpdated: workItem.updated_at,
         completed: isCompleted,
         feedbackSubmitted: Boolean(feedback),
         feedbackEligible: Boolean(report),
+        canReopen: workItem.status === 'closed' && Boolean(workItem.completed_at)
+          && new Date(workItem.completed_at).getTime() >= Date.now() - 7 * 24 * 60 * 60 * 1000,
         timeline: steps
       }
     });

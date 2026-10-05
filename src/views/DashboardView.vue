@@ -29,13 +29,13 @@
         <div class="stat-delta down">Awaiting review</div>
       </div>
 
-      <div class="stat-card green" @click="$emit('filter-reports', { status: 'resolved' })">
+      <div class="stat-card green" @click="$emit('filter-reports', { status: 'closed' })">
         <div class="stat-header">
           <span class="stat-label">Resolved Reports</span>
           <div class="stat-icon"><UiIcon name="work" /></div>
         </div>
         <div class="stat-value">{{ resolvedCount }}</div>
-        <div class="stat-delta up">{{ resolvedPercentage }}% resolved</div>
+        <div class="stat-delta up">{{ resolvedPercentage }}% closed</div>
       </div>
 
       <div class="stat-card green" @click="$emit('navigate', 'admin')">
@@ -117,7 +117,7 @@
           <div
             v-for="report in recentReports"
             :key="report.id"
-            :class="['report-row', { overdue: isOverdue(report.dueAt) && report.status !== 'resolved' }]"
+            :class="['report-row', { overdue: isOverdue(report.dueAt) && !isClosed(report.status) }]"
             @click="$emit('open-report', report.id)"
           >
             <div class="report-cat-icon" :style="{ background: report.catBg || '#f0f0f0' }">
@@ -126,7 +126,7 @@
             <div class="report-info">
               <div class="title">{{ report.title }}</div>
               <div class="meta">{{ report.loc }}</div>
-              <SlaBadge :due-at="report.dueAt" :completed="report.status === 'resolved'" />
+              <SlaBadge :due-at="report.dueAt" :completed="isClosed(report.status)" />
             </div>
             <span :class="['tag', report.status]">{{ formatStatus(report.status) }}</span>
           </div>
@@ -142,11 +142,9 @@
             <div class="report-info">
               <div class="title">{{ request.title }}</div>
               <div class="meta">{{ request.id }} · {{ request.dept }}</div>
-              <SlaBadge :due-at="request.dueAt" :completed="request.techState === 'completed' || request.status === 'action-taken'" />
+              <SlaBadge :due-at="request.dueAt" :completed="isClosed(request.status)" />
             </div>
-            <span :class="['tag', request.status === 'action-taken' ? 'resolved' : 'pending']">
-              {{ request.status === 'action-taken' ? 'Action Taken' : 'Submitted' }}
-            </span>
+            <span :class="['tag', request.status]">{{ formatStatus(request.status) }}</span>
           </div>
         </div>
       </div>
@@ -193,7 +191,7 @@
                 {{ resolvedPercentage }}%
               </div>
               <div style="font-size: 11px; color: var(--text-3); font-weight: 600;">
-                resolved
+                closed
               </div>
             </div>
             <div style="flex: 1; background: var(--surface-2); border-radius: var(--radius-sm); padding: 12px; text-align: center;">
@@ -243,7 +241,7 @@ const workSummary = computed(() => {
   if (props.currentRole === 'Personnel') {
     const assignedTasks = [...assignedReports.value, ...assignedRequests.value];
     return [
-      { label: 'Assigned work', value: assignedTasks.filter((task) => task.techState !== 'completed' && task.status !== 'resolved').length, icon: 'tasks', tone: 'blue' },
+      { label: 'Assigned work', value: assignedTasks.filter((task) => !isClosed(task.status)).length, icon: 'tasks', tone: 'blue' },
       { label: 'Assigned requests', value: assignedRequests.value.length, icon: 'request', tone: 'orange' },
       { label: 'Requests in progress', value: assignedRequests.value.filter((request) => ['accepted', 'started'].includes(request.techState)).length, icon: 'work', tone: 'green' }
     ];
@@ -253,26 +251,26 @@ const workSummary = computed(() => {
     return [
       { label: 'Total requests', value: requests.value.length, icon: 'request', tone: 'blue' },
       { label: 'Requests awaiting action', value: requests.value.filter((request) => request.status === 'submitted').length, icon: 'work', tone: 'orange' },
-      { label: 'Action taken', value: requests.value.filter((request) => request.status === 'action-taken').length, icon: 'work', tone: 'green' }
+      { label: 'Awaiting verification', value: requests.value.filter((request) => request.status === 'for-verification').length, icon: 'work', tone: 'orange' }
     ];
   }
 
   return [
-    { label: 'My open reports', value: myReports.value.filter((report) => report.status !== 'resolved').length, icon: 'report', tone: 'blue' },
+    { label: 'My open reports', value: myReports.value.filter((report) => !isClosed(report.status)).length, icon: 'report', tone: 'blue' },
     { label: 'Pending requests', value: myRequests.value.filter((request) => request.status === 'submitted').length, icon: 'request', tone: 'orange' },
-    { label: 'Completed requests', value: myRequests.value.filter((request) => request.techState === 'completed' || request.status === 'action-taken').length, icon: 'work', tone: 'green' }
+    { label: 'Completed requests', value: myRequests.value.filter((request) => isClosed(request.status)).length, icon: 'work', tone: 'green' }
   ];
 });
 
 const totalCount = computed(() => reports.value.length);
 
 const pendingCount = computed(() => reports.value.filter(r => r.status === 'pending').length);
-const resolvedCount = computed(() => reports.value.filter(r => r.status === 'resolved').length);
-const resolvedRequestCount = computed(() => requests.value.filter((request) => request.techState === 'completed').length);
+const resolvedCount = computed(() => reports.value.filter((report) => isClosed(report.status)).length);
+const resolvedRequestCount = computed(() => requests.value.filter((request) => isClosed(request.status)).length);
 const urgentCount = computed(() => reports.value.filter(r => r.status === 'urgent').length);
 const overdueCount = computed(() => [
-  ...reports.value.filter((report) => report.status !== 'resolved'),
-  ...requests.value.filter((request) => request.techState !== 'completed' && request.status !== 'action-taken')
+  ...reports.value.filter((report) => !isClosed(report.status)),
+  ...requests.value.filter((request) => !isClosed(request.status))
 ].filter((item) => isOverdue(item.dueAt)).length);
 const inProgressCount = computed(() => reports.value.filter(r => r.status === 'in-progress').length);
 
@@ -282,10 +280,10 @@ const resolvedPercentage = computed(() => {
 });
 
 const recentReports = computed(() => [...reports.value]
-  .sort((a, b) => Number(b.status !== 'resolved' && isOverdue(b.dueAt)) - Number(a.status !== 'resolved' && isOverdue(a.dueAt)))
+  .sort((a, b) => Number(!isClosed(b.status) && isOverdue(b.dueAt)) - Number(!isClosed(a.status) && isOverdue(a.dueAt)))
   .slice(0, 5));
 const recentRequests = computed(() => [...requests.value]
-  .sort((a, b) => Number(b.techState !== 'completed' && isOverdue(b.dueAt)) - Number(a.techState !== 'completed' && isOverdue(a.dueAt)))
+  .sort((a, b) => Number(!isClosed(b.status) && isOverdue(b.dueAt)) - Number(!isClosed(a.status) && isOverdue(a.dueAt)))
   .slice(0, 5));
 
 const categoriesTracked = [
@@ -314,7 +312,11 @@ const categoryBars = computed(() => {
 
 function formatStatus(status) {
   if (!status) return '';
-  return status === 'in-progress' ? 'In Progress' : status.charAt(0).toUpperCase() + status.slice(1);
+  return String(status).replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function isClosed(status) {
+  return ['closed', 'resolved', 'action-taken'].includes(status);
 }
 </script>
 

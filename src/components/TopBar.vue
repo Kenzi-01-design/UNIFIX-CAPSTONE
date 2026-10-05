@@ -10,7 +10,9 @@
         title="Notifications"
       >
         <UiIcon name="notification" />
-        <span v-if="hasUnread" class="notif-dot" id="notif-indicator"></span>
+        <span v-if="unreadCount" class="notification-count" id="notif-indicator">
+          {{ unreadCount > 99 ? '99+' : unreadCount }}
+        </span>
       </button>
 
       <button
@@ -25,10 +27,11 @@
       <div class="notif-panel" :class="{ open: notifOpen }" id="notif-panel">
         <div class="notif-panel-header">
           <span class="notif-panel-title">Notifications</span>
-          <span class="notif-mark" @click="$emit('mark-all-read')">Mark all read</span>
+          <button class="notif-mark" type="button" :disabled="!unreadCount" @click="$emit('mark-all-read')">Mark all read</button>
         </div>
         <div id="notif-list">
-          <template v-if="notifications.length">
+          <p v-if="loading" class="notif-empty" aria-live="polite">Loading notifications…</p>
+          <template v-else-if="notifications.length">
             <div
               v-for="(item, idx) in notifications"
               :key="idx"
@@ -44,13 +47,7 @@
               </div>
             </div>
           </template>
-          <div v-else class="notif-item">
-            <div style="width: 8px; flex-shrink: 0"></div>
-            <div>
-              <div class="notif-item-text">No notifications yet.</div>
-              <div class="notif-item-time">Just now</div>
-            </div>
-          </div>
+          <p v-else class="notif-empty">No notifications yet.</p>
         </div>
       </div>
     </div>
@@ -69,6 +66,10 @@ const props = defineProps({
   notifications: {
     type: Array,
     default: () => []
+  },
+  loading: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -77,9 +78,7 @@ defineEmits(['trigger-search', 'mark-all-read']);
 const notifOpen = ref(false);
 const topbarRightRef = ref(null);
 
-const hasUnread = computed(() => {
-  return props.notifications.some((n) => !n.read);
-});
+const unreadCount = computed(() => props.notifications.filter((item) => !item.read).length);
 
 function toggleNotif() {
   notifOpen.value = !notifOpen.value;

@@ -3,3 +3,6 @@ verify_jwt = false
 
 [functions.track-report]
 verify_jwt = false
+
+[functions.deliver-notification]
+verify_jwt = false

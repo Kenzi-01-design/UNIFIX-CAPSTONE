@@ -54,6 +54,17 @@
       >
         SLA Settings
       </button>
+      <button
+        v-if="currentRole === 'Admin'"
+        type="button"
+        class="admin-tab"
+        :class="{ active: activeAdminTab === 'audit' }"
+        role="tab"
+        :aria-selected="activeAdminTab === 'audit'"
+        @click="activeAdminTab = 'audit'"
+      >
+        Audit Log
+      </button>
     </div>
 
     <div class="admin-grid">
@@ -76,13 +87,13 @@
                 <th>Priority / Deadline</th>
                 <th>Rating</th>
                 <th>Risk</th>
-                <th v-if="currentRole !== 'Assistant'">Status</th>
+                <th>Status</th>
                 <th>Assigned To</th>
-                <th v-if="currentRole === 'Admin'">Actions</th>
+                <th v-if="['Admin', 'Assistant'].includes(currentRole)">Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in orderedReports" :key="r.id" :class="{ 'sla-overdue-row': r.status !== 'resolved' && isOverdue(r.dueAt) }">
+              <tr v-for="r in orderedReports" :key="r.id" :class="{ 'sla-overdue-row': !['closed', 'resolved'].includes(r.status) && isOverdue(r.dueAt) }">
                 <td><span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-3)">{{ r.id }}</span></td>
                 <td><span style="font-weight:600;font-size:13px">{{ truncate(r.title, 28) }}</span></td>
                 <td><UiIcon :name="r.cat" :size="16" /> {{ r.cat }}</td>
@@ -100,7 +111,7 @@
                     <option value="urgent">Urgent</option>
                   </select>
                   <span v-else :class="['tag', `priority-${r.priority || 'low'}`]">{{ capitalize(r.priority || 'low') }}</span>
-                  <SlaBadge :due-at="r.dueAt" :completed="r.status === 'resolved'" />
+                  <SlaBadge :due-at="r.dueAt" :completed="['closed', 'resolved'].includes(r.status)" />
                 </td>
                 <td>{{ formatRating(r.id) }}</td>
                 <td>
@@ -116,23 +127,27 @@
                   </select>
                   <span v-else :class="['tag', r.risk]">{{ capitalize(r.risk) }}</span>
                 </td>
-                <td v-if="currentRole !== 'Assistant'"><span :class="['tag', r.status]">{{ formatStatus(r.status) }}</span></td>
+                <td><span :class="['tag', r.status]">{{ formatStatus(r.status) }}</span></td>
                 <td style="font-size:12px">
                   <span v-if="r.assignedTo">{{ r.assignedTo }}</span>
                   <span v-else style="color:var(--red);font-weight:700">Unassigned</span>
                 </td>
-                <td v-if="currentRole === 'Admin'" style="display:flex;gap:6px;flex-wrap:wrap">
-                  <button class="admin-action-btn assign" @click="pickForAssignment(r.id)">
+                <td v-if="['Admin', 'Assistant'].includes(currentRole)" class="verification-actions">
+                  <button v-if="currentRole === 'Admin'" class="admin-action-btn assign" @click="pickForAssignment(r.id)">
                     {{ r.assignedTo ? '+ Personnel' : 'Assign' }}
                   </button>
                   <button
+                    v-if="r.status === 'for-verification'"
                     class="admin-action-btn resolve"
-                    :disabled="!canResolveReport(r)"
-                    :title="canResolveReport(r) ? 'Mark report as resolved' : 'Personnel must accept or start this report first'"
+                    :disabled="!canVerifyReport(r)"
                     @click="handleResolve(r.id)"
                   >
-                    Resolve
+                    Verify & Close
                   </button>
+                  <template v-if="r.status === 'for-verification'">
+                    <textarea v-model="rejectionReasons[r.id]" rows="2" maxlength="500" placeholder="Reason for rework (required)"></textarea>
+                    <button class="admin-action-btn" :disabled="(rejectionReasons[r.id] || '').trim().length < 5" @click="handleRejectReport(r.id)">Reject for Rework</button>
+                  </template>
                 </td>
               </tr>
             </tbody>
@@ -182,7 +197,6 @@
               <select v-model="assignForm.status">
                 <option value="pending">Pending</option>
                 <option value="in-progress">In Progress</option>
-                <option value="resolved">Resolved</option>
                 <option value="urgent">Urgent</option>
               </select>
             </div>
@@ -251,11 +265,11 @@
                 <th>Priority / Deadline</th>
                 <th>Risk</th>
                 <th v-if="currentRole === 'Admin'">Admin Remark</th>
-                <th v-if="currentRole === 'Admin'">Actions</th>
+                <th v-if="['Admin', 'Assistant'].includes(currentRole)">Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="req in orderedRequests" :key="req.id" :class="{ 'sla-overdue-row': req.techState !== 'completed' && req.status !== 'action-taken' && isOverdue(req.dueAt) }">
+              <tr v-for="req in orderedRequests" :key="req.id" :class="{ 'sla-overdue-row': !['closed', 'action-taken'].includes(req.status) && isOverdue(req.dueAt) }">
                 <td>
                   <span style="font-family:'DM Mono',monospace; font-size:12px; color:var(--text-3)">{{ req.id }}</span>
                 </td>
@@ -271,9 +285,7 @@
                 </td>
                 <td style="font-size: 12px; color: var(--text-3)">{{ req.date }}</td>
                 <td>
-                  <span :class="['tag', req.status === 'action-taken' ? 'resolved' : 'pending']">
-                    {{ req.status === 'action-taken' ? 'Action Taken' : 'Submitted' }}
-                  </span>
+                  <span :class="['tag', req.status]">{{ formatStatus(req.status) }}</span>
                 </td>
                 <td>
                   <select
@@ -288,7 +300,7 @@
                     <option value="urgent">Urgent</option>
                   </select>
                   <span v-else :class="['tag', `priority-${req.priority || 'low'}`]">{{ capitalize(req.priority || 'low') }}</span>
-                  <SlaBadge :due-at="req.dueAt" :completed="req.techState === 'completed' || req.status === 'action-taken'" />
+                  <SlaBadge :due-at="req.dueAt" :completed="['closed', 'action-taken'].includes(req.status)" />
                 </td>
                 <td>
                   <select
@@ -307,30 +319,38 @@
                   <textarea v-model="req.adminRemark" rows="2" maxlength="1000" placeholder="Explain delay or resource issue..." style="width:100%;"></textarea>
                   <button class="admin-action-btn assign" @click="handleRequestRemark(req.id, req.adminRemark)">Save Remark</button>
                 </td>
-                <td v-if="currentRole === 'Admin'" style="display:flex;gap:6px;flex-wrap:wrap">
-                  <button class="admin-action-btn assign" @click="pickRequestForAssignment(req.id)">
+                <td v-if="['Admin', 'Assistant'].includes(currentRole)" class="verification-actions">
+                  <button v-if="currentRole === 'Admin'" class="admin-action-btn assign" @click="pickRequestForAssignment(req.id)">
                     {{ req.assignedTo ? 'Reassign' : 'Assign' }}
                   </button>
                   <button
-                    v-if="req.status !== 'action-taken' && req.techState === 'completed'"
+                    v-if="req.status === 'for-verification' && req.techState === 'completed'"
                     class="admin-action-btn resolve"
                     @click="handleAcknowledge(req.id)"
                   >
-                    Action Taken
+                    Verify & Close
                   </button>
-                  <span v-else style="font-weight: 700; color: var(--green); font-size: 12px;">
-                    {{ req.status === 'action-taken' ? 'Acknowledged ✅' : 'Awaiting personnel' }}
-                  </span>
+                  <template v-if="req.status === 'for-verification'">
+                    <textarea v-model="rejectionReasons[req.id]" rows="2" maxlength="500" placeholder="Reason for rework (required)"></textarea>
+                    <button class="admin-action-btn" :disabled="(rejectionReasons[req.id] || '').trim().length < 5" @click="handleRejectRequest(req.id)">Reject for Rework</button>
+                  </template>
                 </td>
               </tr>
               <tr v-if="!requests.length">
-                <td :colspan="currentRole === 'Admin' ? 10 : 8" style="text-align: center; color: var(--text-3); padding: 24px;">
+                <td :colspan="currentRole === 'Admin' ? 10 : 9" style="text-align: center; color: var(--text-3); padding: 24px;">
                   No faculty requests submitted yet.
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
+      </div>
+      <div v-if="activeAdminTab === 'audit' && currentRole === 'Admin'" class="panel admin-audit-panel">
+        <div class="panel-header">
+          <span class="panel-title">Global Audit Log</span>
+          <span class="panel-action">Administrative history</span>
+        </div>
+        <AuditLogPanel global />
       </div>
     </div>
   </div>
@@ -345,6 +365,7 @@ import UiIcon from '../components/UiIcon.vue';
 import SlaBadge from '../components/SlaBadge.vue';
 import SlaSettingsPanel from '../components/SlaSettingsPanel.vue';
 import PhotoGallery from '../components/PhotoGallery.vue';
+import AuditLogPanel from '../components/AuditLogPanel.vue';
 import { useReportFeedback } from '../composables/useReportFeedback.js';
 import { isOverdue } from '../lib/sla.js';
 
@@ -362,18 +383,28 @@ const {
   findRecommendedTech,
   assignReport,
   resolveReport,
+  rejectReport,
   assignNextInQueue,
   setReportRisk,
   setReportPriority,
   setReportRemark
 } = useReports();
-const { requests, acknowledgeRequest, setRequestRisk, setRequestPriority, setRequestRemark, assignRequest } = useRequests();
+const {
+  requests,
+  acknowledgeRequest,
+  rejectRequest,
+  setRequestRisk,
+  setRequestPriority,
+  setRequestRemark,
+  assignRequest
+} = useRequests();
 const { feedback, loading: feedbackLoading, loadError: feedbackLoadError, loadReportFeedback } = useReportFeedback();
 const { showToast } = useToast();
 
 const activeAdminTab = ref('reports');
 const assignmentPanel = ref(null);
 const assignmentIdInput = ref(null);
+const rejectionReasons = reactive({});
 
 const currentRole = computed(() => props.currentRole);
 
@@ -432,12 +463,12 @@ function formatRating(reportId) {
 }
 
 const orderedReports = computed(() => [...reports.value].sort((a, b) =>
-  Number(b.status !== 'resolved' && isOverdue(b.dueAt))
-  - Number(a.status !== 'resolved' && isOverdue(a.dueAt))
+  Number(!['closed', 'resolved'].includes(b.status) && isOverdue(b.dueAt))
+  - Number(!['closed', 'resolved'].includes(a.status) && isOverdue(a.dueAt))
 ));
 const orderedRequests = computed(() => [...requests.value].sort((a, b) =>
-  Number(b.techState !== 'completed' && b.status !== 'action-taken' && isOverdue(b.dueAt))
-  - Number(a.techState !== 'completed' && a.status !== 'action-taken' && isOverdue(a.dueAt))
+  Number(!['closed', 'action-taken'].includes(b.status) && isOverdue(b.dueAt))
+  - Number(!['closed', 'action-taken'].includes(a.status) && isOverdue(a.dueAt))
 ));
 
 function handleReportRemark(id, remark) {
@@ -460,7 +491,7 @@ const assignForm = reactive({
 
 const unassignedQueue = computed(() => {
   return reports.value
-    .filter((r) => !r.assignedTo && r.status !== 'resolved')
+    .filter((r) => !r.assignedTo && !['closed', 'resolved'].includes(r.status))
     .sort((a, b) => {
       const riskWeight = { high: 3, medium: 2, low: 1 };
       return (riskWeight[b.risk] || 1) - (riskWeight[a.risk] || 1);
@@ -558,24 +589,57 @@ function handleAutoPick() {
   }
 }
 
-function handleResolve(id) {
-  if (resolveReport(id)) {
-    showToast(`${id} marked resolved ✅`, 'success');
-  } else {
-    showToast('Assign personnel and wait for acceptance before resolving this report.', 'info');
+async function handleResolve(id) {
+  try {
+    if (await resolveReport(id)) {
+      showToast(`${id} verified and closed.`, 'success');
+    } else {
+      showToast('This report is not awaiting verification.', 'info');
+    }
+  } catch (error) {
+    showToast(error.message || 'Unable to verify this report.', 'error');
   }
 }
 
-function canResolveReport(report) {
-  return Boolean(report?.assignedTo) && ['accepted', 'started'].includes(report.techState);
+function canVerifyReport(report) {
+  return report?.status === 'for-verification' && report.techState === 'completed';
 }
 
-function handleAcknowledge(id) {
-  const updated = acknowledgeRequest(id, 'Action taken by administration.');
-  if (updated) {
-    showToast(`${id} updated with Action Taken ✅`, 'success');
-  } else {
-    showToast('Request ID not found.', 'error');
+async function handleAcknowledge(id) {
+  try {
+    const updated = await acknowledgeRequest(id, 'Verified and closed by administration.');
+    if (updated) showToast(`${id} verified and closed.`, 'success');
+    else showToast('This request is not awaiting verification.', 'info');
+  } catch (error) {
+    showToast(error.message || 'Unable to verify this request.', 'error');
+  }
+}
+
+async function handleRejectReport(id) {
+  try {
+    const rejected = await rejectReport(id, rejectionReasons[id]);
+    if (!rejected) {
+      showToast('Provide a rework reason of at least 5 characters.', 'error');
+      return;
+    }
+    rejectionReasons[id] = '';
+    showToast(`${id} returned for rework.`, 'success');
+  } catch (error) {
+    showToast(error.message || 'Unable to reject this report for rework.', 'error');
+  }
+}
+
+async function handleRejectRequest(id) {
+  try {
+    const rejected = await rejectRequest(id, rejectionReasons[id]);
+    if (!rejected) {
+      showToast('Provide a rework reason of at least 5 characters.', 'error');
+      return;
+    }
+    rejectionReasons[id] = '';
+    showToast(`${id} returned for rework.`, 'success');
+  } catch (error) {
+    showToast(error.message || 'Unable to reject this request for rework.', 'error');
   }
 }
 
@@ -666,7 +730,13 @@ function truncate(str, len) {
 
 function formatStatus(status) {
   if (!status) return '';
-  return status === 'in-progress' ? 'In Progress' : capitalize(status);
+  return ({
+    'in-progress': 'In Progress',
+    'for-verification': 'For Verification',
+    closed: 'Closed',
+    resolved: 'Closed',
+    'action-taken': 'Closed'
+  })[status] || capitalize(status);
 }
 
 function capitalize(str) {
@@ -687,5 +757,7 @@ function capitalize(str) {
 .personnel-list-item strong { font-size: 12px; }
 .personnel-list-item small { margin-top: 2px; color: var(--text-3); font-size: 11px; }
 .personnel-list-item b { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 17px; }
+.verification-actions { min-width: 180px; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.verification-actions textarea { width: 100%; min-height: 48px; padding: 7px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; font-size: 11px; }
 @media (max-width: 520px) { .personnel-list { grid-template-columns: 1fr; } }
 </style>

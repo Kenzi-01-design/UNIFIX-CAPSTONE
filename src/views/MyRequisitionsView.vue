@@ -11,9 +11,7 @@
           <div v-for="req in myRequests" :key="req.id" class="report-card requisition-card">
             <div class="rc-top">
               <span class="request-id">{{ req.id }}</span>
-              <span :class="['tag', req.status === 'action-taken' ? 'resolved' : 'pending']">
-                {{ req.status === 'action-taken' ? 'Action Taken' : 'Submitted' }}
-              </span>
+              <span :class="['tag', req.status]">{{ formatStatus(req.status) }}</span>
             </div>
             <div class="rc-title">{{ req.title }}</div>
             <div class="request-meta">{{ req.dept }} · {{ req.date }}</div>
@@ -25,12 +23,12 @@
               <div>{{ req.adminRemark }}</div>
             </div>
 
-            <div v-if="req.status === 'action-taken'" class="admin-acknowledgment">
+            <div v-if="req.status === 'closed'" class="admin-acknowledgment">
               <strong>Admin Acknowledgment ({{ req.actionDate }}):</strong>
               <div>{{ req.adminResponse }}</div>
             </div>
 
-            <div v-if="req.status === 'action-taken'" class="request-feedback">
+            <div v-if="req.status === 'closed'" class="request-feedback">
               <template v-if="req.feedback">
                 <strong>Your feedback ({{ req.feedbackDate }}):</strong>
                 <div>{{ req.feedback }}</div>
@@ -49,6 +47,30 @@
                 </button>
               </template>
             </div>
+            <form
+              v-if="canReopen(req)"
+              class="request-feedback"
+              @submit.prevent="reopenRequest(req.id)"
+            >
+              <strong>Reopen this request</strong>
+              <label :for="`reopen-${req.id}`">Reason (5–500 characters)</label>
+              <textarea
+                :id="`reopen-${req.id}`"
+                v-model="reopenDrafts[req.id]"
+                rows="3"
+                maxlength="500"
+                minlength="5"
+                required
+                placeholder="Explain why this request needs further work..."
+              ></textarea>
+              <button
+                class="btn-primary feedback-submit"
+                type="submit"
+                :disabled="(reopenDrafts[req.id] || '').trim().length < 5"
+              >
+                Reopen Request
+              </button>
+            </form>
           </div>
         </template>
         <div v-else class="empty-requisitions">No official requisitions submitted yet.</div>
@@ -64,10 +86,11 @@ import { useAuth } from '../composables/useAuth.js';
 import { useToast } from '../composables/useToast.js';
 import PhotoGallery from '../components/PhotoGallery.vue';
 
-const { requests, setRequestFeedback } = useRequests();
+const { requests, setRequestFeedback, reopenOwnRequest } = useRequests();
 const { activeUserName } = useAuth();
 const { showToast } = useToast();
 const feedbackDrafts = reactive({});
+const reopenDrafts = reactive({});
 
 const myRequests = computed(() => {
   const user = (activeUserName.value || '').toLowerCase();
@@ -82,6 +105,30 @@ function submitFeedback(requestId) {
   }
   feedbackDrafts[requestId] = '';
   showToast('Feedback submitted. Thank you.', 'success');
+}
+
+function canReopen(request) {
+  if (request.status !== 'closed' || !request.completedAt) return false;
+  const completedAt = new Date(request.completedAt).getTime();
+  return Number.isFinite(completedAt) && completedAt >= Date.now() - 7 * 24 * 60 * 60 * 1000;
+}
+
+async function reopenRequest(requestId) {
+  try {
+    const reopened = await reopenOwnRequest(requestId, reopenDrafts[requestId]);
+    if (!reopened) {
+      showToast('This request is no longer eligible to reopen.', 'error');
+      return;
+    }
+    reopenDrafts[requestId] = '';
+    showToast('Request reopened and returned to In Progress.', 'success');
+  } catch (error) {
+    showToast(error.message || 'Unable to reopen this request.', 'error');
+  }
+}
+
+function formatStatus(status) {
+  return String(status || 'submitted').replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 </script>
 

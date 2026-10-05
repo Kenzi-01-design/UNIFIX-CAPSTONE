@@ -19,7 +19,7 @@
         </button>
         <button
           class="btn-primary"
-          @click="showToast('Accept tasks to move them into your active queue, then mark them resolved once work completes.', 'info')"
+          @click="showToast('Accept tasks to move them into your active queue, then submit completed work for verification.', 'info')"
         >
           Workflow Guide
         </button>
@@ -103,7 +103,7 @@
                 <PhotoGallery :attachments="r.photoAttachments || []" :title="r.title" />
                 <div class="task-deadline">
                   <span :class="['tag', `priority-${r.priority || 'low'}`]">{{ capitalize(r.priority || 'low') }} priority</span>
-                  <SlaBadge :due-at="r.dueAt" :completed="r.techState === 'completed'" />
+                  <SlaBadge :due-at="r.dueAt" :completed="['closed', 'resolved', 'action-taken'].includes(r.status)" />
                 </div>
 
                 <div class="rc-footer">
@@ -138,13 +138,13 @@
                     class="admin-action-btn resolve"
                     @click="handleComplete(r)"
                   >
-                    Mark Resolved
+                    Submit for Verification
                   </button>
                   <span
                     v-if="r.techState === 'completed'"
                     style="font-weight:700; color:var(--green);"
                   >
-                    Completed ✅
+                    {{ r.status === 'for-verification' ? 'Awaiting verification' : 'Completed' }}
                   </span>
                 </div>
               </div>
@@ -225,11 +225,7 @@ const assignedRequests = computed(() => {
       loc: request.dept,
       reporter: request.requester,
       risk: request.risk || 'low',
-      status: request.techState === 'completed'
-        ? 'resolved'
-        : ['accepted', 'started'].includes(request.techState)
-          ? 'in-progress'
-          : 'pending',
+      status: request.status,
       techState: request.techState || 'unassigned'
     }));
 });
@@ -302,7 +298,7 @@ async function handleComplete(task) {
   }
   if (completed) {
     completionPhotos[task.id] = [];
-    showToast(`${task.id} marked resolved ✅`, 'success');
+    showToast(`${task.id} submitted for verification.`, 'success');
   } else {
     showToast('Unable to save completion. Check your Supabase access.', 'error');
   }

@@ -123,6 +123,18 @@
           </div>
         </div>
 
+        <div v-if="publicMode" class="form-group">
+          <label>Email for status updates (optional)</label>
+          <input
+            type="email"
+            v-model="form.email"
+            maxlength="254"
+            autocomplete="email"
+            placeholder="you@example.com"
+          />
+          <small>Providing an email opts you in to updates about this report and its tracking code.</small>
+        </div>
+
         <PhotoPicker v-model="selectedPhotos" label="Attach photos of the issue (optional)" />
 
         <div v-if="captchaRequired" class="captcha-box">
@@ -210,7 +222,8 @@ const form = reactive({
   bldg: '',
   floor: '',
   room: '',
-  landmark: ''
+  landmark: '',
+  email: ''
 });
 
 const catMeta = {
@@ -233,6 +246,7 @@ function clearForm() {
   form.floor = '';
   form.room = '';
   form.landmark = '';
+  form.email = '';
   selectedPhotos.value = [];
 }
 
@@ -250,6 +264,10 @@ async function handleSubmit() {
     showToast('Please complete the security verification.', 'error');
     return;
   }
+  if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+    showToast('Enter a valid email address for status updates.', 'error');
+    return;
+  }
 
   const meta = catMeta[form.cat] || { icon: 'other', bg: '#f7faf7' };
   const locParts = [form.bldg];
@@ -264,7 +282,8 @@ async function handleSubmit() {
     catIcon: meta.icon,
     catBg: meta.bg,
     loc: locParts.join(' · '),
-    reporter: activeUserName.value || 'Public Reporter'
+    reporter: activeUserName.value || 'Public Reporter',
+    reporterEmail: props.publicMode ? form.email.trim() : ''
   };
 
   isSubmitting.value = true;

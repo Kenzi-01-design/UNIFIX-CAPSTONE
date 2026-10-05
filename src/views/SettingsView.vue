@@ -16,8 +16,12 @@
             <input type="checkbox" v-model="settings.inapp" />
           </label>
           <label class="setting-row">
+            <span>SMS Notifications <small>{{ smsEnabled ? 'Add a mobile number to your profile to receive texts.' : 'SMS is not enabled for this deployment.' }}</small></span>
+            <input type="checkbox" v-model="settings.sms" :disabled="!smsEnabled" />
+          </label>
+          <label class="setting-row">
             <span>Urgent Facility Alerts</span>
-            <input type="checkbox" v-model="settings.sms" />
+            <input type="checkbox" v-model="settings.urgentAlerts" />
           </label>
 
           <div class="form-row" style="margin-top: 10px">
@@ -66,8 +70,12 @@
             <strong>{{ settings.inapp ? 'Enabled' : 'Disabled' }}</strong>
           </div>
           <div class="account-stat">
-            <span>Urgent Alerts</span>
+            <span>SMS Notifications</span>
             <strong>{{ settings.sms ? 'Enabled' : 'Disabled' }}</strong>
+          </div>
+          <div class="account-stat">
+            <span>Urgent Alerts</span>
+            <strong>{{ settings.urgentAlerts ? 'Enabled' : 'Disabled' }}</strong>
           </div>
           <div class="account-stat">
             <span>Initial Screen</span>
@@ -92,6 +100,7 @@ const { loadSettings, fetchSettings, saveSettings, resetSettings } = useAuth();
 const { showToast } = useToast();
 
 const settings = reactive(loadSettings());
+const smsEnabled = import.meta.env.VITE_SMS_NOTIFICATIONS_ENABLED === 'true';
 
 const landingLabelMap = {
   dashboard: 'Dashboard',
@@ -112,6 +121,7 @@ onMounted(async () => {
 
 async function handleSave() {
   try {
+    if (!smsEnabled) settings.sms = false;
     await saveSettings(settings);
     showToast('Settings saved successfully.', 'success');
   } catch (error) {

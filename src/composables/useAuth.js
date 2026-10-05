@@ -78,6 +78,7 @@ const defaultSettings = {
   email: true,
   inapp: true,
   sms: false,
+  urgentAlerts: false,
   landing: 'dashboard',
   timeout: '30'
 };
@@ -229,7 +230,15 @@ export function useAuth() {
   function loadSettings() {
     try {
       const saved = localStorage.getItem(getSettingsKey());
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...defaultSettings,
+          ...parsed,
+          urgentAlerts: parsed.urgentAlerts ?? parsed.sms ?? false,
+          sms: parsed.urgentAlerts === undefined ? false : (parsed.sms ?? false)
+        };
+      }
     } catch (e) {
       console.warn('Failed loading settings', e);
     }
@@ -253,7 +262,8 @@ export function useAuth() {
     const settings = {
       email: data.email_notifications,
       inapp: data.inapp_notifications,
-      sms: data.urgent_alerts,
+      sms: data.sms_notifications ?? false,
+      urgentAlerts: data.urgent_alerts,
       landing: data.landing_page,
       timeout: data.session_timeout
     };
@@ -271,7 +281,8 @@ export function useAuth() {
       user_email: email,
       email_notifications: settingsData.email,
       inapp_notifications: settingsData.inapp,
-      urgent_alerts: settingsData.sms,
+      urgent_alerts: settingsData.urgentAlerts,
+      sms_notifications: settingsData.sms,
       landing_page: settingsData.landing,
       session_timeout: settingsData.timeout
     });

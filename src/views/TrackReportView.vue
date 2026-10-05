@@ -66,6 +66,15 @@
             </button>
           </template>
         </section>
+        <form v-if="result.canReopen" class="tracking-feedback" @submit.prevent="reopenWorkItem">
+          <h3>Reopen this work item</h3>
+          <p>If the issue has returned, describe why it needs further attention. Reopening is available for 7 days after completion.</p>
+          <label for="reopen-reason">Reason (5–500 characters)</label>
+          <textarea id="reopen-reason" v-model="reopenReason" maxlength="500" minlength="5" rows="3" required></textarea>
+          <button class="btn-primary" type="submit" :disabled="reopening || reopenReason.trim().length < 5">
+            {{ reopening ? 'Reopening…' : 'Reopen work item' }}
+          </button>
+        </form>
       </article>
     </section>
   </main>
@@ -73,15 +82,15 @@
 
 <script setup>
 import { onMounted, ref } from 'vue';
-import { lookupPublicReport, isSupabaseConfigured } from '../lib/supabase.js';
+import { lookupPublicReport, isSupabaseConfigured, reopenPublicWorkItem } from '../lib/supabase.js';
 import { useReports } from '../composables/useReports.js';
 import { useRequests } from '../composables/useRequests.js';
 import { useReportFeedback } from '../composables/useReportFeedback.js';
 
 defineEmits(['back']);
 
-const { reports } = useReports();
-const { requests } = useRequests();
+const { reports, reopenOwnReport } = useReports();
+const { requests, reopenOwnRequest } = useRequests();
 const { loadReportFeedback, submitReportFeedback, hasFeedbackForReport } = useReportFeedback();
 const codeDraft = ref('');
 const loading = ref(false);
@@ -91,6 +100,8 @@ const result = ref(null);
 const hasSearched = ref(false);
 const rating = ref(0);
 const comment = ref('');
+const reopenReason = ref('');
+const reopening = ref(false);
 let localAttemptTimes = [];
 
 onMounted(() => {
@@ -126,25 +137,31 @@ async function lookup() {
       const request = requests.value.find((item) => item.trackingCode?.toUpperCase() === code);
       const workItem = report || request;
       if (!workItem) throw new Error('No report or request was found for that tracking code.');
-      const isComplete = workItem.status === 'resolved' || workItem.status === 'action-taken' || workItem.techState === 'completed';
+      const isComplete = ['closed', 'resolved', 'action-taken'].includes(workItem.status);
       const hasAssignment = Boolean(workItem.assignedTo);
+      const completedAt = workItem.completedAt || (isComplete ? workItem.updatedAt : null);
       const stageDates = [
         workItem.date || null,
         workItem.reviewedAt || (workItem.status !== 'pending' && workItem.status !== 'urgent' && workItem.status !== 'submitted' ? workItem.updatedAt : null),
         workItem.assignedAt || (hasAssignment ? workItem.updatedAt : null),
         workItem.inProgressAt || (workItem.status === 'in-progress' ? workItem.updatedAt : null),
-        workItem.completedAt || (isComplete ? workItem.updatedAt : null)
+        workItem.forVerificationAt || (workItem.status === 'for-verification' ? workItem.updatedAt : null),
+        completedAt
       ];
+      const completedTimestamp = completedAt ? new Date(completedAt).getTime() : 0;
       result.value = {
         trackingCode: workItem.trackingCode,
-        status: isComplete ? 'Completed' : workItem.techState === 'started' || workItem.status === 'in-progress' ? 'In progress' : hasAssignment ? 'Assigned' : 'Submitted',
+        status: isComplete ? 'Completed' : workItem.status === 'for-verification' ? 'For verification' : workItem.techState === 'started' || workItem.status === 'in-progress' ? 'In progress' : hasAssignment ? 'Assigned' : 'Submitted',
         assignedTeam: hasAssignment ? 'Campus Maintenance Team' : null,
         lastUpdated: workItem.updatedAt || workItem.date,
         completed: isComplete,
         feedbackSubmitted: Boolean(report && hasFeedbackForReport(report.id)),
         feedbackEligible: Boolean(report),
+        canReopen: workItem.status === 'closed' && completedTimestamp >= Date.now() - 7 * 24 * 60 * 60 * 1000,
+        entityType: report ? 'report' : 'request',
+        entityId: workItem.id,
         reportId: report?.id,
-        timeline: ['Submitted', 'Reviewed', 'Assigned', 'In progress', 'Completed'].map((label, index) => ({
+        timeline: ['Submitted', 'Reviewed', 'Assigned', 'In progress', 'For verification', 'Completed'].map((label, index) => ({
           label,
           at: stageDates[index],
           complete: Boolean(stageDates[index])
@@ -166,7 +183,7 @@ async function submitFeedback() {
   error.value = '';
   submittingFeedback.value = true;
   try {
-    const demoReport = { id: result.value.reportId, status: 'resolved', techState: 'completed' };
+    const demoReport = { id: result.value.reportId, status: 'closed', techState: 'completed' };
     await submitReportFeedback(demoReport, rating.value, comment.value, result.value.trackingCode);
     result.value.feedbackSubmitted = true;
     comment.value = '';
@@ -174,6 +191,34 @@ async function submitFeedback() {
     error.value = feedbackError.message || 'Unable to save feedback.';
   } finally {
     submittingFeedback.value = false;
+  }
+}
+
+async function reopenWorkItem() {
+  const reason = reopenReason.value.trim();
+  if (!result.value?.canReopen || reason.length < 5 || reason.length > 500) {
+    error.value = 'Reopening requires a reason of 5 to 500 characters, within 7 days of completion.';
+    return;
+  }
+  error.value = '';
+  reopening.value = true;
+  try {
+    if (isSupabaseConfigured) {
+      await reopenPublicWorkItem(result.value.trackingCode, reason);
+    } else if (result.value.entityType === 'report') {
+      if (!await reopenOwnReport(result.value.entityId, reason)) {
+        throw new Error('This report can no longer be reopened.');
+      }
+    } else if (!await reopenOwnRequest(result.value.entityId, reason)) {
+      throw new Error('This request can no longer be reopened.');
+    }
+    reopenReason.value = '';
+    codeDraft.value = result.value.trackingCode;
+    await lookup();
+  } catch (reopenError) {
+    error.value = reopenError.message || 'Unable to reopen this work item.';
+  } finally {
+    reopening.value = false;
   }
 }
 

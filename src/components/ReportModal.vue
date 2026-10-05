@@ -24,7 +24,7 @@
         <div class="modal-row">
           <strong>Priority / deadline:</strong>
           <span :class="['tag', `priority-${report.priority || 'low'}`]">{{ capitalize(report.priority || 'low') }}</span>
-          <SlaBadge :due-at="report.dueAt" :completed="report.status === 'resolved'" />
+          <SlaBadge :due-at="report.dueAt" :completed="['closed', 'resolved'].includes(report.status)" />
         </div>
         <div class="modal-row">
           <strong>Assigned Tech:</strong> 
@@ -62,6 +62,8 @@
           </div>
         </div>
 
+        <AuditLogPanel v-if="['Admin', 'Assistant', 'Personnel'].includes(currentRole)" entity-type="report" :entity-id="report.id" />
+
         <section v-if="isOwnCompletedReport" class="report-feedback">
           <strong>Rate this completed work</strong>
           <p v-if="feedbackLoading" class="photo-message">Loading feedback status…</p>
@@ -79,6 +81,25 @@
             </button>
           </template>
         </section>
+        <form v-if="canReopenOwnReport" class="report-feedback" @submit.prevent="reopenOwnWorkItem">
+          <strong>Reopen this report</strong>
+          <p>Available for 7 days after verification. Provide a reason so staff can continue the work.</p>
+          <label class="sr-only" :for="`reopen-reason-${report.id}`">Reason for reopening</label>
+          <textarea
+            :id="`reopen-reason-${report.id}`"
+            v-model="reopenReason"
+            maxlength="500"
+            minlength="5"
+            rows="3"
+            placeholder="Reason for reopening (5–500 characters)"
+            required
+          ></textarea>
+          <p v-if="reopenError" class="photo-message photo-error" role="alert">{{ reopenError }}</p>
+          <p v-if="reopenSucceeded" class="feedback-thanks">Report reopened and returned to In Progress.</p>
+          <button class="btn-primary" type="submit" :disabled="reopening || reopenReason.trim().length < 5">
+            {{ reopening ? 'Reopening…' : 'Reopen report' }}
+          </button>
+        </form>
       </div>
 
       <div class="modal-actions">
@@ -90,13 +111,13 @@
             {{ report.assignedTo ? 'Reassign' : 'Assign' }}
           </button>
           <button
-            v-if="report.status !== 'resolved'"
+            v-if="report.status === 'for-verification'"
             class="admin-action-btn resolve"
             :disabled="!canAdminResolve"
-            :title="canAdminResolve ? 'Mark report as resolved' : 'Personnel must accept or start this report first'"
+            title="Verify that the personnel work is complete"
             @click="$emit('resolve', report.id)"
           >
-            Mark Resolved
+            Verify & Close
           </button>
         </template>
 
@@ -139,6 +160,8 @@
 import { computed, ref, watch } from 'vue';
 import { resolvePhotoUrl } from '../lib/photos.js';
 import { useReportFeedback } from '../composables/useReportFeedback.js';
+import { useReports } from '../composables/useReports.js';
+import AuditLogPanel from './AuditLogPanel.vue';
 import SlaBadge from './SlaBadge.vue';
 
 const props = defineProps({
@@ -161,6 +184,7 @@ const props = defineProps({
 });
 
 const { loadReportFeedback, submitReportFeedback, hasFeedbackForReport } = useReportFeedback();
+const { reopenOwnReport } = useReports();
 const resolvedPhotos = ref([]);
 const photosLoading = ref(false);
 const photosError = ref('');
@@ -169,6 +193,10 @@ const feedbackSubmitting = ref(false);
 const feedbackError = ref('');
 const rating = ref(0);
 const feedbackComment = ref('');
+const reopenReason = ref('');
+const reopenError = ref('');
+const reopenSucceeded = ref(false);
+const reopening = ref(false);
 
 watch(
   () => [props.report?.id, props.isOpen, props.report?.photoAttachments],
@@ -198,8 +226,30 @@ watch(
 const isOwnCompletedReport = computed(() => Boolean(
   props.report
   && props.report.reporter?.toLowerCase() === props.activeUserName.toLowerCase()
-  && (props.report.status === 'resolved' || props.report.techState === 'completed')
+  && ['closed', 'resolved'].includes(props.report.status)
 ));
+const canReopenOwnReport = computed(() => {
+  if (props.report?.status !== 'closed' || !props.report?.completedAt) return false;
+  const completedAt = new Date(props.report.completedAt).getTime();
+  return Number.isFinite(completedAt) && completedAt >= Date.now() - 7 * 24 * 60 * 60 * 1000;
+});
+
+async function reopenOwnWorkItem() {
+  reopenError.value = '';
+  reopenSucceeded.value = false;
+  reopening.value = true;
+  try {
+    if (!await reopenOwnReport(props.report.id, reopenReason.value)) {
+      throw new Error('This report is no longer eligible to reopen.');
+    }
+    reopenReason.value = '';
+    reopenSucceeded.value = true;
+  } catch (error) {
+    reopenError.value = error.message || 'Unable to reopen this report.';
+  } finally {
+    reopening.value = false;
+  }
+}
 
 watch(
   () => [props.report?.id, props.isOpen, isOwnCompletedReport.value],
@@ -207,6 +257,9 @@ watch(
     feedbackError.value = '';
     rating.value = 0;
     feedbackComment.value = '';
+    reopenReason.value = '';
+    reopenError.value = '';
+    reopenSucceeded.value = false;
     if (!reportId || !isOpen || !canFeedback) return;
     feedbackLoading.value = true;
     try {
@@ -245,7 +298,7 @@ const canAdminResolve = computed(() => {
   const hasPersonnel = Array.isArray(props.report.assignedPersonnel)
     ? props.report.assignedPersonnel.length > 0
     : Boolean(props.report.assignedTo);
-  return hasPersonnel && ['accepted', 'started'].includes(props.report.techState);
+  return hasPersonnel && props.report.status === 'for-verification' && props.report.techState === 'completed';
 });
 
 defineEmits([

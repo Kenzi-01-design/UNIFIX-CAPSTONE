@@ -56,3 +56,13 @@ export async function submitPublicReportFeedback(trackingCode, rating, comment) 
   if (!data?.submitted) throw new Error('The feedback service returned an invalid response.');
   return data;
 }
+
+export async function reopenPublicWorkItem(trackingCode, reason) {
+  const data = await invokePublicFunction('track-report', {
+    action: 'reopen',
+    trackingCode,
+    reason
+  });
+  if (!data?.submitted) throw new Error('The reopen service returned an invalid response.');
+  return data;
+}

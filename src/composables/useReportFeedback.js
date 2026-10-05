@@ -50,7 +50,7 @@ export function useReportFeedback() {
     if (!report?.id && !publicLookup) {
       throw new Error('The report could not be verified.');
     }
-    if (report && report.status !== 'resolved' && report.techState !== 'completed') {
+    if (report && !['closed', 'resolved'].includes(report.status)) {
       throw new Error('Feedback is available after the work is completed.');
     }
     if (report?.id && feedback.value.some((item) => item.report_id === report.id)) {

@@ -5,6 +5,7 @@ import { createDemoTrackingCode } from '../lib/tracking.js';
 import { calculateDueAt } from '../lib/sla.js';
 import { removeUploadedPhotos, uploadPhotoFiles } from '../lib/photos.js';
 import { useSlaSettings } from './useSlaSettings.js';
+import { recordDemoAudit } from './useAuditLog.js';
 
 const STORAGE_KEY = 'unifix-requests-v1';
 
@@ -17,7 +18,7 @@ const initialRequests = [
     requester: 'Prof. Reyes',
     details: 'Need 10 additional wooden tablet armchairs for Lecture Hall 1.',
     date: 'Mar 18, 2026',
-    status: 'action-taken',
+    status: 'closed',
     adminResponse: 'Delivered 10 armchairs from storage depot B.',
     actionDate: 'Mar 19, 2026',
     feedback: '',
@@ -54,7 +55,11 @@ const initialRequests = [
 function loadPersistedRequests() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw).map((request) => ({ ...request, risk: request.risk || 'low' }));
+    if (raw) return JSON.parse(raw).map((request) => ({
+      ...request,
+      risk: request.risk || 'low',
+      status: request.status === 'action-taken' ? 'closed' : request.status
+    }));
   } catch (e) {
     console.warn('Failed loading requests from localStorage', e);
   }
@@ -72,6 +77,7 @@ function toDatabaseRequest(request) {
     department: request.dept,
     details: request.details,
     requester: request.requester,
+    requester_email: request.requesterEmail || null,
     risk: request.risk || 'low',
     priority: request.priority || 'low',
     status: request.status,
@@ -87,7 +93,10 @@ function toDatabaseRequest(request) {
     target_date: request.targetDate || null,
     completion_photo: request.completionPhoto || null,
     photo_attachments: request.photoAttachments || [],
-    request_date: request.date
+    request_date: request.date,
+    rejection_reason: request.rejectionReason || null,
+    reopen_reason: request.reopenReason || null,
+    rework_count: request.reworkCount || 0
   };
 }
 
@@ -124,6 +133,7 @@ async function loadRequestsFromSupabase() {
       dept: request.department,
       details: request.details,
       requester: request.requester,
+      requesterEmail: request.requester_email || '',
       risk: request.risk || 'low',
       priority: request.priority || 'low',
       dueAt: request.due_at || '',
@@ -132,6 +142,12 @@ async function loadRequestsFromSupabase() {
       assignedAt: request.assigned_at || '',
       inProgressAt: request.in_progress_at || '',
       completedAt: request.completed_at || '',
+      forVerificationAt: request.for_verification_at || '',
+      verifiedAt: request.verified_at || '',
+      rejectionReason: request.rejection_reason || '',
+      reopenReason: request.reopen_reason || '',
+      reopenedAt: request.reopened_at || '',
+      reworkCount: request.rework_count || 0,
       status: request.status,
       adminResponse: request.admin_response || '',
       adminRemark: request.admin_remark || '',
@@ -169,6 +185,17 @@ void loadRequestsFromSupabase();
 
 export function useRequests() {
   const { settings: slaSettings } = useSlaSettings();
+  const { pushDemoNotification, pushTechAssignmentNotification } = useNotifications();
+  function notifyDemoRequester(request, eventType, title, message) {
+    if (isSupabaseConfigured || !request.requester) return;
+    pushDemoNotification('Employee', request.requester, {
+      eventType,
+      title,
+      message,
+      entityType: 'request',
+      entityId: request.id
+    });
+  }
   function saveRequests() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(requests.value));
@@ -194,6 +221,8 @@ export function useRequests() {
       assignedTo: '',
       assignedPersonnel: [],
       techState: 'unassigned',
+      requesterEmail: reqData.requesterEmail || '',
+      reworkCount: 0,
       assignNote: '',
       targetDate: '',
       completionPhoto: '',
@@ -214,7 +243,22 @@ export function useRequests() {
     }
     requests.value.unshift(newReq);
     saveRequests();
-    if (!isSupabaseConfigured) return newReq;
+    recordDemoAudit({
+      entityType: 'request',
+      entityId: newReq.id,
+      action: 'created',
+      newValue: { status: newReq.status, priority: newReq.priority }
+    });
+    if (!isSupabaseConfigured) {
+      ['Admin', 'Assistant'].forEach((role) => pushDemoNotification(role, role === 'Admin' ? 'Admin User' : 'Admin Assistant', {
+        eventType: 'work_received',
+        title: 'New request received',
+        message: `A new request is ready for review: ${newReq.title}`,
+        entityType: 'request',
+        entityId: newReq.id
+      }));
+      return newReq;
+    }
 
     try {
       const saved = await syncRequest(newReq, true);
@@ -237,11 +281,16 @@ export function useRequests() {
     }
   }
 
-  function acknowledgeRequest(requestId, responseNote) {
+  async function acknowledgeRequest(requestId, responseNote) {
     const req = requests.value.find((r) => r.id.toLowerCase() === requestId.toLowerCase());
-    if (!req || req.techState !== 'completed') return null;
+    if (!req || req.techState !== 'completed' || req.status !== 'for-verification') return null;
 
-    req.status = 'action-taken';
+    const previousStatus = req.status;
+    const previousCompletedAt = req.completedAt;
+    const previousAdminResponse = req.adminResponse;
+    const previousActionDate = req.actionDate;
+    req.status = 'closed';
+    req.completedAt = new Date().toISOString();
     req.adminResponse = responseNote || 'Action taken by Campus Administration.';
     req.actionDate = new Date().toLocaleDateString('en-US', {
       month: 'short',
@@ -249,8 +298,89 @@ export function useRequests() {
       year: 'numeric'
     });
     saveRequests();
-    syncRequestInBackground(req);
+    try {
+      await syncRequest(req);
+      recordDemoAudit({
+        entityType: 'request',
+        entityId: req.id,
+        action: 'status_changed',
+        oldValue: { status: previousStatus },
+        newValue: { status: 'closed' }
+      });
+      notifyDemoRequester(req, 'work_completed', 'Request completed', `Your request ${req.id} has been verified and closed.`);
+    } catch (error) {
+      req.status = previousStatus;
+      req.completedAt = previousCompletedAt;
+      req.adminResponse = previousAdminResponse;
+      req.actionDate = previousActionDate;
+      saveRequests();
+      throw error;
+    }
     return req;
+  }
+
+  async function rejectRequest(requestId, reason) {
+    const request = requests.value.find((item) => item.id.toLowerCase() === requestId.toLowerCase());
+    const safeReason = String(reason || '').trim();
+    if (!request || request.status !== 'for-verification' || safeReason.length < 5 || safeReason.length > 500) return false;
+    const previous = {
+      status: request.status,
+      techState: request.techState,
+      rejectionReason: request.rejectionReason,
+      reworkCount: request.reworkCount
+    };
+    request.status = 'in-progress';
+    request.techState = 'started';
+    request.rejectionReason = safeReason;
+    request.reworkCount = (request.reworkCount || 0) + 1;
+    saveRequests();
+    try {
+      await syncRequest(request);
+      notifyDemoRequester(request, 'status_changed', 'Rework requested', `Your request ${request.id} was returned for further work.`);
+      recordDemoAudit({
+        entityType: 'request',
+        entityId: request.id,
+        action: 'status_changed',
+        oldValue: { status: 'for-verification' },
+        newValue: { status: 'in-progress', rejection_reason: safeReason }
+      });
+      return true;
+    } catch (error) {
+      Object.assign(request, previous);
+      saveRequests();
+      throw error;
+    }
+  }
+
+  async function reopenOwnRequest(requestId, reason) {
+    const request = requests.value.find((item) => item.id.toLowerCase() === requestId.toLowerCase());
+    const safeReason = String(reason || '').trim();
+    if (!request || request.status !== 'closed' || safeReason.length < 5 || safeReason.length > 500) return false;
+    const completedTime = new Date(request.completedAt || request.updatedAt || '').getTime();
+    if (!Number.isFinite(completedTime) || completedTime < Date.now() - 7 * 24 * 60 * 60 * 1000) return false;
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.rpc('reopen_own_work_item', {
+        p_entity_type: 'request',
+        p_entity_id: request.id,
+        p_reason: safeReason
+      });
+      if (error) throw error;
+    }
+    request.status = 'in-progress';
+    request.reopenReason = safeReason;
+    request.reopenedAt = new Date().toISOString();
+    request.reworkCount = (request.reworkCount || 0) + 1;
+    recordDemoAudit({
+      entityType: 'request',
+      entityId: request.id,
+      action: 'status_changed',
+      oldValue: { status: 'closed' },
+      newValue: { status: 'in-progress', reopen_reason: safeReason }
+    });
+    request.techState = request.assignedPersonnel?.length ? 'assigned' : 'unassigned';
+    saveRequests();
+    notifyDemoRequester(request, 'status_changed', 'Request reopened', `Your request ${request.id} was reopened for further work.`);
+    return true;
   }
 
   function setRequestRisk(requestId, risk) {
@@ -282,6 +412,13 @@ export function useRequests() {
       saveRequests();
       throw error;
     }
+    recordDemoAudit({
+      entityType: 'request',
+      entityId: request.id,
+      action: 'priority_changed',
+      oldValue: { priority: previousPriority },
+      newValue: { priority }
+    });
     return request;
   }
 
@@ -297,7 +434,7 @@ export function useRequests() {
   function setRequestFeedback(requestId, feedback) {
     const request = requests.value.find((item) => item.id.toLowerCase() === requestId.toLowerCase());
     const trimmedFeedback = (feedback || '').trim();
-    if (!request || !trimmedFeedback || request.status !== 'action-taken') return null;
+    if (!request || !trimmedFeedback || request.status !== 'closed') return null;
 
     request.feedback = trimmedFeedback;
     request.feedbackDate = new Date().toLocaleDateString('en-US', {
@@ -314,11 +451,20 @@ export function useRequests() {
     const request = requests.value.find((item) => item.id.toLowerCase() === requestId.toLowerCase());
     if (!request) return null;
 
+    const previousAssignees = request.assignedPersonnel || [];
     request.assignedPersonnel = [...new Set((Array.isArray(personnel) ? personnel : [personnel]).filter(Boolean))];
     request.assignedTo = request.assignedPersonnel.join(', ');
     request.techState = 'assigned';
     request.assignNote = note;
     request.targetDate = targetDate;
+    request.assignedPersonnel.forEach((name) => pushTechAssignmentNotification(name, request, 'assigned'));
+    recordDemoAudit({
+      entityType: 'request',
+      entityId: request.id,
+      action: 'assignment_changed',
+      oldValue: { assigned_personnel: previousAssignees },
+      newValue: { assigned_personnel: request.assignedPersonnel }
+    });
     saveRequests();
     syncRequestInBackground(request);
     return request;
@@ -335,13 +481,17 @@ export function useRequests() {
     const request = requests.value.find((item) => item.id === requestId);
     if (!request || !isAssignedTo(request, currentPersonnel)) return false;
     const previousState = request.techState;
+    const previousStatus = request.status;
     request.techState = 'accepted';
+    request.status = 'in-progress';
     saveRequests();
     try {
       await syncRequest(request);
+      notifyDemoRequester(request, 'status_changed', 'Request accepted', `Personnel accepted request ${request.id}.`);
       return true;
     } catch (error) {
       request.techState = previousState;
+      request.status = previousStatus;
       saveRequests();
       console.warn('Failed saving request acceptance', error);
       return false;
@@ -352,13 +502,17 @@ export function useRequests() {
     const request = requests.value.find((item) => item.id === requestId);
     if (!request || !isAssignedTo(request, currentPersonnel)) return false;
     const previousState = request.techState;
+    const previousStatus = request.status;
     request.techState = 'started';
+    request.status = 'in-progress';
     saveRequests();
     try {
       await syncRequest(request);
+      notifyDemoRequester(request, 'status_changed', 'Request in progress', `Personnel started work on request ${request.id}.`);
       return true;
     } catch (error) {
       request.techState = previousState;
+      request.status = previousStatus;
       saveRequests();
       console.warn('Failed saving request start', error);
       return false;
@@ -369,8 +523,10 @@ export function useRequests() {
     const request = requests.value.find((item) => item.id === requestId);
     if (!request || request.techState !== 'started' || !isAssignedTo(request, currentPersonnel)) return false;
     const previousState = request.techState;
+    const previousStatus = request.status;
     const previousAttachments = request.photoAttachments || [];
     request.techState = 'completed';
+    request.status = 'for-verification';
     try {
       if (completionPhotos.length) {
         request.photoAttachments = await uploadPhotoFiles(completionPhotos, {
@@ -382,17 +538,27 @@ export function useRequests() {
       }
     } catch (error) {
       request.techState = previousState;
+      request.status = previousStatus;
       throw error;
     }
     saveRequests();
     try {
       await syncRequest(request);
+      recordDemoAudit({
+        entityType: 'request',
+        entityId: request.id,
+        action: 'status_changed',
+        oldValue: { status: previousStatus },
+        newValue: { status: 'for-verification' }
+      });
+      notifyDemoRequester(request, 'status_changed', 'Request awaiting verification', `Personnel submitted request ${request.id} for verification.`);
       return true;
     } catch (error) {
       const newAttachments = request.photoAttachments.filter(
         (attachment) => !previousAttachments.includes(attachment)
       );
       request.techState = previousState;
+      request.status = previousStatus;
       request.photoAttachments = previousAttachments;
       saveRequests();
       try {
@@ -411,6 +577,8 @@ export function useRequests() {
     subscribeToRequests,
     addRequest,
     acknowledgeRequest,
+    rejectRequest,
+    reopenOwnRequest,
     setRequestRisk,
     setRequestPriority,
     setRequestRemark,
