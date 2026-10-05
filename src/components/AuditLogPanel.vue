@@ -48,6 +48,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useAuditLog } from '../composables/useAuditLog.js';
+import { encodeCsv } from '../lib/csv.js';
 
 const props = defineProps({
   entityType: { type: String, default: '' },
@@ -105,12 +106,6 @@ function describeChange(item) {
   return `${oldValue === '{}' ? '—' : oldValue} → ${newValue === '{}' ? '—' : newValue}`;
 }
 
-function csvCell(value) {
-  const text = String(value ?? '');
-  const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
-  return `"${safe.replaceAll('"', '""')}"`;
-}
-
 function exportCsv() {
   const rows = [
     ['Timestamp', 'Type', 'ID', 'Action', 'Actor', 'Role', 'Old value', 'New value'],
@@ -125,7 +120,7 @@ function exportCsv() {
       JSON.stringify(item.new_value || '')
     ])
   ];
-  const blob = new Blob([rows.map((row) => row.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const blob = new Blob([encodeCsv(rows)], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;

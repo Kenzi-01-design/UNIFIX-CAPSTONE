@@ -73,7 +73,7 @@
           <h3>Submission trend</h3>
           <div v-if="!data.trend.length" class="analytics-chart-empty">No records in this range.</div>
           <div v-else class="analytics-trend" aria-label="Daily submissions">
-            <div v-for="item in trendBars" :key="item.name" :title="`${item.name}: ${item.count}`">
+            <div v-for="item in trendBars" :key="item.date" :title="`${item.date}: ${item.count}`">
               <i :style="{ height: `${item.percent}%` }"></i>
             </div>
           </div>
@@ -104,6 +104,7 @@ import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { useReports } from '../composables/useReports.js';
 import { useRequests } from '../composables/useRequests.js';
 import { useReportFeedback } from '../composables/useReportFeedback.js';
+import { encodeCsv } from '../lib/csv.js';
 
 const { reports } = useReports();
 const { requests } = useRequests();
@@ -282,8 +283,7 @@ function exportCsv() {
     ['Personnel', 'Open', 'Completed'],
     ...(data.value.personnel || []).map((item) => [item.name, item.open, item.completed])
   ];
-  const csv = rows.map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\r\n');
-  download('unifix-analytics.csv', csv, 'text/csv;charset=utf-8');
+  download('unifix-analytics.csv', encodeCsv(rows), 'text/csv;charset=utf-8');
 }
 
 function printSummary() {

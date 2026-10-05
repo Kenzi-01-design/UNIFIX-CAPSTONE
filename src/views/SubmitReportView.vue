@@ -212,6 +212,7 @@ import { useLocations } from '../composables/useLocations.js';
 import { useDuplicateReports } from '../composables/useDuplicateReports.js';
 import {
   deleteOfflineReportDraft,
+  getOfflineDraftScope,
   listOfflineReportDrafts,
   saveOfflineReportDraft
 } from '../lib/offlineReportDrafts.js';
@@ -236,6 +237,7 @@ const selectedLocationId = ref('');
 const locationError = ref('');
 const isOnline = ref(typeof navigator === 'undefined' || navigator.onLine);
 const offlineDrafts = ref([]);
+const offlineDraftScope = ref('');
 const queuedDraftId = ref('');
 const draftError = ref('');
 const duplicatePrompt = ref(false);
@@ -294,7 +296,7 @@ const catMeta = {
 
 function clearForm() {
   if (queuedDraftId.value) {
-    void deleteOfflineReportDraft(queuedDraftId.value)
+    void deleteOfflineReportDraft(queuedDraftId.value, offlineDraftScope.value)
       .then(() => refreshOfflineDrafts())
       .catch((error) => console.error('Could not remove the cleared offline report draft.', error));
     queuedDraftId.value = '';
@@ -374,7 +376,12 @@ onMounted(() => {
   if (props.publicMode) {
     window.addEventListener('online', handleConnectionChange);
     window.addEventListener('offline', handleConnectionChange);
-    void refreshOfflineDrafts();
+    try {
+      offlineDraftScope.value = getOfflineDraftScope();
+      void refreshOfflineDrafts();
+    } catch (error) {
+      draftError.value = error.message || 'Offline report drafts are unavailable in this browser session.';
+    }
   }
 });
 
@@ -385,7 +392,7 @@ onBeforeUnmount(() => {
 
 async function refreshOfflineDrafts() {
   try {
-    offlineDrafts.value = await listOfflineReportDrafts();
+    offlineDrafts.value = await listOfflineReportDrafts(offlineDraftScope.value);
     draftError.value = '';
   } catch (error) {
     draftError.value = error.message || 'Offline report drafts could not be loaded.';
@@ -435,7 +442,7 @@ async function saveDraftForOfflineSubmission() {
       locationId: selectedLocationId.value
     },
     photos: selectedPhotos.value
-  });
+  }, offlineDraftScope.value);
   queuedDraftId.value = saved.id;
   await refreshOfflineDrafts();
   showToast('Report saved on this device. It will need security verification before submission.', 'success');
@@ -457,7 +464,7 @@ async function persistQueuedDraftEdits() {
       locationId: selectedLocationId.value
     },
     photos: selectedPhotos.value
-  });
+  }, offlineDraftScope.value);
 }
 function continueAsDifferent() {
   duplicateChoice.value = 'different';
@@ -470,7 +477,7 @@ async function addDuplicateVote(match) {
   try {
     await voteForDuplicate(match.id, duplicateNote.value);
     if (queuedDraftId.value) {
-      await deleteOfflineReportDraft(queuedDraftId.value);
+      await deleteOfflineReportDraft(queuedDraftId.value, offlineDraftScope.value);
       queuedDraftId.value = '';
       await refreshOfflineDrafts();
     }
@@ -570,7 +577,7 @@ async function handleSubmit() {
       : await addReport(reportData, selectedPhotos.value);
 
     if (queuedDraftId.value) {
-      await deleteOfflineReportDraft(queuedDraftId.value);
+      await deleteOfflineReportDraft(queuedDraftId.value, offlineDraftScope.value);
       queuedDraftId.value = '';
       await refreshOfflineDrafts();
     }

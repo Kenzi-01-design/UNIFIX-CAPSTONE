@@ -1,5 +1,22 @@
 const DATABASE_NAME = 'unifix-offline-v1';
 const STORE_NAME = 'report-drafts';
+const SCOPE_STORAGE_KEY = 'unifix-offline-draft-scope';
+
+export function getOfflineDraftScope() {
+  if (!('sessionStorage' in globalThis)) {
+    throw new Error('This browser cannot isolate offline report drafts by session.');
+  }
+  let scope = sessionStorage.getItem(SCOPE_STORAGE_KEY);
+  if (!scope) {
+    scope = crypto.randomUUID();
+    sessionStorage.setItem(SCOPE_STORAGE_KEY, scope);
+  }
+  return scope;
+}
+
+export function filterOfflineDraftsByScope(drafts, ownerScope) {
+  return drafts.filter((draft) => draft.ownerScope === ownerScope);
+}
 
 function openDatabase() {
   return new Promise((resolve, reject) => {
@@ -38,14 +55,18 @@ async function withDraftStore(mode, operation) {
   }
 }
 
-export async function listOfflineReportDrafts() {
+export async function listOfflineReportDrafts(ownerScope) {
+  if (!ownerScope) throw new Error('An offline draft session is required.');
   const drafts = await withDraftStore('readonly', (store) => store.getAll());
-  return drafts.sort((left, right) => right.createdAt - left.createdAt);
+  return filterOfflineDraftsByScope(drafts, ownerScope)
+    .sort((left, right) => right.createdAt - left.createdAt);
 }
 
-export async function saveOfflineReportDraft(draft) {
+export async function saveOfflineReportDraft(draft, ownerScope) {
+  if (!ownerScope) throw new Error('An offline draft session is required.');
   const saved = {
     ...draft,
+    ownerScope,
     id: draft.id || crypto.randomUUID(),
     createdAt: draft.createdAt || Date.now()
   };
@@ -53,6 +74,9 @@ export async function saveOfflineReportDraft(draft) {
   return saved;
 }
 
-export async function deleteOfflineReportDraft(id) {
+export async function deleteOfflineReportDraft(id, ownerScope) {
+  if (!id || !ownerScope) throw new Error('An offline draft session is required.');
+  const draft = await withDraftStore('readonly', (store) => store.get(id));
+  if (draft?.ownerScope !== ownerScope) return;
   await withDraftStore('readwrite', (store) => store.delete(id));
 }

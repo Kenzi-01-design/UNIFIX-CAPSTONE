@@ -439,6 +439,7 @@ import { useReportFeedback } from '../composables/useReportFeedback.js';
 import { isOverdue } from '../lib/sla.js';
 import { printJobOrder } from '../lib/jobOrder.js';
 import { useDuplicateReports } from '../composables/useDuplicateReports.js';
+import { encodeCsv } from '../lib/csv.js';
 
 const props = defineProps({
   currentRole: {
@@ -824,18 +825,16 @@ function exportCSV() {
   const headers = ['ID', 'Title', 'Category', 'Location', 'Risk', 'Status', 'Assigned To', 'Date'];
   const rows = reports.value.map((r) => [
     r.id,
-    `"${r.title.replace(/"/g, '""')}"`,
+    r.title,
     r.cat,
-    `"${r.loc.replace(/"/g, '""')}"`,
+    r.loc,
     r.risk,
     r.status,
     r.assignedTo || 'Unassigned',
     r.date
   ]);
-  const csvContent =
-    'data:text/csv;charset=utf-8,' +
-    [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-  const encodedUri = encodeURI(csvContent);
+  const csvContent = encodeCsv([headers, ...rows]);
+  const encodedUri = `data:text/csv;charset=utf-8,${encodeURIComponent(csvContent)}`;
   const link = document.createElement('a');
   link.setAttribute('href', encodedUri);
   link.setAttribute('download', `unifix_reports_${new Date().toISOString().slice(0, 10)}.csv`);
