@@ -23,6 +23,16 @@
         All Reports <span class="tab-count">{{ reports.length }}</span>
       </button>
       <button
+        type="button"
+        class="admin-tab"
+        :class="{ active: activeAdminTab === 'requests' }"
+        role="tab"
+        :aria-selected="activeAdminTab === 'requests'"
+        @click="activeAdminTab = 'requests'"
+      >
+        All Requests <span class="tab-count">{{ requests.length }}</span>
+      </button>
+      <button
         v-if="currentRole === 'Admin'"
         type="button"
         class="admin-tab"
@@ -33,13 +43,24 @@
       >
         Assign Personnel <span class="tab-count">{{ unassignedQueue.length }}</span>
       </button>
+      <button
+        v-if="currentRole === 'Admin'"
+        type="button"
+        class="admin-tab"
+        :class="{ active: activeAdminTab === 'sla' }"
+        role="tab"
+        :aria-selected="activeAdminTab === 'sla'"
+        @click="activeAdminTab = 'sla'"
+      >
+        SLA Settings
+      </button>
     </div>
 
     <div class="admin-grid">
       <!-- 1. Maintenance Reports Table -->
       <div v-if="activeAdminTab === 'reports'" class="report-table-wrap">
         <div class="panel-header">
-          <span class="panel-title">All Reports — Manage & Assign</span>
+          <span class="panel-title">{{ currentRole === 'Admin' ? 'All Reports — Manage & Assign' : 'Review Reports' }}</span>
           <div class="admin-panel-header-actions">
             <span class="panel-action">{{ reports.length }} total</span>
           </div>
@@ -52,21 +73,39 @@
                 <th>Title</th>
                 <th>Category</th>
                 <th>Location</th>
+                <th>Priority / Deadline</th>
+                <th>Rating</th>
                 <th>Risk</th>
                 <th v-if="currentRole !== 'Assistant'">Status</th>
                 <th>Assigned To</th>
-                <th>Actions</th>
+                <th v-if="currentRole === 'Admin'">Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in reports.slice(0, 15)" :key="r.id">
+              <tr v-for="r in orderedReports" :key="r.id" :class="{ 'sla-overdue-row': r.status !== 'resolved' && isOverdue(r.dueAt) }">
                 <td><span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-3)">{{ r.id }}</span></td>
                 <td><span style="font-weight:600;font-size:13px">{{ truncate(r.title, 28) }}</span></td>
                 <td><UiIcon :name="r.cat" :size="16" /> {{ r.cat }}</td>
                 <td style="font-size:12px;color:var(--text-3)">{{ r.loc.split('·')[0] }}</td>
                 <td>
                   <select
-                    v-if="currentRole === 'Assistant'"
+                    v-if="currentRole === 'Admin'"
+                    class="risk-select"
+                    :value="r.priority || 'low'"
+                    @change="handleReportPriority(r.id, $event.target.value)"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                  <span v-else :class="['tag', `priority-${r.priority || 'low'}`]">{{ capitalize(r.priority || 'low') }}</span>
+                  <SlaBadge :due-at="r.dueAt" :completed="r.status === 'resolved'" />
+                </td>
+                <td>{{ formatRating(r.id) }}</td>
+                <td>
+                  <select
+                    v-if="currentRole === 'Admin'"
                     class="risk-select"
                     :value="normalizeRisk(r.risk)"
                     @change="handleReportRisk(r.id, $event.target.value)"
@@ -86,7 +125,12 @@
                   <button class="admin-action-btn assign" @click="pickForAssignment(r.id)">
                     {{ r.assignedTo ? '+ Personnel' : 'Assign' }}
                   </button>
-                  <button class="admin-action-btn resolve" @click="handleResolve(r.id)">
+                  <button
+                    class="admin-action-btn resolve"
+                    :disabled="!canResolveReport(r)"
+                    :title="canResolveReport(r) ? 'Mark report as resolved' : 'Personnel must accept or start this report first'"
+                    @click="handleResolve(r.id)"
+                  >
                     Resolve
                   </button>
                 </td>
@@ -104,11 +148,11 @@
           </div>
           <div style="padding: 18px" class="assign-flow">
             <div class="assign-selected">
-              {{ selectedReportLabel }}
+              {{ selectedWorkItemLabel }}
             </div>
             <div class="form-group">
               <label>Report ID</label>
-              <input ref="assignmentIdInput" type="text" v-model="assignForm.id" placeholder="#1045" @input="syncFormWithReport" />
+              <input ref="assignmentIdInput" type="text" v-model="assignForm.id" placeholder="#1045 or #REQ-201" @input="syncFormWithWorkItem" />
             </div>
             <div class="form-group">
               <label>Assigned Personnel</label>
@@ -185,10 +229,12 @@
         </div>
       </div>
 
+      <SlaSettingsPanel v-if="currentRole === 'Admin' && activeAdminTab === 'sla'" />
+
       <!-- 3. Faculty Requisitions & Action Taken Panel -->
-      <div class="panel admin-requests-panel">
+      <div v-if="activeAdminTab === 'requests'" class="panel admin-requests-panel">
         <div class="panel-header">
-          <span class="panel-title">Faculty Requisitions & Requests</span>
+          <span class="panel-title">All Requests</span>
           <span class="panel-action">{{ requests.length }} total</span>
         </div>
 
@@ -202,13 +248,14 @@
                 <th>Title & Details</th>
                 <th>Date</th>
                 <th>Status</th>
+                <th>Priority / Deadline</th>
                 <th>Risk</th>
-                <th>Response / Action Taken</th>
-                <th>Actions</th>
+                <th v-if="currentRole === 'Admin'">Admin Remark</th>
+                <th v-if="currentRole === 'Admin'">Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="req in requests" :key="req.id">
+              <tr v-for="req in orderedRequests" :key="req.id" :class="{ 'sla-overdue-row': req.techState !== 'completed' && req.status !== 'action-taken' && isOverdue(req.dueAt) }">
                 <td>
                   <span style="font-family:'DM Mono',monospace; font-size:12px; color:var(--text-3)">{{ req.id }}</span>
                 </td>
@@ -220,6 +267,7 @@
                 <td>
                   <strong>{{ req.title }}</strong>
                   <div style="font-size: 12px; color: var(--text-2); margin-top: 4px;">{{ req.details }}</div>
+                  <PhotoGallery :attachments="req.photoAttachments || []" :title="req.title" />
                 </td>
                 <td style="font-size: 12px; color: var(--text-3)">{{ req.date }}</td>
                 <td>
@@ -229,7 +277,22 @@
                 </td>
                 <td>
                   <select
-                    v-if="currentRole === 'Assistant'"
+                    v-if="currentRole === 'Admin'"
+                    class="risk-select"
+                    :value="req.priority || 'low'"
+                    @change="handleRequestPriority(req.id, $event.target.value)"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                  <span v-else :class="['tag', `priority-${req.priority || 'low'}`]">{{ capitalize(req.priority || 'low') }}</span>
+                  <SlaBadge :due-at="req.dueAt" :completed="req.techState === 'completed' || req.status === 'action-taken'" />
+                </td>
+                <td>
+                  <select
+                    v-if="currentRole === 'Admin'"
                     class="risk-select"
                     :value="req.risk || 'low'"
                     @change="handleRequestRisk(req.id, $event.target.value)"
@@ -241,33 +304,27 @@
                   <span v-else :class="['tag', req.risk || 'low']">{{ capitalize(req.risk || 'low') }}</span>
                 </td>
                 <td v-if="currentRole === 'Admin'" style="min-width: 240px;">
-                  <div v-if="req.status === 'action-taken'" style="font-size: 12px; color: var(--green);">
-                    {{ req.adminResponse }}
-                    <div style="font-size: 10px; color: var(--text-3); margin-top: 2px;">Logged: {{ req.actionDate }}</div>
-                  </div>
-                  <input
-                    v-else
-                    type="text"
-                    v-model="actionNotes[req.id]"
-                    placeholder="e.g., Dispatched chairs to room 302..."
-                    style="padding: 6px 10px; font-size: 12px; width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm);"
-                  />
+                  <textarea v-model="req.adminRemark" rows="2" maxlength="1000" placeholder="Explain delay or resource issue..." style="width:100%;"></textarea>
+                  <button class="admin-action-btn assign" @click="handleRequestRemark(req.id, req.adminRemark)">Save Remark</button>
                 </td>
-                <td v-if="currentRole === 'Admin'">
+                <td v-if="currentRole === 'Admin'" style="display:flex;gap:6px;flex-wrap:wrap">
+                  <button class="admin-action-btn assign" @click="pickRequestForAssignment(req.id)">
+                    {{ req.assignedTo ? 'Reassign' : 'Assign' }}
+                  </button>
                   <button
-                    v-if="req.status !== 'action-taken'"
+                    v-if="req.status !== 'action-taken' && req.techState === 'completed'"
                     class="admin-action-btn resolve"
                     @click="handleAcknowledge(req.id)"
                   >
                     Action Taken
                   </button>
                   <span v-else style="font-weight: 700; color: var(--green); font-size: 12px;">
-                    Acknowledged ✅
+                    {{ req.status === 'action-taken' ? 'Acknowledged ✅' : 'Awaiting personnel' }}
                   </span>
                 </td>
               </tr>
               <tr v-if="!requests.length">
-                <td colspan="9" style="text-align: center; color: var(--text-3); padding: 24px;">
+                <td :colspan="currentRole === 'Admin' ? 10 : 8" style="text-align: center; color: var(--text-3); padding: 24px;">
                   No faculty requests submitted yet.
                 </td>
               </tr>
@@ -280,11 +337,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, nextTick } from 'vue';
+import { ref, reactive, computed, nextTick, onMounted } from 'vue';
 import { useReports } from '../composables/useReports.js';
 import { useRequests } from '../composables/useRequests.js';
 import { useToast } from '../composables/useToast.js';
 import UiIcon from '../components/UiIcon.vue';
+import SlaBadge from '../components/SlaBadge.vue';
+import SlaSettingsPanel from '../components/SlaSettingsPanel.vue';
+import PhotoGallery from '../components/PhotoGallery.vue';
+import { useReportFeedback } from '../composables/useReportFeedback.js';
+import { isOverdue } from '../lib/sla.js';
 
 const props = defineProps({
   currentRole: {
@@ -300,11 +362,13 @@ const {
   findRecommendedTech,
   assignReport,
   resolveReport,
-  assignNextInQueue
-  ,
-  setReportRisk
+  assignNextInQueue,
+  setReportRisk,
+  setReportPriority,
+  setReportRemark
 } = useReports();
-const { requests, acknowledgeRequest, setRequestRisk } = useRequests();
+const { requests, acknowledgeRequest, setRequestRisk, setRequestPriority, setRequestRemark, assignRequest } = useRequests();
+const { feedback, loading: feedbackLoading, loadError: feedbackLoadError, loadReportFeedback } = useReportFeedback();
 const { showToast } = useToast();
 
 const activeAdminTab = ref('reports');
@@ -312,6 +376,8 @@ const assignmentPanel = ref(null);
 const assignmentIdInput = ref(null);
 
 const currentRole = computed(() => props.currentRole);
+
+onMounted(() => { void loadReportFeedback(); });
 
 async function focusAssignmentForm() {
   activeAdminTab.value = 'assignment';
@@ -325,18 +391,64 @@ function normalizeRisk(risk) {
 }
 
 function handleReportRisk(id, risk) {
-  if (currentRole.value !== 'Assistant') return;
+  if (currentRole.value !== 'Admin') return;
   setReportRisk(id, risk);
   showToast(`${id} risk marked ${capitalize(risk)}.`, 'success');
 }
 
 function handleRequestRisk(id, risk) {
-  if (currentRole.value !== 'Assistant') return;
+  if (currentRole.value !== 'Admin') return;
   setRequestRisk(id, risk);
   showToast(`${id} risk marked ${capitalize(risk)}.`, 'success');
 }
 
-const actionNotes = ref({});
+async function handleReportPriority(id, priority) {
+  if (currentRole.value !== 'Admin') return;
+  try {
+    const updated = await setReportPriority(id, priority);
+    if (updated) showToast(`${id} priority set to ${capitalize(priority)}.`, 'success');
+  } catch (error) {
+    showToast(error.message || `Unable to update ${id}'s priority.`, 'error');
+  }
+}
+
+async function handleRequestPriority(id, priority) {
+  if (currentRole.value !== 'Admin') return;
+  try {
+    const updated = await setRequestPriority(id, priority);
+    if (updated) showToast(`${id} priority set to ${capitalize(priority)}.`, 'success');
+  } catch (error) {
+    showToast(error.message || `Unable to update ${id}'s priority.`, 'error');
+  }
+}
+
+function formatRating(reportId) {
+  if (feedbackLoadError.value) return 'Unavailable';
+  if (feedbackLoading.value) return 'Loading…';
+  const ratings = feedback.value.filter((item) => item.report_id === reportId);
+  if (!ratings.length) return 'No ratings';
+  const average = ratings.reduce((sum, item) => sum + item.rating, 0) / ratings.length;
+  return `${average.toFixed(1)} / 5 (${ratings.length})`;
+}
+
+const orderedReports = computed(() => [...reports.value].sort((a, b) =>
+  Number(b.status !== 'resolved' && isOverdue(b.dueAt))
+  - Number(a.status !== 'resolved' && isOverdue(a.dueAt))
+));
+const orderedRequests = computed(() => [...requests.value].sort((a, b) =>
+  Number(b.techState !== 'completed' && b.status !== 'action-taken' && isOverdue(b.dueAt))
+  - Number(a.techState !== 'completed' && a.status !== 'action-taken' && isOverdue(a.dueAt))
+));
+
+function handleReportRemark(id, remark) {
+  if (currentRole.value !== 'Admin') return;
+  if (setReportRemark(id, remark)) showToast(`Remark saved for ${id}.`, 'success');
+}
+
+function handleRequestRemark(id, remark) {
+  if (currentRole.value !== 'Admin') return;
+  if (setRequestRemark(id, remark)) showToast(`Remark saved for ${id}.`, 'success');
+}
 
 const assignForm = reactive({
   id: '',
@@ -359,18 +471,30 @@ const selectedReport = computed(() => {
   return reports.value.find((r) => r.id.toLowerCase() === assignForm.id.trim().toLowerCase());
 });
 
-const selectedReportLabel = computed(() => {
-  if (!selectedReport.value) return 'Select a report from the table or queue to begin.';
-  return `${selectedReport.value.id} · ${selectedReport.value.title} (${selectedReport.value.cat})`;
+const selectedRequest = computed(() => {
+  return requests.value.find((request) => request.id.toLowerCase() === assignForm.id.trim().toLowerCase());
+});
+
+const selectedWorkItem = computed(() => selectedReport.value || selectedRequest.value);
+
+const selectedWorkItemLabel = computed(() => {
+  if (!selectedWorkItem.value) return 'Select a report or request from the table or queue to begin.';
+  return `${selectedWorkItem.value.id} · ${selectedWorkItem.value.title} (${selectedWorkItem.value.cat || 'Request'})`;
 });
 
 function pickForAssignment(reportId) {
   activeAdminTab.value = 'assignment';
   assignForm.id = reportId;
-  syncFormWithReport();
+  syncFormWithWorkItem();
 }
 
-function syncFormWithReport() {
+function pickRequestForAssignment(requestId) {
+  activeAdminTab.value = 'assignment';
+  assignForm.id = requestId;
+  syncFormWithWorkItem();
+}
+
+function syncFormWithWorkItem() {
   if (selectedReport.value) {
     const recommended = findRecommendedTech(selectedReport.value);
     assignForm.techs = Array.isArray(selectedReport.value.assignedPersonnel)
@@ -379,6 +503,13 @@ function syncFormWithReport() {
     assignForm.status = selectedReport.value.status === 'pending' ? 'in-progress' : selectedReport.value.status;
     assignForm.note = selectedReport.value.assignNote || '';
     assignForm.targetDate = selectedReport.value.targetDate || '';
+  } else if (selectedRequest.value) {
+    assignForm.techs = Array.isArray(selectedRequest.value.assignedPersonnel)
+      ? [...selectedRequest.value.assignedPersonnel]
+      : (selectedRequest.value.assignedTo ? selectedRequest.value.assignedTo.split(',').map((name) => name.trim()) : []);
+    assignForm.status = 'in-progress';
+    assignForm.note = selectedRequest.value.assignNote || '';
+    assignForm.targetDate = selectedRequest.value.targetDate || '';
   }
 }
 
@@ -401,24 +532,20 @@ function removeTechnician(name) {
 
 function handleAssign() {
   if (!assignForm.id.trim()) {
-    showToast('Please specify a Report ID.', 'error');
+    showToast('Please specify a Report or Request ID.', 'error');
     return;
   }
   if (!assignForm.techs.length) {
     showToast('Add at least one personnel member.', 'error');
     return;
   }
-  const updated = assignReport(
-    assignForm.id,
-    assignForm.techs,
-    assignForm.status,
-    assignForm.note,
-    assignForm.targetDate
-  );
+  const updated = selectedReport.value
+    ? assignReport(assignForm.id, assignForm.techs, assignForm.status, assignForm.note, assignForm.targetDate)
+    : assignRequest(assignForm.id, assignForm.techs, assignForm.note, assignForm.targetDate);
   if (updated) {
     showToast(`${updated.id} assigned to ${assignForm.techs.join(', ')} ✅`, 'success');
   } else {
-    showToast('Report ID not found.', 'error');
+    showToast('Report or Request ID not found.', 'error');
   }
 }
 
@@ -432,16 +559,21 @@ function handleAutoPick() {
 }
 
 function handleResolve(id) {
-  resolveReport(id);
-  showToast(`${id} marked resolved ✅`, 'success');
+  if (resolveReport(id)) {
+    showToast(`${id} marked resolved ✅`, 'success');
+  } else {
+    showToast('Assign personnel and wait for acceptance before resolving this report.', 'info');
+  }
+}
+
+function canResolveReport(report) {
+  return Boolean(report?.assignedTo) && ['accepted', 'started'].includes(report.techState);
 }
 
 function handleAcknowledge(id) {
-  const note = actionNotes.value[id]?.trim() || 'Action taken by administration.';
-  const updated = acknowledgeRequest(id, note);
+  const updated = acknowledgeRequest(id, 'Action taken by administration.');
   if (updated) {
     showToast(`${id} updated with Action Taken ✅`, 'success');
-    delete actionNotes.value[id];
   } else {
     showToast('Request ID not found.', 'error');
   }

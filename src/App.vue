@@ -8,13 +8,20 @@
       v-if="!isAuthenticated && publicPage === 'home'"
       @open-report="publicPage = 'report'"
       @open-login="publicPage = 'login'"
+      @open-track="publicPage = 'track'"
+    />
+
+    <TrackReportView
+      v-else-if="!isAuthenticated && publicPage === 'track'"
+      @back="publicPage = 'home'"
     />
 
     <SubmitReportView
       v-else-if="!isAuthenticated && publicPage === 'report'"
       public-mode
-      captcha-required
+      :captcha-required="isSupabaseConfigured"
       @back="publicPage = 'home'"
+      @view-reports="navigateTo('reports')"
       @report-submitted="handlePublicReportSubmitted"
     />
 
@@ -58,6 +65,7 @@
 
           <SubmitReportView
             v-else-if="currentView === 'submit'"
+            @view-reports="navigateTo('reports')"
             @report-submitted="handleReportSubmitted"
           />
 
@@ -122,23 +130,26 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 
 // Composables
 import { useAuth } from './composables/useAuth.js';
 import { useReports } from './composables/useReports.js';
+import { useRequests } from './composables/useRequests.js';
 import { useNotifications } from './composables/useNotifications.js';
 import { useToast } from './composables/useToast.js';
+import { isSupabaseConfigured } from './lib/supabase.js';
 
 // Components
 import SideBar from './components/SideBar.vue';
-import Topbar from './components/Topbar.vue';
+import Topbar from './components/TopBar.vue';
 import ReportModal from './components/ReportModal.vue';
 import ToastContainer from './components/ToastContainer.vue';
 
 // Views
 import LoginView from './views/LoginView.vue';
 import HomeView from './views/HomeView.vue';
+import TrackReportView from './views/TrackReportView.vue';
 import DashboardView from './views/DashboardView.vue';
 import SubmitReportView from './views/SubmitReportView.vue';
 import SubmitRequestView from './views/SubmitRequestView.vue';
@@ -152,7 +163,8 @@ import ProfileView from './views/ProfileView.vue';
 import SettingsView from './views/SettingsView.vue';
 
 const { currentRole, activeUserName, isAuthenticated, logout, loadSettings } = useAuth();
-const { reports, resolveReport, techAccept, techStart, techComplete } = useReports();
+const { reports, loadReports, subscribeToReports, resolveReport, techAccept, techStart, techComplete } = useReports();
+const { loadRequests, subscribeToRequests } = useRequests();
 const { notifications, refreshNotifications, markAllRead } = useNotifications();
 const { toasts, showToast } = useToast();
 
@@ -188,6 +200,15 @@ const selectedReport = computed(() => {
   if (!selectedReportId.value) return null;
   return reports.value.find((r) => r.id.toLowerCase() === selectedReportId.value.toLowerCase()) || null;
 });
+
+async function refreshAuthenticatedData() {
+  if (!isAuthenticated.value) return;
+  await Promise.all([loadReports(), loadRequests()]);
+  subscribeToReports();
+  subscribeToRequests();
+}
+
+watch(isAuthenticated, refreshAuthenticatedData, { immediate: true });
 
 // Auto-Logout Activity Tracker
 function resetInactivityTimer() {
@@ -241,7 +262,8 @@ function openReportsWithFilter(filters = {}) {
   resetInactivityTimer();
 }
 
-function handleLoginSuccess(landingView) {
+async function handleLoginSuccess(landingView) {
+  await refreshAuthenticatedData();
   currentView.value = currentRole.value === 'Employee' && landingView === 'submit'
     ? 'dashboard'
     : (landingView || 'dashboard');
@@ -258,13 +280,11 @@ function handleLogout() {
 }
 
 function handleReportSubmitted(newReport) {
-  showToast(`Report ${newReport.id} logged. Tracking in reports list.`, 'info');
-  navigateTo('reports');
+  showToast(`Report ${newReport.id} logged. Keep tracking code ${newReport.trackingCode}.`, 'info');
 }
 
 function handlePublicReportSubmitted(newReport) {
-  showToast(`Report ${newReport.id} has been submitted for review.`, 'success');
-  publicPage.value = 'home';
+  showToast(`Report submitted. Keep tracking code ${newReport.trackingCode}.`, 'success');
 }
 
 function handleMarkAllRead() {
@@ -289,27 +309,30 @@ function handleModalAssign(reportId) {
 }
 
 function handleModalResolve(id) {
-  resolveReport(id);
-  closeReportModal();
-  showToast(`${id} marked resolved ✅`, 'success');
+  if (resolveReport(id)) {
+    closeReportModal();
+    showToast(`${id} marked resolved ✅`, 'success');
+  } else {
+    showToast('Assign personnel and wait for acceptance before resolving this report.', 'info');
+  }
 }
 
-function handleModalTechAccept(id) {
-  techAccept(id, activeUserName.value);
+async function handleModalTechAccept(id) {
+  const accepted = await techAccept(id, activeUserName.value);
   closeReportModal();
-  showToast(`${id} accepted.`, 'success');
+  showToast(accepted ? `${id} accepted.` : 'Unable to save acceptance. Check your Supabase access.', accepted ? 'success' : 'error');
 }
 
-function handleModalTechStart(id) {
-  techStart(id, activeUserName.value);
+async function handleModalTechStart(id) {
+  const started = await techStart(id, activeUserName.value);
   closeReportModal();
-  showToast(`${id} marked In Progress.`, 'info');
+  showToast(started ? `${id} marked In Progress.` : 'Unable to save the start status. Check your Supabase access.', started ? 'info' : 'error');
 }
 
-function handleModalTechComplete(id) {
-  techComplete(id, activeUserName.value);
+async function handleModalTechComplete(id) {
+  const completed = await techComplete(id, activeUserName.value);
   closeReportModal();
-  showToast(`${id} marked resolved ✅`, 'success');
+  showToast(completed ? `${id} marked resolved ✅` : 'Unable to save completion. Check your Supabase access.', completed ? 'success' : 'error');
 }
 </script>
 

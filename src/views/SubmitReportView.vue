@@ -6,7 +6,16 @@
       <p>Describe the issue and complete the verification to send it to UNIFIX.</p>
     </div>
    
-    <div class="submit-layout">
+    <section v-if="submission" class="form-card submission-confirmation">
+      <TrackingCodeNotice :code="submission.trackingCode" title="Your report has been submitted" />
+      <p>Your report was received. Keep the tracking code to check its progress on the UNIFIX home page.</p>
+      <div class="form-actions">
+        <button v-if="!publicMode" class="btn-secondary" @click="$emit('view-reports')">View reports</button>
+        <button class="btn-accent" @click="startAnotherReport">Submit another report</button>
+      </div>
+    </section>
+
+    <div v-else class="submit-layout">
       <div class="form-card">
         <div v-if="publicMode" class="public-report-warning" role="note">
           <UiIcon name="error" :size="20" />
@@ -50,16 +59,43 @@
             <label>Building *</label>
             <select v-model="form.bldg">
               <option value="">Select building...</option>
-              <option>Main Building</option>
-              <option>Engineering Building</option>
-              <option>Science Building</option>
-              <option>Arts & Humanities Building</option>
+              <option>5 Star CR</option>
+              <option>Academic Classroom Building</option>
               <option>Administration Building</option>
-              <option>Dormitory A</option>
-              <option>Dormitory B</option>
-              <option>Gymnasium</option>
-              <option>Library</option>
+              <option>Alumni Building</option>
+              <option>Arts and Cultural Office</option>
+              <option>Auto Service Center</option>
+              <option>Boy&apos;s Shop Building</option>
               <option>Cafeteria</option>
+              <option>Campus Quadrangle</option>
+              <option>CBA Building</option>
+              <option>CIT Office</option>
+              <option>COE office</option>
+              <option>College of Arts and Sciences Office</option>
+              <option>College of Arts &amp; Science Building</option>
+              <option>CTE Office</option>
+              <option>College of Teacher Education Building</option>
+              <option>Electronics Building</option>
+              <option>Engineering Building</option>
+              <option>Engineering Science Lab Building</option>
+              <option>Food Court</option>
+              <option>Graphic Arts Building</option>
+              <option>Gymnasium</option>
+              <option>HRM Building</option>
+              <option>IT Lab Building</option>
+              <option>Ladies Dorm</option>
+              <option>Mechanical Engineering Laboratory Building</option>
+              <option>Motorpool</option>
+              <option>MRF</option>
+              <option>Oval</option>
+              <option>Oval&apos;s Bleachers</option>
+              <option>RAC building</option>
+              <option>Rotary</option>
+              <option>ROTC building</option>
+              <option>Stalls and Classrooms</option>
+              <option>Technician Institute</option>
+              <option>Technology Lab Building</option>
+              <option>Training Center</option>
             </select>
           </div>
         </div>
@@ -86,6 +122,8 @@
             <input type="text" v-model="form.landmark" placeholder="e.g., Near staircase" />
           </div>
         </div>
+
+        <PhotoPicker v-model="selectedPhotos" label="Attach photos of the issue (optional)" />
 
         <div v-if="captchaRequired" class="captcha-box">
           <label>Security verification *</label>
@@ -134,13 +172,16 @@
 import { reactive, ref } from 'vue';
 import TurnstileWidget from '../components/TurnstileWidget.vue';
 import UiIcon from '../components/UiIcon.vue';
+import PhotoPicker from '../components/PhotoPicker.vue';
+import TrackingCodeNotice from '../components/TrackingCodeNotice.vue';
 import { useReports } from '../composables/useReports.js';
 import { useAuth } from '../composables/useAuth.js';
 import { useToast } from '../composables/useToast.js';
 import { isSupabaseConfigured, submitPublicReport } from '../lib/supabase.js';
+import { photoToDataUrl } from '../lib/photos.js';
 
 const props = defineProps({ publicMode: Boolean, captchaRequired: Boolean });
-const emit = defineEmits(['report-submitted', 'back']);
+const emit = defineEmits(['report-submitted', 'back', 'view-reports']);
 
 const { addReport } = useReports();
 const { activeUserName } = useAuth();
@@ -149,6 +190,8 @@ const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
 const captchaToken = ref('');
 const captchaWidget = ref(null);
 const isSubmitting = ref(false);
+const selectedPhotos = ref([]);
+const submission = ref(null);
 
 function resetCaptcha() {
   captchaToken.value = '';
@@ -190,6 +233,12 @@ function clearForm() {
   form.floor = '';
   form.room = '';
   form.landmark = '';
+  selectedPhotos.value = [];
+}
+
+function startAnotherReport() {
+  submission.value = null;
+  clearForm();
 }
 
 async function handleSubmit() {
@@ -220,14 +269,18 @@ async function handleSubmit() {
 
   isSubmitting.value = true;
   try {
+    const encodedPhotos = props.captchaRequired && isSupabaseConfigured
+      ? await Promise.all(selectedPhotos.value.map(photoToDataUrl))
+      : [];
     // Authenticated reports retain the existing user-bound RLS workflow. Public
     // reports are created only by the Edge Function after server verification.
     const created = props.captchaRequired && isSupabaseConfigured
-      ? await submitPublicReport(reportData, captchaToken.value)
-      : addReport(reportData);
+      ? await submitPublicReport(reportData, captchaToken.value, encodedPhotos)
+      : await addReport(reportData, selectedPhotos.value);
 
     clearForm();
     if (props.captchaRequired) resetCaptcha();
+    submission.value = created;
     showToast('Report submitted successfully! ✅', 'success');
     emit('report-submitted', created);
   } catch (error) {
@@ -254,5 +307,7 @@ async function handleSubmit() {
 .captcha-box label { display: block; margin-bottom: 8px; color: var(--text-2); font-size: 13px; font-weight: 700; }
 .captcha-error { color: var(--red); font-size: 12px; }
 .form-actions button:disabled { cursor: wait; opacity: .7; }
+.submission-confirmation { max-width: 760px; margin: 28px auto; }
+.submission-confirmation > p { color: var(--text-2); font-size: 13px; }
 @media (max-width: 600px) { .public-submit-page { padding: 24px 20px 40px; } }
 </style>

@@ -963,6 +963,19 @@ body {
   background: var(--red-bg);
   color: var(--red);
 }
+.tag.priority-low {
+  background: var(--green-bg);
+  color: var(--green);
+}
+.tag.priority-medium {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+.tag.priority-high,
+.tag.priority-urgent {
+  background: var(--red-bg);
+  color: var(--red);
+}
 
 /* mini bar chart */
 .mini-chart {
@@ -1844,6 +1857,10 @@ tbody td {
   cursor: pointer;
   transition: var(--transition);
 }
+.admin-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .admin-action-btn.assign {
   background: var(--primary-bg);
   color: var(--primary);
@@ -2165,7 +2182,7 @@ tbody td {
 /* TOAST */
 .toast-container {
   position: fixed;
-  top: 20px;
+  bottom: 20px;
   right: 20px;
   z-index: 9999;
   display: flex;
@@ -2480,7 +2497,7 @@ tbody td {
   .toast-container {
     left: 10px;
     right: 10px;
-    top: 10px;
+    bottom: 10px;
   }
   .toast {
     min-width: auto;

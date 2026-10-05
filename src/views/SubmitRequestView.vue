@@ -1,5 +1,6 @@
 <template>
   <div class="view active" id="view-submit-request">
+    <TrackingCodeNotice v-if="submissionCode" :code="submissionCode" title="Your service request has been submitted" />
     <div style="margin-bottom: 20px;">
       
       <!-- Request form tabs -->
@@ -18,8 +19,17 @@
         >
           <UiIcon name="zap" :size="16" /> 2. Electrical & Air-Conditioning (REAS)
         </button>
+        <button
+          class="req-tab-btn"
+          :class="{ active: activeTab === 'carpentry' }"
+          @click="activeTab = 'carpentry'"
+        >
+          <UiIcon name="work" :size="16" /> 3. Carpentry Inspection & Maintenance
+        </button>
       </div>
     </div>
+
+    <PhotoPicker v-model="selectedPhotos" label="Attach photos to this request (optional)" />
 
     <div class="grid-2">
       <!-- LEFT COLUMN: FORM CARD -->
@@ -99,7 +109,7 @@
           </div>
 
           <div class="form-actions">
-            <button class="btn-accent" @click="submitRWSS">Submit Water & Sewerage Request</button>
+            <button class="btn-accent" :disabled="isSubmitting" @click="submitRWSS">Submit Water & Sewerage Request</button>
           </div>
           <div class="form-doc-footer">
             <span class="doc-code">NVSU-FR-PPS-10-00 (020822)</span>
@@ -107,7 +117,7 @@
         </div>
 
         <!-- FORM 2: REAS -->
-        <div v-else class="form-card official-form-panel">
+        <div v-else-if="activeTab === 'reas'" class="form-card official-form-panel">
           <div class="form-doc-header">
             <h3>REQUEST FOR ELECTRICAL AND AIR-CONDITIONING SERVICES</h3>
             <small>Bayombong, Nueva Vizcaya · Unit Head-GSU</small>
@@ -214,11 +224,105 @@
 
           <div class="form-actions">
             <button class="btn-secondary" @click="clearREAS">Clear</button>
-            <button class="btn-accent" @click="submitREAS">Submit Electrical / AC Request</button>
+            <button class="btn-accent" :disabled="isSubmitting" @click="submitREAS">Submit Electrical / AC Request</button>
           </div>
 
           <div class="form-doc-footer">
             <span class="doc-code">NVSU-FR-PPS-03-01 (092524)</span>
+          </div>
+        </div>
+
+        <!-- FORM 3: Carpentry Inspection and Maintenance -->
+        <div v-else class="form-card official-form-panel">
+          <div class="form-doc-header">
+            <h3>CARPENTRY INSPECTION AND MAINTENANCE FORM</h3>
+            <small>Bayombong, Nueva Vizcaya · Building Maintenance Unit</small>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Name of Building / Office *</label>
+              <select v-model="carpentry.building">
+                <option value="">Select Building / Office...</option>
+                <option v-for="b in buildings" :key="b" :value="b">{{ b }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Room / Specific Area *</label>
+              <input type="text" v-model="carpentry.area" placeholder="e.g., Faculty Office 204" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Inspection Type *</label>
+              <select v-model="carpentry.inspectionType">
+                <option value="">Select Inspection Type...</option>
+                <option value="Routine inspection">Routine inspection</option>
+                <option value="Reported damage">Reported damage</option>
+                <option value="Preventive maintenance">Preventive maintenance</option>
+                <option value="Safety inspection">Safety inspection</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Carpentry Item *</label>
+              <select v-model="carpentry.item">
+                <option value="">Select Item...</option>
+                <option value="Door / Door frame">Door / Door frame</option>
+                <option value="Window / Window frame">Window / Window frame</option>
+                <option value="Cabinet / Shelf">Cabinet / Shelf</option>
+                <option value="Desk / Table / Chair">Desk / Table / Chair</option>
+                <option value="Wall / Ceiling / Floor">Wall / Ceiling / Floor</option>
+                <option value="Roofing / Fascia">Roofing / Fascia</option>
+                <option value="Other carpentry fixture">Other carpentry fixture</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Observed Condition *</label>
+              <select v-model="carpentry.condition">
+                <option value="">Select Condition...</option>
+                <option value="Good">Good</option>
+                <option value="Needs minor repair">Needs minor repair</option>
+                <option value="Needs major repair">Needs major repair</option>
+                <option value="Unsafe / urgent attention">Unsafe / urgent attention</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Preferred Inspection Date</label>
+              <input type="date" v-model="carpentry.schedule" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Inspection Findings / Requested Maintenance *</label>
+            <textarea
+              v-model="carpentry.findings"
+              rows="4"
+              placeholder="Describe the observed condition, measurements, safety concern, or requested carpentry work..."
+            ></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Requested By</label>
+              <input type="text" v-model="carpentry.requester" disabled />
+            </div>
+            <div class="form-group">
+              <label>Designation</label>
+              <input type="text" v-model="carpentry.designation" placeholder="Faculty / Department Chair" />
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn-secondary" @click="clearCarpentry">Clear</button>
+            <button class="btn-accent" :disabled="isSubmitting" @click="submitCarpentry">Submit Carpentry Request</button>
+          </div>
+
+          <div class="form-doc-footer">
+            <span class="doc-code">NVSU-FR-PPS-CM-01</span>
           </div>
         </div>
       </div>
@@ -233,24 +337,56 @@ import { useRequests } from '../composables/useRequests.js';
 import { useAuth } from '../composables/useAuth.js';
 import { useToast } from '../composables/useToast.js';
 import UiIcon from '../components/UiIcon.vue';
+import PhotoPicker from '../components/PhotoPicker.vue';
+import TrackingCodeNotice from '../components/TrackingCodeNotice.vue';
 
 const { addRequest } = useRequests();
 const { activeUserName } = useAuth();
 const { showToast } = useToast();
 
 const activeTab = ref('rwss');
+const selectedPhotos = ref([]);
+const submissionCode = ref('');
+const isSubmitting = ref(false);
 
 const buildings = [
-  'Main Building',
-  'Engineering Building',
-  'Science Building',
-  'Arts & Humanities Building',
+  '5 Star CR',
+  'Academic Classroom Building',
   'Administration Building',
-  'Library',
+  'Alumni Building',
+  'Arts and Cultural Office',
+  'Auto Service Center',
+  "Boy's Shop Building",
+  'Cafeteria',
+  'Campus Quadrangle',
+  'CBA Building',
+  'CIT Office',
+  'COE office',
+  'College of Arts and Sciences Office',
+  'College of Arts & Science Building',
+  'CTE Office',
+  'College of Teacher Education Building',
+  'Electronics Building',
+  'Engineering Building',
+  'Engineering Science Lab Building',
+  'Food Court',
+  'Graphic Arts Building',
   'Gymnasium',
-  'Dormitory A',
-  'Dormitory B',
-  'Cafeteria'
+  'HRM Building',
+  'IT Lab Building',
+  'Ladies Dorm',
+  'Mechanical Engineering Laboratory Building',
+  'Motorpool',
+  'MRF',
+  'Oval',
+  "Oval's Bleachers",
+  'RAC building',
+  'Rotary',
+  'ROTC building',
+  'Stalls and Classrooms',
+  'Technician Institute',
+  'Technology Lab Building',
+  'Training Center'
 ];
 
 // 1. RWSS Form State
@@ -280,9 +416,23 @@ const reas = reactive({
   official: activeUserName.value || 'Faculty Member'
 });
 
+// 3. Carpentry Inspection and Maintenance Form State
+const carpentry = reactive({
+  building: '',
+  area: '',
+  inspectionType: '',
+  item: '',
+  condition: '',
+  schedule: '',
+  findings: '',
+  requester: activeUserName.value || 'Faculty Member',
+  designation: 'Faculty'
+});
+
 watch(activeUserName, (newVal) => {
   rwss.requester = newVal;
   reas.official = newVal;
+  carpentry.requester = newVal;
 });
 
 function clearRWSS() {
@@ -305,26 +455,33 @@ function clearREAS() {
   reas.damage = '';
 }
 
-function submitRWSS() {
+function clearCarpentry() {
+  carpentry.building = '';
+  carpentry.area = '';
+  carpentry.inspectionType = '';
+  carpentry.item = '';
+  carpentry.condition = '';
+  carpentry.schedule = '';
+  carpentry.findings = '';
+}
+
+async function submitRWSS() {
   const target = rwss.repairTarget === 'Others' ? rwss.otherTarget : rwss.repairTarget;
   if (!rwss.building || !target || !rwss.defect.trim()) {
     showToast('Please fill out all required fields for RWSS.', 'error');
     return;
   }
 
-  addRequest({
+  await submitRequest({
     title: `[RWSS] Water & Sewerage: ${target}`,
     cat: 'Plumbing',
     dept: rwss.building + (rwss.room ? ` · ${rwss.room}` : ''),
     details: `[${rwss.classification}] ${rwss.defect} (Designation: ${rwss.designation})`,
     requester: rwss.requester
-  });
-
-  clearRWSS();
-  showToast('Water and Sewerage Requisition submitted! ✅', 'success');
+  }, clearRWSS, 'Water and Sewerage Requisition submitted! ✅');
 }
 
-function submitREAS() {
+async function submitREAS() {
   const item = reas.item === '1.9 Others' || reas.item === '2.4 Others' ? reas.customItem : reas.item;
   if (!reas.location || !item || !reas.damage.trim()) {
     showToast('Please fill out all required fields for REAS.', 'error');
@@ -339,16 +496,51 @@ function submitREAS() {
     desc += ` Preferred Date: ${reas.schedule}.`;
   }
 
-  addRequest({
+  await submitRequest({
     title: `[REAS] ${reas.category === 'COOLING' ? 'Cooling' : 'Electrical'}: ${item}`,
     cat: reas.category === 'COOLING' ? 'HVAC' : 'Electrical',
     dept: reas.location,
     details: desc,
     requester: reas.official
-  });
+  }, clearREAS, 'Electrical & AC Requisition submitted! ✅');
+}
 
-  clearREAS();
-  showToast('Electrical & AC Requisition submitted! ✅', 'success');
+async function submitCarpentry() {
+  if (
+    !carpentry.building ||
+    !carpentry.area.trim() ||
+    !carpentry.inspectionType ||
+    !carpentry.item ||
+    !carpentry.condition ||
+    !carpentry.findings.trim()
+  ) {
+    showToast('Please fill out all required fields for Carpentry Inspection and Maintenance.', 'error');
+    return;
+  }
+
+  const schedule = carpentry.schedule ? ` Preferred inspection date: ${carpentry.schedule}.` : '';
+  await submitRequest({
+    title: `[CARPENTRY] ${carpentry.item} inspection`,
+    cat: 'Carpentry',
+    dept: carpentry.building + ` · ${carpentry.area}`,
+    details: `[${carpentry.inspectionType}] Condition: ${carpentry.condition}. ${carpentry.findings} (Designation: ${carpentry.designation}).${schedule}`,
+    requester: carpentry.requester
+  }, clearCarpentry, 'Carpentry Inspection and Maintenance request submitted! ✅');
+}
+
+async function submitRequest(requestData, clearForm, successMessage) {
+  isSubmitting.value = true;
+  try {
+    const created = await addRequest(requestData, selectedPhotos.value);
+    submissionCode.value = created.trackingCode;
+    selectedPhotos.value = [];
+    clearForm();
+    showToast(successMessage, 'success');
+  } catch (error) {
+    showToast(error.message || 'Unable to submit the request. Please try again.', 'error');
+  } finally {
+    isSubmitting.value = false;
+  }
 }
 </script>
 

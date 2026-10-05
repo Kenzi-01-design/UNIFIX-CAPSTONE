@@ -1,2 +1,5 @@
 [functions.submit-public-report]
 verify_jwt = false
+
+[functions.track-report]
+verify_jwt = false

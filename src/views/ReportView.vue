@@ -48,7 +48,7 @@
         <div
           v-for="r in filteredReports"
           :key="r.id"
-          :class="['report-card', r.risk]"
+          :class="['report-card', r.risk, { overdue: r.status !== 'resolved' && isOverdue(r.dueAt) }]"
           @click="$emit('open-report', r.id)"
         >
           <div class="rc-top">
@@ -68,6 +68,10 @@
 
           <div class="rc-title">{{ r.title }}</div>
           <div class="rc-location"><UiIcon name="location" :size="15" /> {{ r.loc }}</div>
+          <div class="sla-row">
+            <span :class="['tag', `priority-${r.priority || 'low'}`]">{{ capitalize(r.priority || 'low') }} priority</span>
+            <SlaBadge :due-at="r.dueAt" :completed="r.status === 'resolved'" />
+          </div>
 
           <div class="rc-footer">
             <span class="rc-reporter">
@@ -92,6 +96,8 @@ import { ref, computed, watch } from 'vue';
 import { useReports } from '../composables/useReports.js';
 import { useAuth } from '../composables/useAuth.js';
 import UiIcon from '../components/UiIcon.vue';
+import SlaBadge from '../components/SlaBadge.vue';
+import { isOverdue } from '../lib/sla.js';
 
 const props = defineProps({
   initialFilter: {
@@ -169,7 +175,7 @@ const filteredReports = computed(() => {
     if (!matchesDate(r.date)) return false;
 
     return true;
-  });
+  }).sort((a, b) => Number(b.status !== 'resolved' && isOverdue(b.dueAt)) - Number(a.status !== 'resolved' && isOverdue(a.dueAt)));
 });
 
 function formatStatus(status) {
@@ -182,3 +188,8 @@ function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 </script>
+
+<style scoped>
+.sla-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.report-card.overdue { border-left: 4px solid var(--red); }
+</style>

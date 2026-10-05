@@ -100,6 +100,11 @@
                   {{ getNextStepLabel(r.techState) }}
                 </div>
                 <div class="rc-location"><UiIcon name="location" :size="15" /> {{ r.loc }}</div>
+                <PhotoGallery :attachments="r.photoAttachments || []" :title="r.title" />
+                <div class="task-deadline">
+                  <span :class="['tag', `priority-${r.priority || 'low'}`]">{{ capitalize(r.priority || 'low') }} priority</span>
+                  <SlaBadge :due-at="r.dueAt" :completed="r.techState === 'completed'" />
+                </div>
 
                 <div class="rc-footer">
                   <span class="rc-reporter"><UiIcon name="reporter" :size="15" /> {{ r.reporter }}</span>
@@ -108,25 +113,30 @@
                 </div>
 
                 <div style="padding:12px 18px 0; display:flex; gap:10px; flex-wrap:wrap">
+                  <PhotoPicker
+                    v-if="['accepted', 'started'].includes(r.techState) && (r.photoAttachments?.length || 0) < 3"
+                    :model-value="completionPhotos[r.id] || []"
+                    :max-photos="Math.max(0, 3 - (r.photoAttachments?.length || 0))"
+                    label="After photos (optional)"
+                    @update:model-value="completionPhotos[r.id] = $event"
+                  >
+                  </PhotoPicker>
                   <button
                     v-if="r.techState === 'assigned'"
                     class="btn-primary"
-                    @click="handleAccept(r.id)"
+                    @click="handleAccept(r)"
                   >
                     Accept Work
                   </button>
                   <template v-if="r.techState === 'accepted'">
-                    <button class="btn-secondary" @click="handleStart(r.id)">
+                    <button class="btn-secondary" @click="handleStart(r)">
                       Start Work
-                    </button>
-                    <button class="admin-action-btn resolve" @click="handleComplete(r.id)">
-                      Mark Resolved
                     </button>
                   </template>
                   <button
                     v-if="r.techState === 'started'"
                     class="admin-action-btn resolve"
-                    @click="handleComplete(r.id)"
+                    @click="handleComplete(r)"
                   >
                     Mark Resolved
                   </button>
@@ -180,33 +190,62 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import { useReports } from '../composables/useReports.js';
+import { useRequests } from '../composables/useRequests.js';
 import { useAuth } from '../composables/useAuth.js';
 import { useToast } from '../composables/useToast.js';
 import UiIcon from '../components/UiIcon.vue';
+import PhotoPicker from '../components/PhotoPicker.vue';
+import SlaBadge from '../components/SlaBadge.vue';
+import PhotoGallery from '../components/PhotoGallery.vue';
 
 const { reports, techAccept, techStart, techComplete, isAssignedTo } = useReports();
+const { requests, requestAccept, requestStart, requestComplete, isAssignedTo: isRequestAssignedTo } = useRequests();
 const { activeUserName } = useAuth();
 const { showToast } = useToast();
 
 const searchQuery = ref('');
 const filterStatus = ref('all');
+const completionPhotos = reactive({});
 
 const assignedReports = computed(() => {
-  return reports.value.filter((r) => isAssignedTo(r, activeUserName.value));
+  return reports.value
+    .filter((r) => isAssignedTo(r, activeUserName.value))
+    .map((report) => ({ ...report, kind: 'report' }));
 });
 
-const waitingCount = computed(() => assignedReports.value.filter((r) => r.techState === 'assigned').length);
+const assignedRequests = computed(() => {
+  return requests.value
+    .filter((request) => isRequestAssignedTo(request, activeUserName.value))
+    .map((request) => ({
+      ...request,
+      kind: 'request',
+      catBg: '#e8f5e9',
+      loc: request.dept,
+      reporter: request.requester,
+      risk: request.risk || 'low',
+      status: request.techState === 'completed'
+        ? 'resolved'
+        : ['accepted', 'started'].includes(request.techState)
+          ? 'in-progress'
+          : 'pending',
+      techState: request.techState || 'unassigned'
+    }));
+});
+
+const assignedTasks = computed(() => [...assignedReports.value, ...assignedRequests.value]);
+
+const waitingCount = computed(() => assignedTasks.value.filter((r) => r.techState === 'assigned').length);
 const inProgressWorkCount = computed(
-  () => assignedReports.value.filter((r) => r.techState === 'accepted' || r.techState === 'started').length
+  () => assignedTasks.value.filter((r) => r.techState === 'accepted' || r.techState === 'started').length
 );
-const completedCount = computed(() => assignedReports.value.filter((r) => r.techState === 'completed').length);
-const activeLoadCount = computed(() => assignedReports.value.filter((r) => r.status !== 'resolved').length);
+const completedCount = computed(() => assignedTasks.value.filter((r) => r.techState === 'completed').length);
+const activeLoadCount = computed(() => assignedTasks.value.filter((r) => r.techState !== 'completed').length);
 
 const filteredTasks = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
-  return assignedReports.value.filter((r) => {
+  return assignedTasks.value.filter((r) => {
     const haystack = `${r.id} ${r.title} ${r.loc} ${r.cat} ${r.status} ${r.risk}`.toLowerCase();
     if (q && !haystack.includes(q)) return false;
 
@@ -228,21 +267,44 @@ function getNextStepLabel(state) {
   }
 }
 
-function handleAccept(id) {
-  if (techAccept(id, activeUserName.value)) {
-    showToast(`${id} accepted. Proceed when ready.`, 'success');
+async function handleAccept(task) {
+  const accepted = task.kind === 'request'
+    ? await requestAccept(task.id, activeUserName.value)
+    : await techAccept(task.id, activeUserName.value);
+  if (accepted) {
+    showToast(`${task.id} accepted. Proceed when ready.`, 'success');
+  } else {
+    showToast('Unable to save acceptance. Check your assignment and Supabase access.', 'error');
   }
 }
 
-function handleStart(id) {
-  if (techStart(id, activeUserName.value)) {
-    showToast(`${id} marked In Progress.`, 'info');
+async function handleStart(task) {
+  const started = task.kind === 'request'
+    ? await requestStart(task.id, activeUserName.value)
+    : await techStart(task.id, activeUserName.value);
+  if (started) {
+    showToast(`${task.id} marked In Progress.`, 'info');
+  } else {
+    showToast('Unable to save the start status. Check your Supabase access.', 'error');
   }
 }
 
-function handleComplete(id) {
-  if (techComplete(id, activeUserName.value)) {
-    showToast(`${id} marked resolved ✅`, 'success');
+async function handleComplete(task) {
+  let completed;
+  try {
+    const photos = completionPhotos[task.id] || [];
+    completed = task.kind === 'request'
+      ? await requestComplete(task.id, activeUserName.value, photos)
+      : await techComplete(task.id, activeUserName.value, photos);
+  } catch (error) {
+    showToast(error.message || 'Unable to upload completion photos.', 'error');
+    return;
+  }
+  if (completed) {
+    completionPhotos[task.id] = [];
+    showToast(`${task.id} marked resolved ✅`, 'success');
+  } else {
+    showToast('Unable to save completion. Check your Supabase access.', 'error');
   }
 }
 
@@ -261,3 +323,7 @@ function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 </script>
+
+<style scoped>
+.task-deadline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+</style>

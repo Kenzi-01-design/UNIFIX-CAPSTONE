@@ -7,6 +7,7 @@
           <div class="modal-id">{{ report.id }}</div>
           <h3>{{ report.title }}</h3>
           <div class="modal-meta">{{ report.cat }} · {{ report.loc }}</div>
+          <div v-if="report.trackingCode" class="modal-tracking-code">Tracking: {{ report.trackingCode }}</div>
         </div>
         <button class="modal-close" @click="$emit('close')">✖</button>
       </div>
@@ -19,6 +20,11 @@
         <div class="modal-row">
           <strong>Risk Level:</strong>
           <span :class="['tag', report.risk]">{{ capitalize(report.risk) }}</span>
+        </div>
+        <div class="modal-row">
+          <strong>Priority / deadline:</strong>
+          <span :class="['tag', `priority-${report.priority || 'low'}`]">{{ capitalize(report.priority || 'low') }}</span>
+          <SlaBadge :due-at="report.dueAt" :completed="report.status === 'resolved'" />
         </div>
         <div class="modal-row">
           <strong>Assigned Tech:</strong> 
@@ -37,14 +43,42 @@
           <span>{{ report.loc }}</span>
         </div>
         <div class="modal-desc">{{ report.desc || report.description || 'No description provided.' }}</div>
+        <div v-if="report.adminRemark" class="admin-remark-note">
+          <strong>Administrator remark:</strong>
+          <p>{{ report.adminRemark }}</p>
+        </div>
 
-        <!-- Attached Photo Inspection -->
-        <div v-if="report.photo" class="modal-photo-section">
-          <strong>Attached Photo:</strong>
-          <div class="modal-photo-preview">
+        <div v-if="report.photo || report.photoAttachments?.length" class="modal-photo-section">
+          <strong>Attached photos</strong>
+          <p v-if="photosLoading" class="photo-message">Loading private photo links…</p>
+          <p v-if="photosError" class="photo-message photo-error" role="alert">{{ photosError }}</p>
+          <div v-for="photo in resolvedPhotos" :key="photo.key" class="modal-photo-preview">
+            <img :src="photo.url" :alt="`${photo.phase === 'after' ? 'After' : 'Before'}: ${report.title}`" />
+            <span>{{ photo.phase === 'after' ? 'After work' : 'Before work' }}</span>
+          </div>
+          <div v-if="!report.photoAttachments?.length && report.photo" class="modal-photo-preview">
             <img :src="report.photo" :alt="report.title" />
+            <span>Attached photo</span>
           </div>
         </div>
+
+        <section v-if="isOwnCompletedReport" class="report-feedback">
+          <strong>Rate this completed work</strong>
+          <p v-if="feedbackLoading" class="photo-message">Loading feedback status…</p>
+          <p v-else-if="feedbackError" class="photo-message photo-error" role="alert">{{ feedbackError }}</p>
+          <p v-else-if="hasFeedbackForReport(report.id)" class="feedback-thanks">Your rating has been recorded. Thank you.</p>
+          <template v-else>
+            <label class="sr-only" :for="`report-rating-${report.id}`">Rating from 1 to 5</label>
+            <select :id="`report-rating-${report.id}`" v-model.number="rating">
+              <option :value="0" disabled>Select a rating</option>
+              <option v-for="value in 5" :key="value" :value="value">{{ value }} {{ value === 1 ? 'star' : 'stars' }}</option>
+            </select>
+            <textarea v-model="feedbackComment" maxlength="500" rows="3" placeholder="Optional comment (up to 500 characters)"></textarea>
+            <button class="btn-primary" type="button" :disabled="feedbackSubmitting || feedbackLoading" @click="submitFeedback">
+              {{ feedbackSubmitting ? 'Submitting…' : 'Submit rating' }}
+            </button>
+          </template>
+        </section>
       </div>
 
       <div class="modal-actions">
@@ -58,6 +92,8 @@
           <button
             v-if="report.status !== 'resolved'"
             class="admin-action-btn resolve"
+            :disabled="!canAdminResolve"
+            :title="canAdminResolve ? 'Mark report as resolved' : 'Personnel must accept or start this report first'"
             @click="$emit('resolve', report.id)"
           >
             Mark Resolved
@@ -81,11 +117,11 @@
             Start Work
           </button>
           <button
-            v-if="['accepted', 'started'].includes(report.techState)"
+            v-if="report.techState === 'started'"
             class="admin-action-btn resolve"
             @click="$emit('tech-complete', report.id)"
           >
-            Mark Resolved
+            Mark Completed
           </button>
           <span
             v-if="report.techState === 'completed'"
@@ -100,7 +136,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { resolvePhotoUrl } from '../lib/photos.js';
+import { useReportFeedback } from '../composables/useReportFeedback.js';
+import SlaBadge from './SlaBadge.vue';
 
 const props = defineProps({
   isOpen: {
@@ -121,12 +160,92 @@ const props = defineProps({
   }
 });
 
+const { loadReportFeedback, submitReportFeedback, hasFeedbackForReport } = useReportFeedback();
+const resolvedPhotos = ref([]);
+const photosLoading = ref(false);
+const photosError = ref('');
+const feedbackLoading = ref(false);
+const feedbackSubmitting = ref(false);
+const feedbackError = ref('');
+const rating = ref(0);
+const feedbackComment = ref('');
+
+watch(
+  () => [props.report?.id, props.isOpen, props.report?.photoAttachments],
+  async () => {
+    resolvedPhotos.value = [];
+    photosError.value = '';
+    if (!props.isOpen || !props.report) return;
+    const attachments = props.report.photoAttachments || [];
+    if (!attachments.length) return;
+
+    photosLoading.value = true;
+    try {
+      resolvedPhotos.value = await Promise.all(attachments.map(async (attachment, index) => ({
+        key: attachment.path || `${attachment.name || 'photo'}-${index}`,
+        phase: attachment.phase || 'before',
+        url: await resolvePhotoUrl(attachment)
+      })));
+    } catch (error) {
+      photosError.value = error.message || 'Unable to load report photos.';
+    } finally {
+      photosLoading.value = false;
+    }
+  },
+  { immediate: true, deep: true }
+);
+
+const isOwnCompletedReport = computed(() => Boolean(
+  props.report
+  && props.report.reporter?.toLowerCase() === props.activeUserName.toLowerCase()
+  && (props.report.status === 'resolved' || props.report.techState === 'completed')
+));
+
+watch(
+  () => [props.report?.id, props.isOpen, isOwnCompletedReport.value],
+  async ([reportId, isOpen, canFeedback]) => {
+    feedbackError.value = '';
+    rating.value = 0;
+    feedbackComment.value = '';
+    if (!reportId || !isOpen || !canFeedback) return;
+    feedbackLoading.value = true;
+    try {
+      await loadReportFeedback();
+    } catch (error) {
+      feedbackError.value = error.message || 'Unable to load feedback status.';
+    } finally {
+      feedbackLoading.value = false;
+    }
+  },
+  { immediate: true }
+);
+
+async function submitFeedback() {
+  feedbackError.value = '';
+  feedbackSubmitting.value = true;
+  try {
+    await submitReportFeedback(props.report, rating.value, feedbackComment.value);
+  } catch (error) {
+    feedbackError.value = error.message || 'Unable to submit feedback.';
+  } finally {
+    feedbackSubmitting.value = false;
+  }
+}
+
 const isAssignedToCurrentUser = computed(() => {
   if (!props.report) return false;
   const assigned = Array.isArray(props.report.assignedPersonnel)
     ? props.report.assignedPersonnel
     : (props.report.assignedTo || '').split(',').map((name) => name.trim());
   return assigned.includes(props.activeUserName);
+});
+
+const canAdminResolve = computed(() => {
+  if (!props.report) return false;
+  const hasPersonnel = Array.isArray(props.report.assignedPersonnel)
+    ? props.report.assignedPersonnel.length > 0
+    : Boolean(props.report.assignedTo);
+  return hasPersonnel && ['accepted', 'started'].includes(props.report.techState);
 });
 
 defineEmits([
@@ -153,6 +272,16 @@ function capitalize(str) {
 .modal-photo-section {
   margin-top: 14px;
 }
+.modal-tracking-code { margin-top: 4px; color: var(--text-3); font: 700 10px 'DM Mono', monospace; }
+.admin-remark-note {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-left: 4px solid var(--accent, #f59e0b);
+  border-radius: 8px;
+  background: var(--surface-2, #f8fafc);
+}
+.admin-remark-note p { margin: 5px 0 0; white-space: pre-wrap; }
 .modal-photo-preview {
   margin-top: 8px;
   border-radius: 8px;
@@ -166,4 +295,14 @@ function capitalize(str) {
   object-fit: cover;
   display: block;
 }
+.modal-photo-preview { position: relative; }
+.modal-photo-preview span { display: block; padding: 6px 9px; color: var(--text-2); font-size: 11px; }
+.photo-message { margin-top: 7px; font-size: 11px; color: var(--text-3); }
+.photo-error { color: var(--red); }
+.report-feedback { margin-top: 16px; padding: 13px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+.report-feedback strong { font-size: 13px; }
+.report-feedback select, .report-feedback textarea { display: block; width: 100%; margin-top: 9px; padding: 9px; border: 1px solid var(--border-dark); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; }
+.report-feedback button { margin-top: 9px; }
+.feedback-thanks { margin-top: 8px; color: var(--primary); font-size: 12px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
 </style>

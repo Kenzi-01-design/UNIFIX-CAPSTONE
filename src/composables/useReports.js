@@ -1,12 +1,17 @@
 import { ref } from 'vue';
 import { useNotifications } from './useNotifications.js';
-import { isSupabaseConfigured, supabase } from '../lib/supabase.js';
+import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
+import { createDemoTrackingCode } from '../lib/tracking.js';
+import { calculateDueAt } from '../lib/sla.js';
+import { removeUploadedPhotos, uploadPhotoFiles } from '../lib/photos.js';
+import { useSlaSettings } from './useSlaSettings.js';
 
 const STORAGE_KEY = 'unifix-reports-v2';
 
 const initialReports = [
   {
     id: '#1048',
+    priority: 'urgent',
     title: 'Flickering lights in Lab 204',
     cat: 'Electrical',
     catIcon: 'Electrical',
@@ -23,6 +28,7 @@ const initialReports = [
   },
   {
     id: '#1047',
+    priority: 'medium',
     title: 'Leaking pipe near restroom A',
     cat: 'Plumbing',
     catIcon: 'Plumbing',
@@ -39,6 +45,7 @@ const initialReports = [
   },
   {
     id: '#1046',
+    priority: 'low',
     title: 'Broken chair armrest in Room 112',
     cat: 'Furniture',
     catIcon: 'Furniture',
@@ -55,6 +62,7 @@ const initialReports = [
   },
   {
     id: '#1045',
+    priority: 'medium',
     title: 'AC not cooling in Faculty Office',
     cat: 'HVAC',
     catIcon: 'HVAC',
@@ -71,6 +79,7 @@ const initialReports = [
   },
   {
     id: '#1044',
+    priority: 'low',
     title: 'Projector bulb burned out',
     cat: 'Electrical',
     catIcon: 'Electrical',
@@ -87,6 +96,7 @@ const initialReports = [
   },
   {
     id: '#1043',
+    priority: 'high',
     title: 'Network switch failure in Library',
     cat: 'Network',
     catIcon: 'Network',
@@ -103,6 +113,7 @@ const initialReports = [
   },
   {
     id: '#1042',
+    priority: 'urgent',
     title: 'Flooded basement after rain',
     cat: 'Civil',
     catIcon: 'Civil',
@@ -119,6 +130,7 @@ const initialReports = [
   },
   {
     id: '#1041',
+    priority: 'medium',
     title: 'Broken door lock — Office 402',
     cat: 'Security',
     catIcon: 'Security',
@@ -135,6 +147,7 @@ const initialReports = [
   },
   {
     id: '#1040',
+    priority: 'low',
     title: 'No hot water in Dormitory A',
     cat: 'Plumbing',
     catIcon: 'Plumbing',
@@ -173,10 +186,11 @@ function loadPersistedReports() {
   } catch (e) {
     console.warn('Failed loading reports from localStorage', e);
   }
-  return initialReports;
+  return isDemoMode ? initialReports : [];
 }
 
 const reports = ref(loadPersistedReports());
+let reportsChannel = null;
 
 function normalizePersonnel(report) {
   if (Array.isArray(report.assignedPersonnel)) return report.assignedPersonnel;
@@ -198,6 +212,7 @@ function toDatabaseReport(report) {
     category_background: report.catBg || null,
     location: report.loc,
     risk: report.risk || 'low',
+    priority: report.priority || 'low',
     status: report.status,
     assigned_to: report.assignedTo || null,
     assigned_personnel: normalizePersonnel(report),
@@ -205,15 +220,28 @@ function toDatabaseReport(report) {
     reporter: report.reporter,
     report_date: report.date,
     photo: report.photo || null,
+    photo_attachments: report.photoAttachments || [],
     assignment_note: report.assignNote || null,
-    target_date: report.targetDate || null
+    target_date: report.targetDate || null,
+    admin_remark: report.adminRemark || null
   };
 }
 
-function syncReport(report) {
-  if (!isSupabaseConfigured) return;
-  supabase.from('reports').upsert(toDatabaseReport(report)).then(({ error }) => {
-    if (error) console.warn('Failed syncing report to Supabase', error);
+function syncReport(report, allowInsert = false) {
+  if (!isSupabaseConfigured) return Promise.resolve();
+  const payload = toDatabaseReport(report);
+  const query = allowInsert
+    ? supabase.from('reports').insert(payload).select('*').single()
+    : supabase.from('reports').update(payload).eq('id', report.id);
+  return query.then(({ data, error }) => {
+    if (error) throw error;
+    return data;
+  });
+}
+
+function syncReportInBackground(report, allowInsert = false) {
+  void syncReport(report, allowInsert).catch((error) => {
+    console.warn('Failed syncing report to Supabase', error);
   });
 }
 
@@ -224,9 +252,9 @@ async function loadReportsFromSupabase() {
     console.warn('Failed loading reports from Supabase', error);
     return;
   }
-  if (data?.length) {
-    reports.value = data.map((report) => ({
+  reports.value = (data || []).map((report) => ({
       id: report.id,
+      trackingCode: report.tracking_code,
       title: report.title,
       desc: report.description,
       cat: report.category,
@@ -234,6 +262,13 @@ async function loadReportsFromSupabase() {
       catBg: report.category_background,
       loc: report.location,
       risk: report.risk,
+      priority: report.priority || 'low',
+      dueAt: report.due_at || '',
+      updatedAt: report.updated_at || report.created_at,
+      reviewedAt: report.reviewed_at || '',
+      assignedAt: report.assigned_at || '',
+      inProgressAt: report.in_progress_at || '',
+      completedAt: report.completed_at || '',
       status: report.status,
       assignedTo: report.assigned_to || '',
       assignedPersonnel: Array.isArray(report.assigned_personnel) ? report.assigned_personnel : [],
@@ -241,16 +276,34 @@ async function loadReportsFromSupabase() {
       reporter: report.reporter,
       date: report.report_date,
       photo: report.photo,
+      photoAttachments: Array.isArray(report.photo_attachments) ? report.photo_attachments : [],
       assignNote: report.assignment_note || '',
-      targetDate: report.target_date || ''
+      targetDate: report.target_date || '',
+      adminRemark: report.admin_remark || ''
     }));
-  }
+}
+
+function subscribeToReports() {
+  if (!isSupabaseConfigured || reportsChannel) return;
+  reportsChannel = supabase
+    .channel('reports-live-updates')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, () => {
+      void loadReportsFromSupabase();
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') void loadReportsFromSupabase();
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.warn(`Reports realtime channel status: ${status}`);
+        reportsChannel = null;
+      }
+    });
 }
 
 void loadReportsFromSupabase();
 
 export function useReports() {
   const { pushTechAssignmentNotification } = useNotifications();
+  const { settings: slaSettings } = useSlaSettings();
 
   function saveReports() {
     try {
@@ -283,24 +336,74 @@ export function useReports() {
     return ranked[0].tech;
   }
 
-  function addReport(newReportData) {
+  async function addReport(newReportData, photoFiles = []) {
     const nextNumericId = 1040 + reports.value.length + 1;
     const report = {
       id: `#${nextNumericId}`,
+      trackingCode: createDemoTrackingCode(),
       ...newReportData,
       risk: newReportData.risk || 'low',
+      priority: newReportData.priority || 'low',
       status: 'pending',
       assignedTo: '',
       techState: 'unassigned',
+      photoAttachments: [],
       date: new Date().toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric'
       })
     };
+    report.dueAt = calculateDueAt(report.priority, slaSettings.value);
+    if (photoFiles.length) {
+      report.photoAttachments = await uploadPhotoFiles(photoFiles, {
+        entityType: 'reports',
+        entityId: report.id,
+        phase: 'before'
+      });
+    }
     reports.value.unshift(report);
     saveReports();
-    syncReport(report);
+    if (!isSupabaseConfigured) return report;
+
+    try {
+      const saved = await syncReport(report, true);
+      Object.assign(report, {
+        trackingCode: saved.tracking_code,
+        dueAt: saved.due_at,
+        updatedAt: saved.updated_at
+      });
+      saveReports();
+      return report;
+    } catch (error) {
+      reports.value = reports.value.filter((item) => item !== report);
+      saveReports();
+      try {
+        await removeUploadedPhotos(report.photoAttachments);
+      } catch (cleanupError) {
+        console.warn('Unable to clean up report photos after submission failed.', cleanupError);
+      }
+      throw error;
+    }
+  }
+
+  async function setReportPriority(reportId, priority) {
+    if (!['low', 'medium', 'high', 'urgent'].includes(priority)) return null;
+    const report = reports.value.find((r) => r.id.toLowerCase() === reportId.toLowerCase());
+    if (!report) return null;
+    const previousPriority = report.priority;
+    const previousDueAt = report.dueAt;
+    report.priority = priority;
+    report.dueAt = calculateDueAt(priority, slaSettings.value);
+    saveReports();
+    try {
+      await syncReport(report);
+    } catch (error) {
+      report.priority = previousPriority;
+      report.dueAt = previousDueAt;
+      saveReports();
+      throw error;
+    }
     return report;
   }
 
@@ -312,7 +415,16 @@ export function useReports() {
 
     report.risk = risk;
     saveReports();
-    syncReport(report);
+    syncReportInBackground(report);
+    return report;
+  }
+
+  function setReportRemark(reportId, remark) {
+    const report = reports.value.find((r) => r.id.toLowerCase() === reportId.toLowerCase());
+    if (!report) return null;
+    report.adminRemark = (remark || '').trim();
+    saveReports();
+    syncReportInBackground(report);
     return report;
   }
 
@@ -329,25 +441,21 @@ export function useReports() {
 
     report.assignedPersonnel.forEach((name) => pushTechAssignmentNotification(name, report, status));
     saveReports();
-    syncReport(report);
+    syncReportInBackground(report);
     return report;
   }
 
   function resolveReport(reportId) {
     const report = reports.value.find((r) => r.id.toLowerCase() === reportId.toLowerCase());
-    if (!report) return null;
+    if (!report || !normalizePersonnel(report).length || report.techState !== 'completed') return null;
 
     report.status = 'resolved';
     report.techState = 'completed';
-    if (!normalizePersonnel(report).length) {
-      report.assignedPersonnel = [findRecommendedTech(report).name];
-      syncAssignmentLabel(report);
-    }
     report.assignNote = `Resolved on ${new Date().toLocaleDateString()}`;
 
     normalizePersonnel(report).forEach((name) => pushTechAssignmentNotification(name, report, 'resolved'));
     saveReports();
-    syncReport(report);
+    syncReportInBackground(report);
     return report;
   }
 
@@ -373,51 +481,109 @@ export function useReports() {
 
     pushTechAssignmentNotification(recommended.name, top, top.status);
     saveReports();
-    syncReport(top);
+    syncReportInBackground(top);
     return { report: top, tech: recommended };
   }
 
-  function techAccept(reportId, currentTechName) {
+  async function techAccept(reportId, currentTechName) {
     const report = reports.value.find((r) => r.id === reportId);
     if (!report || !normalizePersonnel(report).includes(currentTechName)) return false;
 
+    const previousState = report.techState;
+    const previousStatus = report.status;
     report.techState = 'accepted';
     report.status = 'in-progress';
     saveReports();
-    syncReport(report);
-    return true;
+    try {
+      await syncReport(report);
+      return true;
+    } catch (error) {
+      report.techState = previousState;
+      report.status = previousStatus;
+      saveReports();
+      console.warn('Failed saving report acceptance', error);
+      return false;
+    }
   }
 
-  function techStart(reportId, currentTechName) {
+  async function techStart(reportId, currentTechName) {
     const report = reports.value.find((r) => r.id === reportId);
     if (!report || !normalizePersonnel(report).includes(currentTechName)) return false;
 
+    const previousState = report.techState;
+    const previousStatus = report.status;
     report.techState = 'started';
     report.status = 'in-progress';
     saveReports();
-    syncReport(report);
-    return true;
+    try {
+      await syncReport(report);
+      return true;
+    } catch (error) {
+      report.techState = previousState;
+      report.status = previousStatus;
+      saveReports();
+      console.warn('Failed saving report start', error);
+      return false;
+    }
   }
 
-  function techComplete(reportId, currentTechName) {
+  async function techComplete(reportId, currentTechName, completionPhotos = []) {
     const report = reports.value.find((r) => r.id === reportId);
-    if (!report || !normalizePersonnel(report).includes(currentTechName)) return false;
+    if (!report || report.techState !== 'started' || !normalizePersonnel(report).includes(currentTechName)) return false;
 
+    const previousState = report.techState;
+    const previousStatus = report.status;
+    const previousAttachments = report.photoAttachments || [];
     report.techState = 'completed';
     report.status = 'resolved';
+    try {
+      if (completionPhotos.length) {
+        report.photoAttachments = await uploadPhotoFiles(completionPhotos, {
+          entityType: 'reports',
+          entityId: report.id,
+          phase: 'after',
+          previous: previousAttachments
+        });
+      }
+    } catch (error) {
+      report.techState = previousState;
+      report.status = previousStatus;
+      throw error;
+    }
     saveReports();
-    syncReport(report);
-    return true;
+    try {
+      await syncReport(report);
+      return true;
+    } catch (error) {
+      const newAttachments = report.photoAttachments.filter(
+        (attachment) => !previousAttachments.includes(attachment)
+      );
+      report.techState = previousState;
+      report.status = previousStatus;
+      report.photoAttachments = previousAttachments;
+      saveReports();
+      try {
+        await removeUploadedPhotos(newAttachments);
+      } catch (cleanupError) {
+        console.warn('Unable to clean up report completion photos after saving failed.', cleanupError);
+      }
+      console.warn('Failed saving report completion', error);
+      return false;
+    }
   }
 
   return {
     reports,
     technicians,
+    loadReports: loadReportsFromSupabase,
+    subscribeToReports,
     getActiveLoad,
     isAssignedTo: (report, name) => normalizePersonnel(report).includes(name),
     findRecommendedTech,
     addReport,
     setReportRisk,
+    setReportPriority,
+    setReportRemark,
     assignReport,
     resolveReport,
     assignNextInQueue,
