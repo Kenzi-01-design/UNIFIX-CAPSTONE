@@ -1,6 +1,14 @@
 -- Demo/defense seed data only. Run manually against a disposable project.
 -- The script is repeatable and deliberately creates overdue, open, assigned,
 -- in-verification, completed, and rated work for the analytics dashboard.
+do $$
+begin
+  if current_setting('unifix.allow_demo_seed', true) is distinct from 'true' then
+    raise exception 'Demo seed refused. Set unifix.allow_demo_seed = true explicitly only on a disposable demo project.';
+  end if;
+end
+$$;
+
 insert into public.reports (
   id, title, description, category, location, reporter, reporter_email,
   report_date, priority, status, assigned_personnel, technician_state, created_at

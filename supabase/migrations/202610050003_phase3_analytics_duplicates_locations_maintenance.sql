@@ -431,8 +431,8 @@ begin
                             from (select category, count(*) amount from filtered group by category) c), '[]'::jsonb),
     'locations', coalesce((select jsonb_agg(jsonb_build_object('name', location, 'count', amount) order by amount desc)
                            from (select location, count(*) amount from filtered group by location order by amount desc limit 10) l), '[]'::jsonb),
-    'trend', coalesce((select jsonb_agg(jsonb_build_object('date', day, 'count', amount) order by day)
-                       from (select created_at::date day, count(*) amount from filtered group by created_at::date) t), '[]'::jsonb),
+    'trend', coalesce((select jsonb_agg(jsonb_build_object('date', trend_date, 'count', amount) order by trend_date)
+                       from (select created_at::date as trend_date, count(*) amount from filtered group by created_at::date) t), '[]'::jsonb),
     'priorities', coalesce((select jsonb_agg(jsonb_build_object('name', priority, 'count', amount) order by amount desc)
                             from (select priority, count(*) amount from filtered group by priority) p), '[]'::jsonb),
     'personnel', coalesce((select jsonb_agg(jsonb_build_object('name', name, 'open', open_count, 'completed', completed_count) order by open_count desc)

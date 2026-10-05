@@ -128,21 +128,6 @@
 
         alter table public.user_profiles add column if not exists is_active boolean not null default true;
 
-        insert into public.user_profiles (id, name, email, role, department)
-        values
-            ('admin-user', 'Admin User', 'admin.user@nvsu.edu.ph', 'Admin', 'Campus Administration'),
-            ('admin-assistant', 'Admin Assistant', 'admin.assistant@nvsu.edu.ph', 'Assistant', 'Campus Administration'),
-            ('employee-user', 'Prof. Reyes', 'prof.reyes@nvsu.edu.ph', 'Employee', 'College of Engineering'),
-            ('student-user', 'Student User', 'student.user@nvsu.edu.ph', 'Student', 'Student Affairs'),
-            ('personnel-user', 'Juan dela Cruz', 'juan.delacruz@nvsu.edu.ph', 'Personnel', 'Maintenance Operations')
-            ,('personnel-maria', 'Maria Santos', 'maria.santos@nvsu.edu.ph', 'Personnel', 'Maintenance Operations')
-        on conflict (id) do update set
-            name = excluded.name,
-            email = excluded.email,
-            role = excluded.role,
-            department = excluded.department,
-            updated_at = now();
-
     alter table public.reports enable row level security;
     alter table public.requests enable row level security;
     alter table public.login_events enable row level security;
@@ -505,7 +490,7 @@ as $$
 declare
   work_priority text;
   target_hours integer;
-  tracking_year integer;
+  v_tracking_year integer;
   tracking_number bigint;
   work_status text;
   technician_status text;
@@ -517,13 +502,13 @@ begin
   assignees := coalesce(new.assigned_personnel, '[]'::jsonb);
 
   if tg_op = 'INSERT' or new.tracking_code is null or btrim(new.tracking_code) = '' then
-    tracking_year := extract(year from coalesce(new.created_at, now()))::integer;
+    v_tracking_year := extract(year from coalesce(new.created_at, now()))::integer;
     insert into public.tracking_code_counters (tracking_year, last_number)
-    values (tracking_year, 1)
+    values (v_tracking_year, 1)
     on conflict (tracking_year) do update
       set last_number = public.tracking_code_counters.last_number + 1
     returning last_number into tracking_number;
-    new.tracking_code := 'UNI-' || tracking_year::text || '-' || lpad(tracking_number::text, 4, '0');
+    new.tracking_code := 'UNI-' || v_tracking_year::text || '-' || lpad(tracking_number::text, 4, '0');
   elsif new.tracking_code is distinct from old.tracking_code then
     new.tracking_code := old.tracking_code;
   end if;
@@ -1931,8 +1916,8 @@ begin
                             from (select category, count(*) amount from filtered group by category) c), '[]'::jsonb),
     'locations', coalesce((select jsonb_agg(jsonb_build_object('name', location, 'count', amount) order by amount desc)
                            from (select location, count(*) amount from filtered group by location order by amount desc limit 10) l), '[]'::jsonb),
-    'trend', coalesce((select jsonb_agg(jsonb_build_object('date', day, 'count', amount) order by day)
-                       from (select created_at::date day, count(*) amount from filtered group by created_at::date) t), '[]'::jsonb),
+    'trend', coalesce((select jsonb_agg(jsonb_build_object('date', trend_date, 'count', amount) order by trend_date)
+                       from (select created_at::date as trend_date, count(*) amount from filtered group by created_at::date) t), '[]'::jsonb),
     'priorities', coalesce((select jsonb_agg(jsonb_build_object('name', priority, 'count', amount) order by amount desc)
                             from (select priority, count(*) amount from filtered group by priority) p), '[]'::jsonb),
     'personnel', coalesce((select jsonb_agg(jsonb_build_object('name', name, 'open', open_count, 'completed', completed_count) order by open_count desc)
@@ -2603,3 +2588,24 @@ begin
   execute revised_definition;
 end;
 $$;
+
+create index if not exists reports_created_at_idx on public.reports (created_at desc);
+create index if not exists reports_status_created_at_idx on public.reports (status, created_at desc);
+create index if not exists reports_due_at_open_idx on public.reports (due_at)
+  where due_at is not null and status not in ('closed', 'resolved', 'action-taken');
+create index if not exists reports_assigned_to_idx on public.reports (assigned_to)
+  where assigned_to is not null;
+create index if not exists requests_created_at_idx on public.requests (created_at desc);
+create index if not exists requests_status_created_at_idx on public.requests (status, created_at desc);
+create index if not exists requests_due_at_open_idx on public.requests (due_at)
+  where due_at is not null and status not in ('closed', 'resolved', 'action-taken');
+create index if not exists requests_assigned_to_idx on public.requests (assigned_to)
+  where assigned_to is not null;
+create index if not exists maintenance_schedules_active_due_idx
+  on public.maintenance_schedules (next_due) where is_active;
+create index if not exists user_profiles_active_role_idx
+  on public.user_profiles (role) where is_active;
+create index if not exists user_profiles_email_lower_idx
+  on public.user_profiles (lower(email));
+
+notify pgrst, 'reload schema';

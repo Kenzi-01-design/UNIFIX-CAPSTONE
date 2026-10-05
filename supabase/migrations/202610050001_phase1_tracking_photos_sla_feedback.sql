@@ -81,7 +81,7 @@ as $$
 declare
   work_priority text;
   target_hours integer;
-  tracking_year integer;
+  v_tracking_year integer;
   tracking_number bigint;
   work_status text;
   technician_status text;
@@ -93,13 +93,13 @@ begin
   assignees := coalesce(new.assigned_personnel, '[]'::jsonb);
 
   if tg_op = 'INSERT' or new.tracking_code is null or btrim(new.tracking_code) = '' then
-    tracking_year := extract(year from coalesce(new.created_at, now()))::integer;
+    v_tracking_year := extract(year from coalesce(new.created_at, now()))::integer;
     insert into public.tracking_code_counters (tracking_year, last_number)
-    values (tracking_year, 1)
+    values (v_tracking_year, 1)
     on conflict (tracking_year) do update
       set last_number = public.tracking_code_counters.last_number + 1
     returning last_number into tracking_number;
-    new.tracking_code := 'UNI-' || tracking_year::text || '-' || lpad(tracking_number::text, 4, '0');
+    new.tracking_code := 'UNI-' || v_tracking_year::text || '-' || lpad(tracking_number::text, 4, '0');
   elsif new.tracking_code is distinct from old.tracking_code then
     new.tracking_code := old.tracking_code;
   end if;
