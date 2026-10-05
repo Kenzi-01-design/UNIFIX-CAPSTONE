@@ -87,6 +87,7 @@
           <span class="nav-icon"><UiIcon name="dashboard" /></span> Dashboard
         </div>
         <div
+          v-if="currentRole === 'Admin'"
           class="nav-item"
           :class="{ active: currentView === 'submit' }"
           @click="$emit('navigate', 'submit')"
@@ -139,6 +140,7 @@
       <!-- ACCOUNT SECTION: Profile removed, Settings retained -->
       <div class="nav-label">Account</div>
       <div
+        v-if="currentRole === 'Employee'"
         class="nav-item"
         :class="{ active: currentView === 'evaluation' }"
         @click="$emit('navigate', 'evaluation')"

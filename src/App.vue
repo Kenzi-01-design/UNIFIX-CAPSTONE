@@ -122,8 +122,8 @@
           />
 
           <EvaluationView
-            v-else-if="currentView === 'evaluation'"
-            :respondent-role="currentRole"
+            v-else-if="currentView === 'evaluation' && currentRole === 'Employee'"
+            respondent-role="Employee"
           />
 
           <EvaluationView
@@ -160,6 +160,7 @@ import { useRequests } from './composables/useRequests.js';
 import { useNotifications } from './composables/useNotifications.js';
 import { useToast } from './composables/useToast.js';
 import { isSupabaseConfigured } from './lib/supabase.js';
+import { canAccessView } from './lib/access.js';
 
 // Components
 import SideBar from './components/SideBar.vue';
@@ -185,9 +186,24 @@ import SettingsView from './views/SettingsView.vue';
 const AdminView = defineAsyncComponent(() => import('./views/AdminView.vue'));
 const EvaluationView = defineAsyncComponent(() => import('./views/EvaluationView.vue'));
 
-const { currentRole, activeUserName, isAuthenticated, logout, loadSettings } = useAuth();
-const { reports, loadReports, subscribeToReports, resolveReport, techAccept, techStart, techComplete } = useReports();
-const { loadRequests, subscribeToRequests } = useRequests();
+const { currentRole, activeUserName, activeUserEmail, isAuthenticated, logout, loadSettings } = useAuth();
+const {
+  reports,
+  loadReports,
+  subscribeToReports,
+  stopReportsSubscription,
+  clearReportsForAccountChange,
+  resolveReport,
+  techAccept,
+  techStart,
+  techComplete
+} = useReports();
+const {
+  loadRequests,
+  subscribeToRequests,
+  stopRequestsSubscription,
+  clearRequestsForAccountChange
+} = useRequests();
 const {
   notifications,
   loading: notificationsLoading,
@@ -235,7 +251,12 @@ const selectedReport = computed(() => {
 
 async function refreshAuthenticatedData() {
   if (!isAuthenticated.value) return;
-  await Promise.all([loadReports(), loadRequests()]);
+  const results = await Promise.allSettled([loadReports(), loadRequests()]);
+  const failedLoads = results.filter((result) => result.status === 'rejected');
+  if (failedLoads.length) {
+    console.error('Some work items could not be loaded for the signed-in account.', failedLoads);
+    showToast('Some work items could not be loaded. Please refresh or try again.', 'error');
+  }
   subscribeToReports();
   subscribeToRequests();
   try {
@@ -246,7 +267,30 @@ async function refreshAuthenticatedData() {
   }
 }
 
-watch(isAuthenticated, refreshAuthenticatedData, { immediate: true });
+let activeIdentity = '';
+watch([isAuthenticated, currentRole, activeUserEmail], ([authenticated, role, email]) => {
+  const nextIdentity = authenticated ? `${email.toLowerCase()}|${role}` : '';
+  if (activeIdentity && activeIdentity !== nextIdentity) {
+    stopReportsSubscription();
+    stopRequestsSubscription();
+    stopNotifications();
+    clearReportsForAccountChange();
+    clearRequestsForAccountChange();
+  }
+  activeIdentity = nextIdentity;
+  if (!authenticated) {
+    isModalOpen.value = false;
+    selectedReportId.value = null;
+    return;
+  }
+  if (!canAccessView(role, currentView.value)) {
+    currentView.value = 'dashboard';
+    activeReportFilter.value = {};
+    isModalOpen.value = false;
+    selectedReportId.value = null;
+  }
+  void refreshAuthenticatedData();
+}, { immediate: true });
 
 // Auto-Logout Activity Tracker
 function resetInactivityTimer() {
@@ -272,24 +316,14 @@ onMounted(() => {
 onBeforeUnmount(() => {
   activityEvents.forEach((event) => window.removeEventListener(event, resetInactivityTimer));
   if (inactivityTimer) clearTimeout(inactivityTimer);
+  stopReportsSubscription();
+  stopRequestsSubscription();
   stopNotifications();
 });
 
 function navigateTo(view) {
-  if (view === 'activity-log' && currentRole.value !== 'Admin') {
-    showToast('Activity Log is available to administrators only.', 'info');
-    return;
-  }
-  if (view === 'user-management' && currentRole.value !== 'Admin') {
-    showToast('User Management is available to administrators only.', 'info');
-    return;
-  }
-  if (view === 'evaluation-results' && currentRole.value !== 'Admin') {
-    showToast('Evaluation Results are available to administrators only.', 'info');
-    return;
-  }
-  if (view === 'submit' && currentRole.value === 'Employee') {
-    showToast('Employees cannot submit maintenance reports.', 'info');
+  if (!canAccessView(currentRole.value, view)) {
+    showToast('This page is not available for your account role.', 'info');
     return;
   }
   currentView.value = view;
@@ -300,26 +334,30 @@ function navigateTo(view) {
 }
 
 function openReportsWithFilter(filters = {}) {
+  if (!canAccessView(currentRole.value, 'reports')) {
+    showToast('Reports are not available for your account role.', 'info');
+    return;
+  }
   activeReportFilter.value = { ...filters };
   currentView.value = 'reports';
   resetInactivityTimer();
 }
 
-async function handleLoginSuccess(landingView) {
-  await refreshAuthenticatedData();
-  currentView.value = currentRole.value === 'Employee' && landingView === 'submit'
-    ? 'dashboard'
-    : (landingView || 'dashboard');
+function handleLoginSuccess(landingView) {
+  currentView.value = canAccessView(currentRole.value, landingView) ? landingView : 'dashboard';
   resetInactivityTimer();
 }
 
-function handleLogout() {
+async function handleLogout() {
   if (inactivityTimer) clearTimeout(inactivityTimer);
-  logout();
-  stopNotifications();
-  currentView.value = 'dashboard';
-  publicPage.value = 'home';
-  showToast('Signed out successfully.', 'info');
+  try {
+    await logout();
+    currentView.value = 'dashboard';
+    publicPage.value = 'home';
+    showToast('Signed out successfully.', 'info');
+  } catch (error) {
+    showToast(error.message || 'Unable to sign out. Please try again.', 'error');
+  }
 }
 
 function handleReportSubmitted(newReport) {

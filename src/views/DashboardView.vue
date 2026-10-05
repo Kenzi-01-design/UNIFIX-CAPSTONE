@@ -180,14 +180,6 @@
           </div>
           <div style="display: flex; gap: 16px">
             <div style="flex: 1; background: var(--surface-2); border-radius: var(--radius-sm); padding: 12px; text-align: center;">
-              <div style="font-size: 22px; font-weight: 800; color: var(--primary); letter-spacing: -1px;">
-                2.4
-              </div>
-              <div style="font-size: 11px; color: var(--text-3); font-weight: 600;">
-                days avg
-              </div>
-            </div>
-            <div style="flex: 1; background: var(--surface-2); border-radius: var(--radius-sm); padding: 12px; text-align: center;">
               <div style="font-size: 22px; font-weight: 800; color: var(--green); letter-spacing: -1px;">
                 {{ resolvedPercentage }}%
               </div>

@@ -39,7 +39,7 @@
       </select>
 
       <!-- Scope Switcher for non-admin accounts -->
-      <select v-if="currentRole !== 'Admin'" v-model="scopeFilter" class="filter-select">
+      <select v-if="!['Admin', 'Employee', 'Personnel'].includes(currentRole)" v-model="scopeFilter" class="filter-select">
         <option value="my">My Submissions</option>
         <option value="all">All Campus Reports</option>
       </select>
@@ -110,14 +110,21 @@ const props = defineProps({
 
 defineEmits(['open-report']);
 
-const { reports } = useReports();
-const { currentRole, activeUserName } = useAuth();
+const { reports, isAssignedTo } = useReports();
+const { currentRole, activeUserName, activeUserEmail } = useAuth();
 
 const searchQuery = ref(props.initialFilter.search || '');
 const filterCategory = ref(props.initialFilter.category || '');
 const filterStatus = ref(props.initialFilter.status || '');
 const filterDate = ref(props.initialFilter.date || '');
-const scopeFilter = ref(currentRole.value === 'Faculty' ? 'my' : 'all');
+const scopeFilter = ref(['Admin', 'Assistant'].includes(currentRole.value) ? 'all' : 'my');
+
+function isCurrentUsersReport(report) {
+  if (report.reporterEmail && activeUserEmail.value) {
+    return report.reporterEmail.toLowerCase() === activeUserEmail.value.toLowerCase();
+  }
+  return report.reporter === activeUserName.value;
+}
 
 watch(
   () => props.initialFilter,
@@ -157,7 +164,13 @@ const filteredReports = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
 
   return reports.value.filter((r) => {
-    if (scopeFilter.value === 'my' && r.reporter !== activeUserName.value) {
+    if (currentRole.value === 'Personnel' && !isAssignedTo(r, activeUserName.value)) {
+      return false;
+    }
+    if (currentRole.value === 'Employee' && !isCurrentUsersReport(r)) {
+      return false;
+    }
+    if (scopeFilter.value === 'my' && !isCurrentUsersReport(r)) {
       return false;
     }
 

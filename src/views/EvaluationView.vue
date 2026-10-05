@@ -58,12 +58,9 @@
       </div>
       <form v-else class="evaluation-form" @submit.prevent="submit">
         <div class="form-group respondent-role">
-          <label for="evaluation-role">Respondent role</label>
-          <select id="evaluation-role" v-model="respondentRole" required>
-            <option value="">Select role…</option>
-            <option v-for="role in roles" :key="role" :value="role">{{ role }}</option>
-          </select>
-          <small>The role is used only for aggregated respondent counts.</small>
+          <label>Respondent role</label>
+          <p>{{ respondentRole }}</p>
+          <small>This role is used only for aggregated respondent counts.</small>
         </div>
         <section class="evaluation-section">
           <h2>System Usability Scale (SUS)</h2>
@@ -120,11 +117,10 @@ const props = defineProps({
 });
 defineEmits(['back']);
 
-const roles = ['Public', 'Employee', 'Assistant', 'Personnel', 'Admin', 'Student'];
 const ratings = [1, 2, 3, 4, 5];
 const susAnswers = ref(Array(10).fill(null));
 const isoAnswers = reactive(Object.fromEntries(Object.keys(ISO_CHARACTERISTICS).map((key) => [key, null])));
-const respondentRole = ref(props.respondentRole);
+const respondentRole = ref(props.publicMode ? 'Public' : props.respondentRole);
 const submitted = ref(false);
 const submitting = ref(false);
 const loading = ref(false);

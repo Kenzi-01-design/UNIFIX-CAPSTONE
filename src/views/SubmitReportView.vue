@@ -206,7 +206,7 @@ import TrackingCodeNotice from '../components/TrackingCodeNotice.vue';
 import { useReports } from '../composables/useReports.js';
 import { useAuth } from '../composables/useAuth.js';
 import { useToast } from '../composables/useToast.js';
-import { isSupabaseConfigured, submitPublicReport } from '../lib/supabase.js';
+import { isDemoMode, isSupabaseConfigured, submitPublicReport } from '../lib/supabase.js';
 import { photoToDataUrl } from '../lib/photos.js';
 import { useLocations } from '../composables/useLocations.js';
 import { useDuplicateReports } from '../composables/useDuplicateReports.js';
@@ -489,6 +489,10 @@ function formatStatus(status) {
 }
 
 async function handleSubmit() {
+  if (props.publicMode && !isSupabaseConfigured && !isDemoMode) {
+    showToast('Public reporting is temporarily unavailable because the reporting service is not configured.', 'error');
+    return;
+  }
   if (!form.title.trim() || !form.desc.trim() || !form.cat || !form.bldg) {
     showToast('Please fill in all required fields.', 'error');
     return;

@@ -46,6 +46,7 @@ async function deliver(id: string) {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
+          'Idempotency-Key': `unifix-notification-${claimed.id}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({

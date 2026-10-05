@@ -48,7 +48,7 @@ function validateSubmission(submission) {
       || submission.isoAnswers[key] < 1 || submission.isoAnswers[key] > 5)) {
     throw new Error('Answer all eight quality-characteristic questions using the 1–5 scale.');
   }
-  if (!['Public', 'Employee', 'Assistant', 'Personnel', 'Admin', 'Student'].includes(submission.respondentRole)) {
+  if (!['Public', 'Employee'].includes(submission.respondentRole)) {
     throw new Error('Select the respondent role.');
   }
 }

@@ -155,7 +155,7 @@
                   <span v-else style="color:var(--red);font-weight:700">Unassigned</span>
                 </td>
                 <td v-if="['Admin', 'Assistant'].includes(currentRole)" class="verification-actions">
-                  <button v-if="currentRole === 'Admin'" class="admin-action-btn assign" @click="pickForAssignment(r.id)">
+                  <button v-if="currentRole === 'Admin' && !['closed', 'resolved', 'action-taken', 'for-verification'].includes(r.status)" class="admin-action-btn assign" @click="pickForAssignment(r.id)">
                     {{ r.assignedTo ? '+ Personnel' : 'Assign' }}
                   </button>
                   <button
@@ -344,7 +344,7 @@
                 <td v-if="['Admin', 'Assistant'].includes(currentRole)" class="verification-actions">
                   <button class="admin-action-btn assign" @click="openRequestJobOrder(req, 'print')">Print Job Order</button>
                   <button class="admin-action-btn assign" @click="openRequestJobOrder(req, 'pdf')">Download PDF</button>
-                  <button v-if="currentRole === 'Admin'" class="admin-action-btn assign" @click="pickRequestForAssignment(req.id)">
+                  <button v-if="currentRole === 'Admin' && !['closed', 'resolved', 'action-taken', 'for-verification'].includes(req.status)" class="admin-action-btn assign" @click="pickRequestForAssignment(req.id)">
                     {{ req.assignedTo ? 'Reassign' : 'Assign' }}
                   </button>
                   <button

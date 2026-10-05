@@ -5,7 +5,7 @@ const allowedOrigins = (Deno.env.get('PUBLIC_APP_ORIGINS') || Deno.env.get('PUBL
   .split(',')
   .map((origin) => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
-const roles = new Set(['Public', 'Employee', 'Assistant', 'Personnel', 'Admin', 'Student']);
+const eligibleRoles = new Set(['Public', 'Employee']);
 const isoCharacteristics = [
   'functionalSuitability', 'performanceEfficiency', 'compatibility', 'usability',
   'reliability', 'security', 'maintainability', 'portability'
@@ -80,12 +80,41 @@ Deno.serve(async (request) => {
     return response(origin, { error: 'Evaluation response is too large.' }, 413);
   }
 
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    console.error('Evaluation function is missing Supabase credentials.');
+    return response(origin, { error: 'Evaluation is temporarily unavailable.' }, 503);
+  }
   const admin = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    supabaseUrl,
+    serviceRoleKey
   );
 
   try {
+    const authToken = request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
+    let verifiedRole = 'Public';
+    if (authToken && authToken !== anonKey) {
+      const { data: authData, error: authError } = await admin.auth.getUser(authToken);
+      if (authError || !authData.user?.email) {
+        return response(origin, { error: 'Your session is invalid. Sign in again and retry.' }, 401);
+      }
+      const { data: profile, error: profileError } = await admin
+        .from('user_profiles')
+        .select('role,is_active')
+        .eq('email', authData.user.email)
+        .maybeSingle();
+      if (profileError) {
+        console.error('Evaluation respondent profile lookup failed.', profileError);
+        return response(origin, { error: 'Evaluation is temporarily unavailable.' }, 503);
+      }
+      if (!profile?.is_active || profile.role !== 'Employee') {
+        return response(origin, { error: 'Only employees and public reporters may submit an evaluation.' }, 403);
+      }
+      verifiedRole = profile.role;
+    }
+
     const keyHash = await rateLimitKey(request);
     if (!keyHash) return response(origin, { error: 'Could not verify the request source.' }, 503);
     const { data: allowed, error: rateError } = await admin.rpc('consume_public_endpoint_rate_limit', {
@@ -119,7 +148,8 @@ Deno.serve(async (request) => {
       return response(origin, { error: 'The request body must contain valid JSON.' }, 400);
     }
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)
-      || !roles.has(payload.respondentRole)
+      || !eligibleRoles.has(payload.respondentRole)
+      || payload.respondentRole !== verifiedRole
       || !validAnswers(payload)
       || typeof payload.submissionKey !== 'string'
       || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(payload.submissionKey)) {

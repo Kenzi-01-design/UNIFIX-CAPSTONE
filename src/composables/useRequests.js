@@ -55,6 +55,7 @@ const initialRequests = [
 ];
 
 function loadPersistedRequests() {
+  if (isSupabaseConfigured) return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw).map((request) => ({
@@ -70,6 +71,26 @@ function loadPersistedRequests() {
 
 const requests = ref(loadPersistedRequests());
 let requestsChannel = null;
+let requestsLoadGeneration = 0;
+
+function stopRequestsSubscription() {
+  if (requestsChannel) {
+    void supabase.removeChannel(requestsChannel);
+    requestsChannel = null;
+  }
+}
+
+function clearRequestsForAccountChange() {
+  requestsLoadGeneration += 1;
+  requests.value = [];
+  if (isSupabaseConfigured) {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.warn('Could not clear cached requests for the previous account.', error);
+    }
+  }
+}
 
 function toDatabaseRequest(request) {
   return {
@@ -121,11 +142,17 @@ function syncRequestInBackground(request, allowInsert = false) {
 }
 
 async function loadRequestsFromSupabase() {
-  if (!isSupabaseConfigured) return;
+  const generation = ++requestsLoadGeneration;
+  if (!isSupabaseConfigured) {
+    requests.value = loadPersistedRequests();
+    return;
+  }
   const { data, error } = await supabase.from('requests').select('*').order('created_at', { ascending: false });
+  if (generation !== requestsLoadGeneration) return;
   if (error) {
     console.warn('Failed loading requests from Supabase', error);
-    return;
+    requests.value = [];
+    throw error;
   }
   requests.value = (data || []).map((request) => ({
       id: request.id,
@@ -172,10 +199,16 @@ function subscribeToRequests() {
   requestsChannel = supabase
     .channel('requests-live-updates')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, () => {
-      void loadRequestsFromSupabase();
+      void loadRequestsFromSupabase().catch((error) => {
+        console.error('Could not refresh requests after a realtime update.', error);
+      });
     })
     .subscribe((status) => {
-      if (status === 'SUBSCRIBED') void loadRequestsFromSupabase();
+      if (status === 'SUBSCRIBED') {
+        void loadRequestsFromSupabase().catch((error) => {
+          console.error('Could not load requests after subscribing to updates.', error);
+        });
+      }
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         console.warn(`Requests realtime channel status: ${status}`);
         requestsChannel = null;
@@ -183,7 +216,9 @@ function subscribeToRequests() {
     });
 }
 
-void loadRequestsFromSupabase();
+void loadRequestsFromSupabase().catch((error) => {
+  console.error('Could not load requests from Supabase.', error);
+});
 
 export function useRequests() {
   const { settings: slaSettings } = useSlaSettings();
@@ -199,6 +234,7 @@ export function useRequests() {
     });
   }
   function saveRequests() {
+    if (isSupabaseConfigured) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(requests.value));
     } catch (e) {
@@ -452,7 +488,7 @@ export function useRequests() {
 
   function assignRequest(requestId, personnel, note = '', targetDate = '') {
     const request = requests.value.find((item) => item.id.toLowerCase() === requestId.toLowerCase());
-    if (!request) return null;
+    if (!request || ['closed', 'resolved', 'action-taken', 'for-verification'].includes(request.status)) return null;
 
     const previousAssignees = request.assignedPersonnel || [];
     request.assignedPersonnel = [...new Set((Array.isArray(personnel) ? personnel : [personnel]).filter(Boolean))];
@@ -578,6 +614,8 @@ export function useRequests() {
     requests,
     loadRequests: loadRequestsFromSupabase,
     subscribeToRequests,
+    stopRequestsSubscription,
+    clearRequestsForAccountChange,
     addRequest,
     acknowledgeRequest,
     rejectRequest,

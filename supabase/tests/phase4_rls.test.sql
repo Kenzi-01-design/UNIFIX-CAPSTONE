@@ -1,26 +1,34 @@
 begin;
-select plan(13);
+select plan(18);
 
 insert into public.user_profiles (id, name, email, role, department)
 values
   ('phase4-rls-admin', 'Phase 4 Admin', 'admin.user@nvsu.edu.ph', 'Admin', 'Testing'),
+  ('phase4-rls-assistant', 'Phase 4 Assistant', 'assistant.user@nvsu.edu.ph', 'Assistant', 'Testing'),
   ('phase4-rls-employee', 'Prof. Reyes', 'prof.reyes@nvsu.edu.ph', 'Employee', 'Testing'),
   ('phase4-rls-personnel', 'Juan dela Cruz', 'juan.delacruz@nvsu.edu.ph', 'Personnel', 'Testing'),
-  ('phase4-rls-target', 'Test Role Target', 'phase4-target@nvsu.edu.ph', 'Employee', 'Testing')
+  ('phase4-rls-target', 'Test Role Target', 'phase4-target@nvsu.edu.ph', 'Employee', 'Testing'),
+  ('phase5-rls-same-name', 'Other Employee', 'phase5-same-name@nvsu.edu.ph', 'Employee', 'Testing')
 on conflict (email) do update set
   name = excluded.name,
   role = excluded.role,
   department = excluded.department,
   is_active = true;
 
-insert into public.reports (id, title, description, category, location, reporter, report_date, assigned_personnel)
+insert into public.reports (
+  id, title, description, category, location, reporter, reporter_email, report_date,
+  assigned_personnel, assigned_to, status, technician_state
+)
 values
-  ('phase4-rls-own-report', 'RLS own report fixture', 'A sample report for isolation testing.', 'Other', 'Test location', 'Prof. Reyes', 'Oct 05, 2026', '[]'::jsonb),
-  ('phase4-rls-assigned-report', 'RLS assigned report fixture', 'A sample assigned report for isolation testing.', 'Other', 'Test location', 'Other Reporter', 'Oct 05, 2026', '["Juan dela Cruz"]'::jsonb),
-  ('phase4-rls-unassigned-report', 'RLS unassigned report fixture', 'A sample unassigned report for isolation testing.', 'Other', 'Test location', 'Other Reporter', 'Oct 05, 2026', '[]'::jsonb);
+  ('phase4-rls-own-report', 'RLS own report fixture', 'A sample report for isolation testing.', 'Other', 'Test location', 'Prof. Reyes', 'prof.reyes@nvsu.edu.ph', 'Oct 05, 2026', '[]'::jsonb, null, 'pending', 'unassigned'),
+  ('phase4-rls-assigned-report', 'RLS assigned report fixture', 'A sample assigned report for isolation testing.', 'Other', 'Test location', 'Other Reporter', null, 'Oct 05, 2026', '["Juan dela Cruz"]'::jsonb, 'Juan dela Cruz', 'in-progress', 'assigned'),
+  ('phase4-rls-unassigned-report', 'RLS unassigned report fixture', 'A sample unassigned report for isolation testing.', 'Other', 'Test location', 'Juan dela Cruz', 'juan.delacruz@nvsu.edu.ph', 'Oct 05, 2026', '[]'::jsonb, null, 'pending', 'unassigned'),
+  ('phase5-rls-closed-assignment', 'Closed assignment fixture', 'A closed report cannot be assigned.', 'Other', 'Test location', 'Other Reporter', null, 'Oct 05, 2026', '[]'::jsonb, null, 'closed', 'completed'),
+  ('phase5-rls-duplicate-parent', 'Duplicate parent fixture', 'A parent report for merge testing.', 'Other', 'Merge location', 'Other Reporter', null, 'Oct 05, 2026', '[]'::jsonb, null, 'for-verification', 'completed'),
+  ('phase5-rls-duplicate-child', 'Duplicate child fixture', 'A child report for merge testing.', 'Other', 'Merge location', 'Other Reporter', null, 'Oct 05, 2026', '[]'::jsonb, null, 'pending', 'unassigned');
 
-insert into public.requests (id, title, category, department, details, requester, request_date)
-values ('phase4-rls-other-request', 'RLS other request fixture', 'Other', 'Other Department', 'A sample request for isolation testing.', 'Other Employee', 'Oct 05, 2026');
+insert into public.requests (id, title, category, department, details, requester, requester_email, request_date)
+values ('phase4-rls-other-request', 'RLS other request fixture', 'Other', 'Other Department', 'A sample request for isolation testing.', 'Other Employee', 'other-employee@nvsu.edu.ph', 'Oct 05, 2026');
 
 set local role anon;
 select set_config('request.jwt.claims', '{"role":"anon"}', true);
@@ -32,6 +40,15 @@ select set_config('request.jwt.claims', '{"role":"authenticated","email":"prof.r
 select is((select count(*) from public.reports where id = 'phase4-rls-own-report'), 1::bigint, 'Employees can read their own report');
 select is((select count(*) from public.reports where id = 'phase4-rls-assigned-report'), 0::bigint, 'Employees cannot read another reporter''s report');
 select is((select count(*) from public.requests where id = 'phase4-rls-other-request'), 0::bigint, 'Employees cannot read another requester''s request');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"role":"authenticated","email":"phase5-same-name@nvsu.edu.ph"}', true);
+select is((select count(*) from public.requests where id = 'phase4-rls-other-request'), 0::bigint, 'Same-name employees cannot read requests owned by another email');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"role":"authenticated","email":"prof.reyes@nvsu.edu.ph"}', true);
 update public.sla_settings set target_hours = target_hours + 1 where priority = 'urgent';
 select is((select target_hours from public.sla_settings where priority = 'urgent'), 4, 'Employee cannot change the SLA target');
 select throws_ok(
@@ -64,12 +81,40 @@ update public.sla_settings set target_hours = 5 where priority = 'urgent';
 select is((select target_hours from public.sla_settings where priority = 'urgent'), 5, 'Admin can change SLA targets');
 update public.user_profiles set role = 'Assistant' where email = 'phase4-target@nvsu.edu.ph';
 select is((select role from public.user_profiles where email = 'phase4-target@nvsu.edu.ph'), 'Assistant', 'Admin can change user roles');
+select throws_ok(
+  $$update public.reports set assigned_personnel = '["Juan dela Cruz"]'::jsonb, assigned_to = 'Juan dela Cruz', technician_state = 'assigned' where id = 'phase5-rls-closed-assignment'$$,
+  'P0001',
+  'Admin cannot assign a closed report'
+);
+update public.reports set duplicate_of = 'phase5-rls-duplicate-parent', status = 'resolved'
+where id = 'phase5-rls-duplicate-child';
+select is(
+  (select status from public.reports where id = 'phase5-rls-duplicate-child'),
+  'resolved',
+  'Admin can merge an open duplicate without marking its work completed'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"role":"authenticated","email":"assistant.user@nvsu.edu.ph"}', true);
+update public.reports set status = 'closed'
+where id = 'phase5-rls-duplicate-parent';
+select is(
+  (select status from public.reports where id = 'phase5-rls-duplicate-child'),
+  'closed',
+  'Merged child inherits the parent status without bypassing verification'
+);
 reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"role":"authenticated","email":"juan.delacruz@nvsu.edu.ph"}', true);
 select is((select count(*) from public.reports where id = 'phase4-rls-assigned-report'), 1::bigint, 'Personnel can read assigned reports');
 select is((select count(*) from public.reports where id = 'phase4-rls-unassigned-report'), 0::bigint, 'Personnel cannot read unassigned reports');
+select throws_ok(
+  $$update public.reports set status = 'for-verification', technician_state = 'completed' where id = 'phase4-rls-assigned-report'$$,
+  'P0001',
+  'Personnel cannot skip acceptance and work start'
+);
 reset role;
 
 select * from finish();

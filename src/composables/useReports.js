@@ -177,6 +177,7 @@ const technicians = [
 ];
 
 function loadPersistedReports() {
+  if (isSupabaseConfigured) return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -194,6 +195,26 @@ function loadPersistedReports() {
 
 const reports = ref(loadPersistedReports());
 let reportsChannel = null;
+let reportsLoadGeneration = 0;
+
+function stopReportsSubscription() {
+  if (reportsChannel) {
+    void supabase.removeChannel(reportsChannel);
+    reportsChannel = null;
+  }
+}
+
+function clearReportsForAccountChange() {
+  reportsLoadGeneration += 1;
+  reports.value = [];
+  if (isSupabaseConfigured) {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.warn('Could not clear cached reports for the previous account.', error);
+    }
+  }
+}
 
 function normalizePersonnel(report) {
   if (Array.isArray(report.assignedPersonnel)) return report.assignedPersonnel;
@@ -258,11 +279,17 @@ function syncReportInBackground(report, allowInsert = false) {
 }
 
 async function loadReportsFromSupabase() {
-  if (!isSupabaseConfigured) return;
+  const generation = ++reportsLoadGeneration;
+  if (!isSupabaseConfigured) {
+    reports.value = loadPersistedReports();
+    return;
+  }
   const { data, error } = await supabase.from('reports').select('*').order('created_at', { ascending: false });
+  if (generation !== reportsLoadGeneration) return;
   if (error) {
     console.warn('Failed loading reports from Supabase', error);
-    return;
+    reports.value = [];
+    throw error;
   }
   reports.value = (data || []).map((report) => ({
       id: report.id,
@@ -308,10 +335,16 @@ function subscribeToReports() {
   reportsChannel = supabase
     .channel('reports-live-updates')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, () => {
-      void loadReportsFromSupabase();
+      void loadReportsFromSupabase().catch((error) => {
+        console.error('Could not refresh reports after a realtime update.', error);
+      });
     })
     .subscribe((status) => {
-      if (status === 'SUBSCRIBED') void loadReportsFromSupabase();
+      if (status === 'SUBSCRIBED') {
+        void loadReportsFromSupabase().catch((error) => {
+          console.error('Could not load reports after subscribing to updates.', error);
+        });
+      }
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         console.warn(`Reports realtime channel status: ${status}`);
         reportsChannel = null;
@@ -319,7 +352,9 @@ function subscribeToReports() {
     });
 }
 
-void loadReportsFromSupabase();
+void loadReportsFromSupabase().catch((error) => {
+  console.error('Could not load reports from Supabase.', error);
+});
 
 export function useReports() {
   const { pushTechAssignmentNotification, pushDemoNotification } = useNotifications();
@@ -336,7 +371,8 @@ export function useReports() {
   const { settings: slaSettings } = useSlaSettings();
 
   function saveReports() {
-    try {
+      if (isSupabaseConfigured) return;
+      try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(reports.value));
     } catch (e) {
       console.warn('Failed saving reports to localStorage', e);
@@ -517,7 +553,7 @@ export function useReports() {
 
   function assignReport(reportId, techNames, status = 'in-progress', note = '', targetDate = '') {
     const report = reports.value.find((r) => r.id.toLowerCase() === reportId.toLowerCase());
-    if (!report) return null;
+    if (!report || ['closed', 'resolved', 'action-taken', 'for-verification'].includes(report.status)) return null;
 
     const previousAssignees = normalizePersonnel(report);
     report.assignedPersonnel = [...new Set((Array.isArray(techNames) ? techNames : [techNames]).filter(Boolean))];
@@ -764,6 +800,8 @@ export function useReports() {
     technicians,
     loadReports: loadReportsFromSupabase,
     subscribeToReports,
+    stopReportsSubscription,
+    clearReportsForAccountChange,
     getActiveLoad,
     isAssignedTo: (report, name) => normalizePersonnel(report).includes(name),
     findRecommendedTech,

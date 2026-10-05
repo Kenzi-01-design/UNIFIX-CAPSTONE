@@ -4,8 +4,10 @@ import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 // Private module-level state
 const _currentRole = ref('Admin');
 const _activeUserName = ref('Admin User');
+const _activeUserEmail = ref('');
 const _isAuthenticated = ref(false);
 const LOGIN_EVENTS_KEY = 'unifix-login-events-v1';
+let authProfileGeneration = 0;
 
 function loadLoginEvents() {
   try {
@@ -85,25 +87,53 @@ const defaultSettings = {
 
 async function loadAuthenticatedProfile() {
   if (!isSupabaseConfigured) return;
-  const { data: sessionData } = await supabase.auth.getSession();
+  const generation = ++authProfileGeneration;
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
   const user = sessionData.session?.user;
-  if (!user) return;
+  if (!user) {
+    if (generation === authProfileGeneration) {
+      _isAuthenticated.value = false;
+      _activeUserEmail.value = '';
+    }
+    return;
+  }
 
   const { data: profile, error } = await supabase
     .from('user_profiles')
     .select('name, email, role, is_active')
     .eq('email', user.email)
-    .single();
-  if (error || !profile?.is_active) {
-    await supabase.auth.signOut();
+    .maybeSingle();
+  if (generation !== authProfileGeneration) return;
+  if (error) throw error;
+  if (!profile?.is_active) {
+    const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
+    if (signOutError) throw signOutError;
     return;
   }
   _currentRole.value = profile.role;
   _activeUserName.value = profile.name;
+  _activeUserEmail.value = user.email || '';
   _isAuthenticated.value = true;
 }
 
-void loadAuthenticatedProfile();
+if (isSupabaseConfigured) {
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT' || !session?.user) {
+      authProfileGeneration += 1;
+      _isAuthenticated.value = false;
+      _activeUserEmail.value = '';
+      return;
+    }
+    if (['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(event)) {
+      queueMicrotask(() => {
+        void loadAuthenticatedProfile().catch((error) => {
+          console.error('Could not restore the signed-in UNIFIX profile.', error);
+        });
+      });
+    }
+  });
+}
 
 export function useAuth() {
   const userInitials = computed(() => {
@@ -150,6 +180,7 @@ export function useAuth() {
 
       _currentRole.value = profile.role;
       _activeUserName.value = profile.name;
+      _activeUserEmail.value = data.user.email || '';
       _isAuthenticated.value = true;
       return profile.role;
     }
@@ -163,6 +194,7 @@ export function useAuth() {
       role === 'Personnel'
         ? resolvePersonnelName(email, technicians)
         : roleNames[role] || 'User';
+    _activeUserEmail.value = email.trim().toLowerCase();
     _isAuthenticated.value = true;
 
     const event = {
@@ -191,8 +223,12 @@ export function useAuth() {
   }
 
   async function logout() {
-    if (isSupabaseConfigured) await supabase.auth.signOut();
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (error) throw error;
+    }
     _isAuthenticated.value = false;
+    _activeUserEmail.value = '';
   }
 
   function getProfileKey() {
@@ -311,6 +347,7 @@ export function useAuth() {
   return {
     currentRole: _currentRole,
     activeUserName: _activeUserName,
+    activeUserEmail: _activeUserEmail,
     isAuthenticated: _isAuthenticated,
     userInitials,
     login,
