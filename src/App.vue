@@ -140,6 +140,8 @@
           <AdminView
             v-else-if="currentView === 'admin' && ['Admin', 'Assistant'].includes(currentRole)"
             :current-role="currentRole"
+            @open-report="openReportModalById"
+            @open-request="openRequestModalById"
           />
 
           <ProfileView
@@ -180,6 +182,7 @@
         @close="closeReportModal"
         @assign="handleModalAssign"
         @resolve="handleModalResolve"
+        @reject="handleModalRejectReport"
         @tech-accept="handleModalTechAccept"
         @tech-start="handleModalTechStart"
         @tech-complete="handleModalTechComplete"
@@ -187,7 +190,10 @@
       <RequestModal
         :is-open="isRequestModalOpen"
         :request="selectedRequest"
+        :current-role="currentRole"
         @close="closeRequestModal"
+        @verify="handleModalVerifyRequest"
+        @reject="handleModalRejectRequest"
       />
     </div>
   </div>
@@ -245,6 +251,7 @@ const {
   stopReportsSubscription,
   clearReportsForAccountChange,
   resolveReport,
+  rejectReport,
   techAccept,
   techStart,
   techComplete
@@ -254,7 +261,9 @@ const {
   loadRequests,
   subscribeToRequests,
   stopRequestsSubscription,
-  clearRequestsForAccountChange
+  clearRequestsForAccountChange,
+  acknowledgeRequest,
+  rejectRequest
 } = useRequests();
 const {
   notifications,
@@ -594,12 +603,59 @@ function handleModalAssign(reportId) {
   navigateTo('admin');
 }
 
-function handleModalResolve(id) {
-  if (resolveReport(id)) {
+async function handleModalResolve(id) {
+  try {
+    if (!await resolveReport(id)) {
+      showToast('This report is no longer awaiting verification.', 'error');
+      return;
+    }
     closeReportModal();
     showToast(`${id} marked resolved ✅`, 'success');
-  } else {
-    showToast('Assign personnel and wait for acceptance before resolving this report.', 'info');
+  } catch (error) {
+    console.error('Could not verify report.', error);
+    showToast(error.message || 'Unable to verify this report.', 'error');
+  }
+}
+
+async function handleModalRejectReport(id, reason) {
+  try {
+    if (!await rejectReport(id, reason)) {
+      showToast('A rejection reason is required and the report must be awaiting verification.', 'error');
+      return;
+    }
+    closeReportModal();
+    showToast(`${id} returned to personnel for rework.`, 'success');
+  } catch (error) {
+    console.error('Could not return report for rework.', error);
+    showToast(error.message || 'Unable to return this report for rework.', 'error');
+  }
+}
+
+async function handleModalVerifyRequest(id) {
+  try {
+    if (!await acknowledgeRequest(id, 'Action taken by administration.')) {
+      showToast('This request is no longer awaiting verification.', 'error');
+      return;
+    }
+    closeRequestModal();
+    showToast(`${id} verified and closed.`, 'success');
+  } catch (error) {
+    console.error('Could not verify request.', error);
+    showToast(error.message || 'Unable to verify this request.', 'error');
+  }
+}
+
+async function handleModalRejectRequest(id, reason) {
+  try {
+    if (!await rejectRequest(id, reason)) {
+      showToast('A reason of 5–500 characters is required to request rework.', 'error');
+      return;
+    }
+    closeRequestModal();
+    showToast(`${id} returned to personnel for rework.`, 'success');
+  } catch (error) {
+    console.error('Could not return request for rework.', error);
+    showToast(error.message || 'Unable to return this request for rework.', 'error');
   }
 }
 

@@ -117,17 +117,11 @@
                   <span v-else style="color:var(--red);font-weight:700">Unassigned</span>
                 </td>
                 <td v-if="['Admin', 'Assistant'].includes(currentRole)" class="verification-actions">
+                  <button class="admin-action-btn" type="button" @click="$emit('open-report', r.id)">View details & photos</button>
                   <button v-if="currentRole === 'Admin' && !['closed', 'resolved', 'action-taken', 'for-verification'].includes(r.status)" class="admin-action-btn assign" @click="pickForAssignment(r.id)">
                     {{ r.assignedTo ? '+ Personnel' : 'Assign' }}
                   </button>
-                  <button
-                    v-if="r.status === 'for-verification'"
-                    class="admin-action-btn resolve"
-                    :disabled="!canVerifyReport(r)"
-                    @click="handleResolve(r.id)"
-                  >
-                    Verify & Close
-                  </button>
+                  <button v-if="canVerifyReport(r)" class="admin-action-btn resolve" type="button" @click="$emit('open-report', r.id)">Review verification</button>
                   <template v-if="r.status === 'for-verification'">
                     <textarea v-model="rejectionReasons[r.id]" rows="2" maxlength="500" placeholder="Reason for rework (required)"></textarea>
                     <button class="admin-action-btn" :disabled="(rejectionReasons[r.id] || '').trim().length < 5" @click="handleRejectReport(r.id)">Reject for Rework</button>
@@ -293,18 +287,13 @@
                   <button class="admin-action-btn assign" @click="handleRequestRemark(req.id, req.adminRemark)">Save Remark</button>
                 </td>
                 <td v-if="['Admin', 'Assistant'].includes(currentRole)" class="verification-actions">
+                  <button class="admin-action-btn" type="button" @click="$emit('open-request', req.id)">View details & photos</button>
                   <button class="admin-action-btn assign" :disabled="!isJobOrderVerified(req)" @click="openRequestJobOrder(req, 'print')">Print Job Order</button>
                   <button class="admin-action-btn assign" :disabled="!isJobOrderVerified(req)" @click="openRequestJobOrder(req, 'pdf')">Download PDF</button>
                   <button v-if="currentRole === 'Admin' && !['closed', 'resolved', 'action-taken', 'for-verification'].includes(req.status)" class="admin-action-btn assign" @click="pickRequestForAssignment(req.id)">
                     {{ req.assignedTo ? 'Reassign' : 'Assign' }}
                   </button>
-                  <button
-                    v-if="req.status === 'for-verification' && req.techState === 'completed'"
-                    class="admin-action-btn resolve"
-                    @click="handleAcknowledge(req.id)"
-                  >
-                    Verify & Close
-                  </button>
+                  <button v-if="req.status === 'for-verification' && req.techState === 'completed'" class="admin-action-btn resolve" type="button" @click="$emit('open-request', req.id)">Review verification</button>
                   <template v-if="req.status === 'for-verification'">
                     <textarea v-model="rejectionReasons[req.id]" rows="2" maxlength="500" placeholder="Reason for rework (required)"></textarea>
                     <button class="admin-action-btn" :disabled="(rejectionReasons[req.id] || '').trim().length < 5" @click="handleRejectRequest(req.id)">Reject for Rework</button>

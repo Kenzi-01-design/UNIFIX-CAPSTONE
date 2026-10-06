@@ -38,6 +38,18 @@
           <span>{{ report.loc }}</span>
         </div>
         <div class="modal-desc">{{ report.desc || report.description || 'No description provided.' }}</div>
+        <section v-if="currentRole === 'Admin' && canAdminResolve" class="verification-review">
+          <strong>Review completed work</strong>
+          <p>Verify the repair or return it for rework with a clear reason.</p>
+          <label class="sr-only" :for="`report-rejection-${report.id}`">Reason for rejecting verification</label>
+          <textarea
+            :id="`report-rejection-${report.id}`"
+            v-model="rejectionReason"
+            rows="3"
+            maxlength="500"
+            placeholder="Reason for rework (5–500 characters)"
+          ></textarea>
+        </section>
         <div v-if="report.adminRemark" class="admin-remark-note">
           <strong>Administrator remark:</strong>
           <p>{{ report.adminRemark }}</p>
@@ -104,13 +116,20 @@
             {{ report.assignedTo ? 'Reassign' : 'Assign' }}
           </button>
           <button
-            v-if="report.status === 'for-verification'"
+            v-if="canAdminResolve"
             class="admin-action-btn resolve"
-            :disabled="!canAdminResolve"
             title="Verify that the personnel work is complete"
             @click="$emit('resolve', report.id)"
           >
             Verify & Close
+          </button>
+          <button
+            v-if="canAdminResolve"
+            class="admin-action-btn report-reject"
+            :disabled="rejectionReason.trim().length < 5 || rejectionReason.trim().length > 500"
+            @click="$emit('reject', report.id, rejectionReason.trim())"
+          >
+            Reject & Request Rework
           </button>
         </template>
 
@@ -177,6 +196,7 @@ const props = defineProps({
 const { loadReportFeedback, submitReportFeedback, hasFeedbackForReport } = useReportFeedback();
 const { reopenOwnReport } = useReports();
 const resolvedPhotos = ref([]);
+const rejectionReason = ref('');
 const photosLoading = ref(false);
 const photosError = ref('');
 const feedbackLoading = ref(false);
@@ -213,6 +233,10 @@ watch(
   },
   { immediate: true, deep: true }
 );
+
+watch(() => [props.report?.id, props.isOpen], () => {
+  rejectionReason.value = '';
+});
 
 const isOwnCompletedReport = computed(() => Boolean(
   props.report
@@ -296,6 +320,7 @@ defineEmits([
   'close',
   'assign',
   'resolve',
+  'reject',
   'tech-accept',
   'tech-start',
   'tech-complete'
@@ -315,6 +340,49 @@ function capitalize(str) {
 <style scoped>
 .modal-photo-section {
   margin-top: 14px;
+}
+.verification-review {
+  margin-top: 10px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.verification-review > strong { font-size: 14px; }
+.verification-review > p { margin: 7px 0 12px; color: var(--text-2); font-size: 12px; line-height: 1.5; }
+.verification-review textarea {
+  display: block;
+  width: 100%;
+  resize: vertical;
+  padding: 11px 12px;
+  border: 1px solid var(--border-dark);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.report-reject { color: var(--red); }
+.modal-body > .modal-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.35fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+.modal-body > .modal-row > strong { color: var(--text-3); font-weight: 600; }
+.modal-body > .modal-row > span { min-width: 0; overflow-wrap: anywhere; }
+.modal-desc {
+  margin-top: 8px;
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .modal-tracking-code { margin-top: 4px; color: var(--text-3); font: 700 10px 'DM Mono', monospace; }
 .admin-remark-note {
@@ -349,4 +417,7 @@ function capitalize(str) {
 .report-feedback button { margin-top: 9px; }
 .feedback-thanks { margin-top: 8px; color: var(--primary); font-size: 12px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+@media (max-width: 560px) {
+  .modal-body > .modal-row { grid-template-columns: 1fr; gap: 5px; }
+}
 </style>
