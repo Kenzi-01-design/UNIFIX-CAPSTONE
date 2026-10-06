@@ -20,6 +20,10 @@ export function encodeStoragePathForUrl(path) {
     .join('/');
 }
 
+export function getPhotoStorageEntitySegment(entityId) {
+  return encodeURIComponent(String(entityId).replace(/^#/, ''));
+}
+
 function validatePhotoType(file) {
   if (!ALLOWED_TYPES.has(file.type)) {
     throw new Error('Photos must be JPG, PNG, or WebP images.');
@@ -118,7 +122,7 @@ export async function uploadPhotoFiles(files, { entityType, entityId, phase = 'b
     for (const file of selected) {
       const id = crypto.randomUUID();
       const extension = file.type === 'image/jpeg' ? 'jpg' : file.type.slice('image/'.length);
-      const path = `${userData.user.id}/${entityType}/${encodeURIComponent(entityId)}/${phase}/${id}.${extension}`;
+      const path = `${userData.user.id}/${entityType}/${getPhotoStorageEntitySegment(entityId)}/${phase}/${id}.${extension}`;
       const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
         cacheControl: '3600',
         contentType: file.type,
