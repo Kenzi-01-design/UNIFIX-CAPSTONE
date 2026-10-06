@@ -24,6 +24,7 @@ function loadLocalProfiles() {
 
 const profiles = ref(loadLocalProfiles());
 const profilesLoadError = ref('');
+const reapplicationsLoadError = ref('');
 
 function toProfile(row) {
   return {
@@ -32,6 +33,7 @@ function toProfile(row) {
     name: row.name,
     email: row.email,
     role: row.role,
+    requestedRole: row.requested_role || 'Employee',
     department: ['CIT', 'CAS', 'COE', 'CTE'].includes(row.department) ? row.department : '',
     phone: row.phone || '',
     location: 'Bambang Campus',
@@ -58,32 +60,40 @@ function toDatabaseProfile(profile) {
 }
 
 async function loadProfiles() {
-  if (!isSupabaseConfigured) return;
+  if (!isSupabaseConfigured) {
+    profilesLoadError.value = '';
+    reapplicationsLoadError.value = '';
+    return;
+  }
   const { data, error } = await supabase.from('user_profiles').select('*').order('name');
   if (error) {
     profilesLoadError.value = error.message || 'User profiles could not be loaded.';
     console.warn('Failed loading user profiles from Supabase', error);
     throw error;
   }
+  profiles.value = (data || [])
+    .map(toProfile)
+    .filter((profile) => profile.role !== 'Student');
+  profilesLoadError.value = '';
+
   const { data: reapplications, error: reapplicationError } = await supabase
     .from('account_reapplication_requests')
     .select('auth_user_id,profile_id,requested_at,reviewed_at')
     .is('reviewed_at', null);
   if (reapplicationError) {
-    profilesLoadError.value = reapplicationError.message || 'Re-application requests could not be loaded.';
-    throw reapplicationError;
+    reapplicationsLoadError.value = reapplicationError.message || 'Re-application details could not be loaded.';
+    console.warn('Failed loading re-application requests from Supabase', reapplicationError);
+    return;
   }
+  reapplicationsLoadError.value = '';
   const requestedAtByProfile = new Map((reapplications || []).map((request) => [
     request.profile_id,
     request.requested_at
   ]));
-  profilesLoadError.value = '';
-  profiles.value = (data || [])
-    .map((row) => toProfile({
-      ...row,
-      reapplicationRequestedAt: requestedAtByProfile.get(row.id) || ''
-    }))
-    .filter((profile) => profile.role !== 'Student');
+  profiles.value = profiles.value.map((profile) => ({
+    ...profile,
+    reapplicationRequestedAt: requestedAtByProfile.get(profile.id) || ''
+  }));
 }
 
 function saveLocal() {
@@ -250,6 +260,7 @@ export function useUserProfiles() {
   return {
     profiles,
     profilesLoadError,
+    reapplicationsLoadError,
     roles,
     loadProfiles,
     inviteUser,

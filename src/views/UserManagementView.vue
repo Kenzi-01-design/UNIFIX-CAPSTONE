@@ -4,7 +4,7 @@
       <div>
         <span class="eyebrow">Administration</span>
         <h2>User Management</h2>
-        <p>Manage university profiles and account access.</p>
+        <p>Review registration requests, verify details, and manage university account access.</p>
       </div>
       <span class="user-count-badge">{{ profiles.length }} users</span>
     </div>
@@ -53,11 +53,17 @@
         <div class="panel-header">
           <span class="panel-title">Registration Requests</span>
           <span class="panel-action">{{ pendingProfiles.length }} pending</span>
+          <button type="button" class="btn-secondary" :disabled="loadingProfiles" @click="refreshProfiles">
+            {{ loadingProfiles ? 'Refreshing…' : 'Refresh requests' }}
+          </button>
         </div>
+        <p v-if="reapplicationsLoadError" class="user-form-note" role="status">
+          Registration requests loaded, but re-application details could not be loaded.
+        </p>
         <div class="user-table-wrap">
           <table>
             <thead>
-              <tr><th>Applicant</th><th>Department</th><th>Contact</th><th>Assign role</th><th>Rejection reason</th><th>Review</th></tr>
+              <tr><th>Applicant</th><th>Requested role</th><th>Department</th><th>Contact</th><th>Confirm / assign role</th><th>Rejection reason</th><th>Review</th></tr>
             </thead>
             <tbody>
               <tr v-for="user in pendingProfiles" :key="user.id">
@@ -66,11 +72,12 @@
                   <small v-if="user.rejectionReason">Reason: {{ user.rejectionReason }}</small>
                   <small v-if="user.reapplicationRequestedAt">Re-application requested {{ new Date(user.reapplicationRequestedAt).toLocaleString() }}</small>
                 </td>
+                <td>{{ user.requestedRole }}</td>
                 <td>{{ user.department || 'Not set' }}</td>
                 <td>{{ user.phone || 'Not provided' }}</td>
                 <td>
                   <select
-                    :value="approvalRoles[user.id] || 'Employee'"
+                    :value="approvalRoles[user.id] || user.requestedRole || 'Employee'"
                     :aria-label="`Role for ${user.name}`"
                     @change="approvalRoles[user.id] = $event.target.value"
                   >
@@ -92,12 +99,14 @@
                 </td>
               </tr>
               <tr v-if="!pendingProfiles.length">
-                <td colspan="6" class="empty-users">There are no pending registration requests.</td>
+                <td colspan="7" class="empty-users">
+                  {{ loadingProfiles ? 'Loading registration requests…' : 'There are no pending registration requests.' }}
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p class="user-form-note">New applicants can sign in after Admin approval without confirming their sign-in email. Rejected accounts remain inactive; applicants may request a new review once every 30 days, and only an Admin can reopen the application.</p>
+        <p class="user-form-note">Applicants can request Employee, Assistant, or Personnel. Confirm or change the requested role before approving; accounts remain inactive until Admin approval. Rejected accounts remain inactive, and applicants may request a new review once every 30 days.</p>
       </section>
 
       <section v-else-if="activeTab === 'invite'" class="panel user-form-panel">
@@ -204,13 +213,14 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { isDemoMode } from '../lib/supabase.js';
 import { useUserProfiles } from '../composables/useUserProfiles.js';
 import { useToast } from '../composables/useToast.js';
+import { resolveApprovalRole } from '../lib/registrationRoles.js';
 
 const {
-  profiles, profilesLoadError, roles, loadProfiles, inviteUser, updateProfile,
+  profiles, profilesLoadError, reapplicationsLoadError, roles, loadProfiles, inviteUser, updateProfile,
   setProfileActive, reviewRegistration, reopenRegistration, deleteUserAccount
 } = useUserProfiles();
 const { showToast } = useToast();
-const activeTab = ref('invite');
+const activeTab = ref('approvals');
 const loadingProfiles = ref(false);
 const savingUser = ref(false);
 const editingId = ref('');
@@ -283,7 +293,12 @@ async function reviewUser(user, decision) {
   reviewingUserId.value = user.id;
   try {
     const status = decision === 'approved' ? 'approved' : 'rejected';
-    await reviewRegistration(user.id, status, approvalRoles[user.id] || 'Employee', rejectionReasons[user.id] || '');
+    await reviewRegistration(
+      user.id,
+      status,
+      resolveApprovalRole(approvalRoles[user.id], user.requestedRole),
+      rejectionReasons[user.id] || ''
+    );
     showToast(
       status === 'approved' ? `${user.name} was approved.` : `${user.name}'s registration was rejected.`,
       'success'

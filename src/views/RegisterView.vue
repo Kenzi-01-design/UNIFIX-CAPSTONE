@@ -4,11 +4,11 @@
       <button type="button" class="register-back" @click="$emit('back')">← Back</button>
       <span class="eyebrow">NUEVA VIZCAYA STATE UNIVERSITY</span>
       <h1>Create your UNIFIX account</h1>
-      <p class="register-intro">Submit your details for administrator review. Email confirmation is not required to sign in; your account stays inactive until approved.</p>
+      <p class="register-intro">Choose the role you are requesting. An administrator will verify your details and assign the approved role before activating your account.</p>
 
       <div v-if="submitted" class="register-success" role="status">
         <h2>Registration submitted</h2>
-        <p>Your account is ready for sign-in after an administrator approves it. You can optionally add and verify a notification email in Settings to receive updates about your reports and requests.</p>
+        <p>Your requested role and account details are awaiting administrator review. You can sign in after an administrator approves and activates your account.</p>
         <button type="button" class="btn-primary" @click="$emit('open-login')">Return to sign in</button>
       </div>
 
@@ -22,6 +22,14 @@
           <input id="registration-email" v-model.trim="form.email" type="email" autocomplete="email" maxlength="254" required />
           <small v-if="emailDomainError" class="register-error" role="alert">{{ emailDomainError }}</small>
           <small v-else>Allowed domain{{ allowedEmailDomains.length === 1 ? '' : 's' }}: {{ allowedEmailDomains.map((domain) => `@${domain}`).join(', ') }}</small>
+        </div>
+        <div class="form-group">
+          <label for="registration-role">Requested role *</label>
+          <select id="registration-role" v-model="form.requestedRole" required>
+            <option value="" disabled>Select a role</option>
+            <option v-for="role in requestableRoles" :key="role" :value="role">{{ role }}</option>
+          </select>
+          <small>An administrator reviews your requested role before activating your account.</small>
         </div>
         <div class="form-group">
           <label for="registration-department">Department / office</label>
@@ -62,12 +70,14 @@
 <script setup>
 import { computed, reactive, ref } from 'vue';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
+import { REQUESTABLE_REGISTRATION_ROLES } from '../lib/registrationRoles.js';
 
 defineEmits(['back', 'open-login']);
 
 const form = reactive({
   name: '',
   email: '',
+  requestedRole: '',
   department: '',
   phone: '',
   location: 'Bambang Campus',
@@ -78,6 +88,7 @@ const submitting = ref(false);
 const submitted = ref(false);
 const error = ref('');
 const departments = ['CIT', 'CAS', 'COE', 'CTE'];
+const requestableRoles = REQUESTABLE_REGISTRATION_ROLES;
 // If no UX domains are configured, show the same initial default as the server migration.
 const allowedEmailDomains = (import.meta.env.VITE_ALLOWED_EMAIL_DOMAINS || 'nvsu.edu.ph')
   .split(',')
@@ -118,6 +129,7 @@ async function submitRegistration() {
       options: {
         data: {
           name: form.name,
+          requested_role: form.requestedRole,
           department: form.department,
           phone: form.phone,
           location: form.location

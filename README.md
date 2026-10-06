@@ -46,6 +46,15 @@ The function verifies each token with Cloudflare before inserting the anonymous
 report with its service role. `supabase/config.toml` deliberately allows this
 function to be called without a user JWT; Turnstile verification is the gate.
 
+### Account registration and role review
+
+Applicants may request Employee, Assistant, or Personnel during registration.
+The request is stored separately from the account's effective role; new profiles
+remain inactive and pending until an Admin confirms or changes the role and
+approves the application. Public registration cannot request the Admin role.
+Apply migration `202610060007_requested_registration_role.sql` to existing
+projects before enabling role selection.
+
 ### Phase 2 notifications and workflow
 
 - Reports and requests now move from **In progress** to **For verification** when personnel submit completed work. Admins or assistants can verify and close the item, or reject it with a reason to return it for rework. The submitter can reopen a closed item within seven days using its tracking code; authenticated callers can also use an owner-checked reopen RPC.

@@ -36,7 +36,7 @@ for authentication, Postgres, Storage, and Edge Functions.
    For a new project, run the complete `supabase/schema.sql` script. It notifies
    PostgREST to reload its schema cache after all tables and functions are created.
 3. Review RLS and Storage policies in the Dashboard. Do not enable broad anonymous read access to reports, requests, user profiles, notifications, or photos.
-4. For self-registration, apply the registration and account-flow migrations before opening registration. In **Authentication → Providers → Email**, turn **Confirm email** off, then save. New registrations receive the fixed Employee role and remain inactive until an Admin approves them in User Management; assign elevated roles only during that review. Never trust client-submitted roles.
+4. For self-registration, apply the registration and account-flow migrations, including `202610060007_requested_registration_role.sql`, before opening registration. In **Authentication → Providers → Email**, turn **Confirm email** off, then save. Applicants may request Employee, Assistant, or Personnel; all new accounts are still created inactive and pending. An Admin must confirm or change the requested role in User Management before approval activates the account. Admin cannot be requested during public signup. Never trust client-submitted roles.
 5. Configure Cloudflare Turnstile with the production host name.
 
 ## 2. Set frontend environment variables

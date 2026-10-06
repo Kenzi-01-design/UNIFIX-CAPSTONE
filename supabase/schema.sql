@@ -55,6 +55,9 @@
         name text not null,
         email text not null unique,
         role text not null check (role in ('Admin', 'Assistant', 'Employee', 'Student', 'Personnel')),
+        requested_role text not null default 'Employee'
+          constraint user_profiles_requested_role_check
+          check (requested_role in ('Employee', 'Assistant', 'Personnel')),
         department text not null default '',
         phone text not null default '',
         location text not null default 'Main Campus',
@@ -83,6 +86,10 @@
       add column if not exists auth_user_id uuid references auth.users(id) on delete cascade;
     alter table public.user_profiles
       add column if not exists rejection_reason text;
+    alter table public.user_profiles
+      add column if not exists requested_role text not null default 'Employee'
+      constraint user_profiles_requested_role_check
+      check (requested_role in ('Employee', 'Assistant', 'Personnel'));
     create unique index if not exists user_profiles_auth_user_id_uidx
       on public.user_profiles (auth_user_id) where auth_user_id is not null;
     alter table public.user_profiles
@@ -531,13 +538,18 @@
         begin
           if new.email is not null then
             insert into public.user_profiles (
-              id, auth_user_id, name, email, role, department, phone, location, is_active, registration_status
+              id, auth_user_id, name, email, role, requested_role, department, phone, location, is_active, registration_status
             ) values (
               new.id::text,
               new.id,
               left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'name'), ''), 'New User'), 120),
               lower(btrim(new.email)),
               'Employee',
+              case
+                when new.raw_user_meta_data ->> 'requested_role' in ('Employee', 'Assistant', 'Personnel')
+                  then new.raw_user_meta_data ->> 'requested_role'
+                else 'Employee'
+              end,
               left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'department'), ''), ''), 160),
               left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'phone'), ''), ''), 40),
               left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'location'), ''), 'Main Campus'), 160),
@@ -547,6 +559,7 @@
             on conflict (email) do update
               set auth_user_id = excluded.auth_user_id,
                   role = 'Employee',
+                  requested_role = excluded.requested_role,
                   is_active = false,
                   registration_status = 'pending',
                   updated_at = now()
@@ -646,7 +659,7 @@
           );
 
         insert into public.user_profiles (
-          id, auth_user_id, name, email, role, department, phone, location,
+          id, auth_user_id, name, email, role, requested_role, department, phone, location,
           is_active, registration_status
         )
         select
@@ -655,6 +668,11 @@
           left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'name'), ''), 'New User'), 120),
           lower(btrim(auth_user.email)),
           'Employee',
+          case
+            when auth_user.raw_user_meta_data ->> 'requested_role' in ('Employee', 'Assistant', 'Personnel')
+              then auth_user.raw_user_meta_data ->> 'requested_role'
+            else 'Employee'
+          end,
           left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'department'), ''), ''), 160),
           left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'phone'), ''), ''), 40),
           left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'location'), ''), 'Main Campus'), 160),
