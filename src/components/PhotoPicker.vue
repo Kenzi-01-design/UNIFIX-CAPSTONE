@@ -1,10 +1,11 @@
 <template>
   <div class="photo-picker">
-    <label class="photo-picker-label">
+    <label class="photo-picker-label" :for="inputId">
       {{ label }}
-      <span class="photo-picker-hint">JPG, PNG, or WebP · up to {{ maxPhotos }} photos · max 5 MB each</span>
+      <span class="photo-picker-hint">JPG, PNG, or WebP · up to {{ maxPhotos }} photos · originals up to 25 MB, compressed to 5 MB each</span>
     </label>
     <input
+      :id="inputId"
       type="file"
       accept="image/jpeg,image/png,image/webp"
       multiple
@@ -24,7 +25,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, useId, watch } from 'vue';
 import { compressPhoto, MAX_PHOTO_COUNT } from '../lib/photos.js';
 
 const props = defineProps({
@@ -32,7 +33,8 @@ const props = defineProps({
   label: { type: String, default: 'Photos (optional)' },
   maxPhotos: { type: Number, default: MAX_PHOTO_COUNT }
 });
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'processing-change']);
+const inputId = useId();
 const processing = ref(false);
 const error = ref('');
 const previews = ref([]);
@@ -64,6 +66,7 @@ async function handleSelection(event) {
   }
 
   processing.value = true;
+  emit('processing-change', true);
   try {
     const optimized = [];
     for (const file of incoming) optimized.push(await compressPhoto(file));
@@ -72,6 +75,7 @@ async function handleSelection(event) {
     error.value = selectionError.message || 'Unable to prepare the selected photos.';
   } finally {
     processing.value = false;
+    emit('processing-change', false);
   }
 }
 
@@ -87,7 +91,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .photo-picker { margin: 16px 0; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
-.photo-picker-label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 700; }
+.photo-picker-label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .photo-picker-hint { display: block; color: var(--text-3); font-size: 11px; font-weight: 400; }
 .photo-picker input { max-width: 100%; font: inherit; font-size: 12px; }
 .photo-picker-status, .photo-picker-error { margin-top: 7px; font-size: 12px; }

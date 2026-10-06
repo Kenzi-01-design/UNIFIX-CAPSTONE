@@ -126,7 +126,11 @@
           <small>Providing an email opts you in to updates about this report and its tracking code.</small>
         </div>
 
-        <PhotoPicker v-model="selectedPhotos" label="Attach photos of the issue (optional)" />
+        <PhotoPicker
+          v-model="selectedPhotos"
+          label="Attach photos of the issue (optional)"
+          @processing-change="photosProcessing = $event"
+        />
 
         <section v-if="duplicatePrompt" class="duplicate-prompt" aria-live="polite">
           <strong>Similar open reports</strong>
@@ -172,8 +176,8 @@
           <p v-else class="captcha-error">CAPTCHA is not configured. Add VITE_TURNSTILE_SITE_KEY to .env.local.</p>
         </div>
         <div class="form-actions">
-          <button class="btn-secondary" :disabled="isSubmitting" @click="clearForm">Clear Form</button>
-          <button class="btn-accent" :disabled="isSubmitting" @click="handleSubmit">
+          <button class="btn-secondary" :disabled="isSubmitting || photosProcessing" @click="clearForm">Clear Form</button>
+          <button class="btn-accent" :disabled="isSubmitting || photosProcessing" @click="handleSubmit">
             <UiIcon v-if="!isSubmitting" name="report" :size="16" /> {{ isSubmitting ? 'Submitting…' : 'Submit Report' }}
           </button>
         </div>
@@ -237,6 +241,7 @@ const captchaToken = ref('');
 const captchaWidget = ref(null);
 const isSubmitting = ref(false);
 const selectedPhotos = ref([]);
+const photosProcessing = ref(false);
 const submission = ref(null);
 const selectedLocationId = ref('');
 const locationError = ref('');
@@ -501,6 +506,10 @@ function formatStatus(status) {
 }
 
 async function handleSubmit() {
+  if (photosProcessing.value) {
+    showToast('Wait for photo processing to finish before submitting.', 'info');
+    return;
+  }
   if (props.publicMode && !isSupabaseConfigured && !isDemoMode) {
     showToast('Public reporting is temporarily unavailable because the reporting service is not configured.', 'error');
     return;
