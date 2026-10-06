@@ -158,9 +158,4 @@ async function submitRegistration() {
 .register-login { margin:20px 0 0; color:var(--text-2); text-align:center; font-size:13px; }
 .register-login button { padding:0; border:0; background:none; color:var(--primary); font:inherit; font-weight:700; cursor:pointer; }
 @media(max-width:520px) { .register-card { padding:22px; } }
-@media(min-width:768px) {
-  .register-form { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .register-form .form-group:nth-child(-n+2),
-  .register-form .btn-primary { grid-column:1/-1; }
-}
 </style>
