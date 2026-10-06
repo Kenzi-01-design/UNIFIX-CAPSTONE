@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getProductionConfigurationErrors } from './runtimeConfig.js'
+import { getProductionConfigurationErrors, isValidSupabaseUrl } from './runtimeConfig.js'
 
 const validProductionEnv = {
   PROD: true,
@@ -10,6 +10,13 @@ const validProductionEnv = {
 }
 
 describe('getProductionConfigurationErrors', () => {
+  it('accepts only valid HTTP or HTTPS Supabase URLs', () => {
+    expect(isValidSupabaseUrl('https://example.supabase.co')).toBe(true)
+    expect(isValidSupabaseUrl('  https://example.supabase.co  ')).toBe(true)
+    expect(isValidSupabaseUrl('example.supabase.co')).toBe(false)
+    expect(isValidSupabaseUrl('https://')).toBe(false)
+  })
+
   it('allows a fully configured production deployment', () => {
     expect(getProductionConfigurationErrors(validProductionEnv)).toEqual([])
   })

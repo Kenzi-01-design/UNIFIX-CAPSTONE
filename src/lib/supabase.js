@@ -1,10 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
+import { isValidSupabaseUrl } from './runtimeConfig.js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
+const supabaseAnonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
 export const isDemoMode = !import.meta.env.PROD && import.meta.env.VITE_DEMO_MODE === 'true';
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey) && !isDemoMode;
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
+  && isValidSupabaseUrl(supabaseUrl)
+  && !isDemoMode;
 
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)

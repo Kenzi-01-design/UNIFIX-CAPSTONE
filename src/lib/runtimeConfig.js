@@ -1,3 +1,12 @@
+export function isValidSupabaseUrl(value) {
+  try {
+    const url = new URL(String(value || '').trim())
+    return ['http:', 'https:'].includes(url.protocol) && Boolean(url.hostname)
+  } catch {
+    return false
+  }
+}
+
 export function getProductionConfigurationErrors(env = {}) {
   if (!env.PROD) return []
 
@@ -17,6 +26,9 @@ export function getProductionConfigurationErrors(env = {}) {
         errors.push('VITE_SUPABASE_URL must use HTTPS in production.')
       }
     } catch {
+      errors.push('VITE_SUPABASE_URL must be a valid URL.')
+    }
+    if (!isValidSupabaseUrl(supabaseUrlValue) && !errors.includes('VITE_SUPABASE_URL must be a valid URL.')) {
       errors.push('VITE_SUPABASE_URL must be a valid URL.')
     }
   }
