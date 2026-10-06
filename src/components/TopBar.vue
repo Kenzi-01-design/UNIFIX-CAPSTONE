@@ -1,5 +1,15 @@
 <template>
   <header class="topbar">
+    <button
+      class="icon-btn navigation-toggle"
+      type="button"
+      :aria-expanded="drawerOpen"
+      aria-controls="app-navigation"
+      :aria-label="drawerOpen ? 'Close navigation' : 'Open navigation'"
+      @click="$emit('toggle-navigation', $event)"
+    >
+      <UiIcon :name="drawerOpen ? 'close' : 'menu'" />
+    </button>
     <div class="topbar-title">{{ title }}</div>
 
     <div class="topbar-right" ref="topbarRightRef">
@@ -70,10 +80,14 @@ const props = defineProps({
   loading: {
     type: Boolean,
     default: false
+  },
+  drawerOpen: {
+    type: Boolean,
+    default: false
   }
 });
 
-defineEmits(['trigger-search', 'mark-all-read']);
+defineEmits(['trigger-search', 'mark-all-read', 'toggle-navigation']);
 
 const notifOpen = ref(false);
 const topbarRightRef = ref(null);

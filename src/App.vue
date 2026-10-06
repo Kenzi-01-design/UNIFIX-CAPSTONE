@@ -50,16 +50,27 @@
     />
 
     <!-- 2. Application Shell (Authenticated) -->
-    <div v-else id="app-shell" class="active">
+    <div v-else id="app-shell" class="active" :class="{ 'nav-drawer-open': navDrawerOpen }">
       <!-- Sidebar Navigation -->
       <SideBar
+        ref="sidebarRef"
         :current-role="currentRole"
         :user-name="activeUserName"
         :current-view="currentView"
         :reports-badge-count="badgeCount"
         :requests-badge-count="requestBadgeCount"
+        :drawer-open="navDrawerOpen"
+        :drawer-mode="compactNavigation"
         @navigate="navigateTo"
         @logout="handleLogout"
+        @close-drawer="closeNavigationDrawer"
+      />
+      <button
+        v-if="navDrawerOpen"
+        class="navigation-backdrop"
+        type="button"
+        aria-label="Close navigation"
+        @click="closeNavigationDrawer"
       />
 
       <!-- Main Layout Frame -->
@@ -68,12 +79,14 @@
           :title="currentViewTitle"
           :notifications="notifications"
           :loading="notificationsLoading"
+          :drawer-open="navDrawerOpen"
           @trigger-search="navigateTo('reports')"
           @mark-all-read="handleMarkAllRead"
+          @toggle-navigation="toggleNavigationDrawer"
         />
 
         <!-- Content Router -->
-        <main class="page-content">
+        <main class="page-content" tabindex="-1">
          <DashboardView
          v-if="currentView === 'dashboard'"
         :current-role="currentRole"
@@ -148,6 +161,15 @@
           />
         </main>
       </div>
+      <MobileNavigation
+        :current-role="currentRole"
+        :current-view="currentView"
+        :reports-badge-count="badgeCount"
+        :requests-badge-count="requestBadgeCount"
+        :drawer-open="navDrawerOpen"
+        @navigate="navigateTo"
+        @open-drawer="openNavigationDrawer"
+      />
 
       <!-- Report Details Modal Overlay -->
       <ReportModal
@@ -172,7 +194,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue';
 
 // Composables
 import { useAuth } from './composables/useAuth.js';
@@ -189,6 +211,7 @@ import Topbar from './components/TopBar.vue';
 import ReportModal from './components/ReportModal.vue';
 import RequestModal from './components/RequestModal.vue';
 import ToastContainer from './components/ToastContainer.vue';
+import MobileNavigation from './components/MobileNavigation.vue';
 
 // Views
 import LoginView from './views/LoginView.vue';
@@ -243,6 +266,11 @@ const {
 const { toasts, showToast } = useToast();
 
 const currentView = ref('dashboard');
+const compactNavigation = ref(window.matchMedia('(max-width: 1023px)').matches);
+const navDrawerOpen = ref(false);
+const sidebarRef = ref(null);
+let drawerReturnFocus = null;
+let previousBodyOverflow = '';
 const locationPrefillId = new URLSearchParams(window.location.search).get('location') || '';
 const publicPage = ref(window.location.pathname.replace(/\/+$/, '') === '/report' ? 'report' : 'home');
 const activeReportFilter = ref({});
@@ -363,11 +391,16 @@ const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scro
 
 onMounted(() => {
   activityEvents.forEach((event) => window.addEventListener(event, resetInactivityTimer, { passive: true }));
+  document.addEventListener('keydown', handleNavigationKeydown);
+  window.addEventListener('resize', closeDrawerOnDesktop);
   void completeNotificationEmailVerification();
 });
 
 onBeforeUnmount(() => {
   activityEvents.forEach((event) => window.removeEventListener(event, resetInactivityTimer));
+  document.removeEventListener('keydown', handleNavigationKeydown);
+  window.removeEventListener('resize', closeDrawerOnDesktop);
+  if (navDrawerOpen.value) document.body.style.overflow = previousBodyOverflow;
   if (inactivityTimer) clearTimeout(inactivityTimer);
   stopReportsSubscription();
   stopRequestsSubscription();
@@ -402,7 +435,80 @@ function navigateTo(view) {
   if (view !== 'requests') {
     activeRequestStatus.value = '';
   }
+  const wasDrawerOpen = navDrawerOpen.value;
+  closeNavigationDrawer(false);
+  if (wasDrawerOpen) void nextTick(() => document.querySelector('.page-content')?.focus());
   resetInactivityTimer();
+}
+
+function toggleNavigationDrawer(event) {
+  if (navDrawerOpen.value) {
+    closeNavigationDrawer();
+  } else {
+    openNavigationDrawer(event);
+  }
+}
+
+async function openNavigationDrawer(event) {
+  if (window.matchMedia('(min-width: 1024px)').matches) return;
+  if (!navDrawerOpen.value) {
+    drawerReturnFocus = event?.currentTarget || document.activeElement;
+    previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    navDrawerOpen.value = true;
+    await nextTick();
+    sidebarRef.value?.$el.querySelector('.sidebar-close')?.focus();
+  }
+}
+
+function closeNavigationDrawer(restoreFocus = true) {
+  if (!navDrawerOpen.value) return;
+  navDrawerOpen.value = false;
+  document.body.style.overflow = previousBodyOverflow;
+  if (restoreFocus) {
+    const returnTarget = drawerReturnFocus;
+    void nextTick(() => {
+      if (returnTarget?.isConnected) returnTarget.focus();
+    });
+  }
+}
+
+function handleNavigationKeydown(event) {
+  if (!navDrawerOpen.value) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeNavigationDrawer();
+    return;
+  }
+  if (event.key !== 'Tab') return;
+  const drawer = sidebarRef.value?.$el;
+  const focusable = [...(drawer?.querySelectorAll(
+    'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  ) || [])].filter((element) => element.getClientRects().length);
+  if (!focusable.length) {
+    event.preventDefault();
+    drawer?.focus();
+    return;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (!drawer.contains(document.activeElement)) {
+    event.preventDefault();
+    first.focus();
+    return;
+  }
+  if (event.shiftKey && (document.activeElement === first || document.activeElement === drawer)) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function closeDrawerOnDesktop() {
+  compactNavigation.value = window.matchMedia('(max-width: 1023px)').matches;
+  if (!compactNavigation.value) closeNavigationDrawer(false);
 }
 
 function openRequestsWithFilter(status = '') {
@@ -432,6 +538,7 @@ function handleLoginSuccess(landingView) {
 
 async function handleLogout() {
   if (inactivityTimer) clearTimeout(inactivityTimer);
+  closeNavigationDrawer(false);
   try {
     await logout();
     currentView.value = 'dashboard';
@@ -517,7 +624,7 @@ async function handleModalTechComplete(id) {
 
 <style>
 #app {
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--surface-2, #f8fafc);
 }
 
@@ -526,7 +633,7 @@ async function handleModalTechComplete(id) {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .page-content {
@@ -534,7 +641,7 @@ async function handleModalTechComplete(id) {
   flex: 1;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1023px) {
   .main-content {
     margin-left: 0;
   }

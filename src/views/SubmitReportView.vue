@@ -38,20 +38,25 @@
           </div>
         </div>
         <div class="form-group">
-          <label>Issue Title *</label>
+          <label for="report-title">Issue Title *</label>
           <input
+            id="report-title"
             type="text"
             v-model="form.title"
             maxlength="160"
             placeholder="e.g., Flickering lights in Room 204"
+            autocomplete="off"
+            required
           />
         </div>
         <div class="form-group">
-          <label>Description *</label>
+          <label for="report-description">Description *</label>
           <textarea
+            id="report-description"
             v-model="form.desc"
             maxlength="4000"
             placeholder="Describe the issue in detail. Include when it started and any safety concerns..."
+            required
           ></textarea>
         </div>
         <div class="form-row">

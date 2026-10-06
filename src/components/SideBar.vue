@@ -1,221 +1,102 @@
 <template>
-  <aside class="sidebar">
+  <aside
+    id="app-navigation"
+    ref="sidebarElement"
+    class="sidebar"
+    :class="{ 'sidebar-drawer-open': drawerOpen }"
+    :role="drawerOpen ? 'dialog' : 'complementary'"
+    :aria-modal="drawerOpen ? 'true' : undefined"
+    :aria-hidden="drawerMode && !drawerOpen ? 'true' : undefined"
+    :inert="drawerMode && !drawerOpen"
+    aria-label="Application navigation"
+    tabindex="-1"
+  >
     <div class="sidebar-header">
       <div class="sidebar-logo">
         <div class="logo-icon"><UiIcon name="work" :size="22" /></div>
         <div class="logo-text">UNI<span>FIX</span></div>
+        <button
+          v-if="drawerOpen"
+          class="sidebar-close"
+          type="button"
+          aria-label="Close navigation"
+          @click="$emit('close-drawer')"
+        >
+          <UiIcon name="close" :size="20" />
+        </button>
       </div>
-      <div
+      <button
         class="sidebar-user"
-        role="button"
-        tabindex="0"
+        type="button"
         aria-label="Open profile settings"
         @click="$emit('navigate', 'profile')"
-        @keyup.enter="$emit('navigate', 'profile')"
-        @keyup.space.prevent="$emit('navigate', 'profile')"
       >
-        <div class="user-avatar">{{ userInitials }}</div>
-        <div class="user-info">
-          <div class="user-name">{{ userName }}</div>
-          <div class="user-role">{{ currentRole }}</div>
-        </div>
+        <span class="user-avatar">{{ userInitials }}</span>
+        <span class="user-info">
+          <span class="user-name">{{ userName }}</span>
+          <span class="user-role">{{ currentRole }}</span>
+        </span>
         <span class="profile-edit-icon" aria-hidden="true">✎</span>
-      </div>
+      </button>
     </div>
 
-    <nav class="sidebar-nav">
-      <div class="nav-label">Main</div>
-
-      <!-- FACULTY SPECIFIC NAVIGATION ORDER -->
-      <template v-if="currentRole === 'Employee'">
-        <div
+    <nav class="sidebar-nav" aria-label="Application pages">
+      <section v-for="group in navigation" :key="group.label" class="sidebar-nav-group">
+        <h2 class="nav-label">{{ group.label }}</h2>
+        <button
+          v-for="item in group.items"
+          :key="item.view"
           class="nav-item"
-          :class="{ active: currentView === 'dashboard' }"
-          @click="$emit('navigate', 'dashboard')"
+          :class="{ active: currentView === item.view }"
+          type="button"
+          :aria-current="currentView === item.view ? 'page' : undefined"
+          @click="$emit('navigate', item.view)"
         >
-          <span class="nav-icon"><UiIcon name="dashboard" /></span> Dashboard
-        </div>
-        <div
-          class="nav-item"
-          :class="{ active: currentView === 'submit-request' }"
-          @click="$emit('navigate', 'submit-request')"
-        >
-          <span class="nav-icon"><UiIcon name="request" /></span> Submit Request
-        </div>
-        <div
-          class="nav-item"
-          :class="{ active: currentView === 'my-requisitions' }"
-          @click="$emit('navigate', 'my-requisitions')"
-        >
-          <span class="nav-icon"><UiIcon name="requests" /></span> Requestitions
-        </div>
-      </template>
-
-      <template v-else-if="currentRole === 'Assistant'">
-        <div
-          class="nav-item"
-          :class="{ active: currentView === 'dashboard' }"
-          @click="$emit('navigate', 'dashboard')"
-        >
-          <span class="nav-icon"><UiIcon name="dashboard" /></span> Dashboard
-        </div>
-        <div
-          class="nav-item"
-          :class="{ active: currentView === 'reports' }"
-          @click="$emit('navigate', 'reports')"
-        >
-          <span class="nav-icon"><UiIcon name="reports" /></span> Reports
-          <span class="nav-badge">{{ reportsBadgeCount }}</span>
-        </div>
-        <div class="nav-label">Administration</div>
-        <div
-          class="nav-item"
-          :class="{ active: currentView === 'admin' }"
-          @click="$emit('navigate', 'admin')"
-        >
-          <span class="nav-icon"><UiIcon name="activity" /></span> Review Submissions
-        </div>
-      </template>
-
-      <!-- ADMIN & PERSONNEL DEFAULT NAVIGATION -->
-      <template v-else>
-        <div
-          class="nav-item"
-          :class="{ active: currentView === 'dashboard' }"
-          @click="$emit('navigate', 'dashboard')"
-        >
-          <span class="nav-icon"><UiIcon name="dashboard" /></span> Dashboard
-        </div>
-        <div
-          v-if="currentRole === 'Admin'"
-          class="nav-item"
-          :class="{ active: currentView === 'submit' }"
-          @click="$emit('navigate', 'submit')"
-        >
-          <span class="nav-icon"><UiIcon name="add" /></span> Submit Report
-        </div>
-        <div
-          class="nav-item"
-          :class="{ active: currentView === 'reports' }"
-          @click="$emit('navigate', 'reports')"
-        >
-          <span class="nav-icon"><UiIcon name="reports" /></span> Reports
-          <span class="nav-badge">{{ reportsBadgeCount }}</span>
-        </div>
-        <div
-          v-if="['Admin', 'Personnel'].includes(currentRole)"
-          class="nav-item"
-          :class="{ active: currentView === 'requests' }"
-          @click="$emit('navigate', 'requests')"
-        >
-          <span class="nav-icon"><UiIcon name="requests" /></span> Requests
-          <span class="nav-badge">{{ requestsBadgeCount }}</span>
-        </div>
-        <div
-          v-if="currentRole === 'Personnel'"
-          class="nav-item"
-          :class="{ active: currentView === 'tasks' }"
-          @click="$emit('navigate', 'tasks')"
-        >
-          <span class="nav-icon"><UiIcon name="tasks" /></span> Tasks
-        </div>
-
-        <template v-if="currentRole === 'Admin'">
-          <div class="nav-label">Administration</div>
-          <div
-            class="nav-item"
-            :class="{ active: currentView === 'admin' }"
-            @click="$emit('navigate', 'admin')"
-          >
-            <span class="nav-icon"><UiIcon name="admin" /></span> Admin Panel
-          </div>
-          <div
-            class="nav-item"
-            :class="{ active: currentView === 'activity-log' }"
-            @click="$emit('navigate', 'activity-log')"
-          >
-            <span class="nav-icon"><UiIcon name="activity" /></span> Activity Log
-          </div>
-          <div
-            class="nav-item"
-            :class="{ active: currentView === 'user-management' }"
-            @click="$emit('navigate', 'user-management')"
-          >
-            <span class="nav-icon"><UiIcon name="users" /></span> User Management
-          </div>
-        </template>
-      </template>
-
-      <!-- ACCOUNT SECTION: Profile removed, Settings retained -->
-      <div class="nav-label">Account</div>
-      <div
-        v-if="currentRole === 'Employee'"
-        class="nav-item"
-        :class="{ active: currentView === 'evaluation' }"
-        @click="$emit('navigate', 'evaluation')"
-      >
-        <span class="nav-icon"><UiIcon name="success" /></span> System Evaluation
-      </div>
-      <div
-        v-if="currentRole === 'Admin'"
-        class="nav-item"
-        :class="{ active: currentView === 'evaluation-results' }"
-        @click="$emit('navigate', 'evaluation-results')"
-      >
-        <span class="nav-icon"><UiIcon name="activity" /></span> Evaluation Results
-      </div>
-      <div
-        class="nav-item"
-        :class="{ active: currentView === 'settings' }"
-        @click="$emit('navigate', 'settings')"
-      >
-        <span class="nav-icon"><UiIcon name="settings" /></span> Settings
-      </div>
+          <span class="nav-icon"><UiIcon :name="item.icon" /></span>
+          <span class="nav-item-label">{{ item.label }}</span>
+          <span v-if="item.badgeCount" class="nav-badge">
+            {{ item.badgeCount > 99 ? '99+' : item.badgeCount }}
+          </span>
+        </button>
+      </section>
     </nav>
 
     <div class="sidebar-footer">
-      <button class="btn-logout" @click="$emit('logout')"><UiIcon name="logout" :size="16" /> Sign Out</button>
+      <button class="btn-logout" type="button" @click="$emit('logout')">
+        <UiIcon name="logout" :size="16" /> Sign Out
+      </button>
     </div>
   </aside>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import UiIcon from './UiIcon.vue';
+import { getRoleNavigation } from '../lib/navigation.js';
 
 const props = defineProps({
-  currentRole: {
-    type: String,
-    default: 'Admin'
-  },
-  userName: {
-    type: String,
-    default: 'Admin User'
-  },
-  currentView: {
-    type: String,
-    default: 'dashboard'
-  },
-  reportsBadgeCount: {
-    type: Number,
-    default: 0
-  },
-  requestsBadgeCount: {
-    type: Number,
-    default: 0
-  }
+  currentRole: { type: String, default: 'Admin' },
+  userName: { type: String, default: 'Admin User' },
+  currentView: { type: String, default: 'dashboard' },
+  reportsBadgeCount: { type: Number, default: 0 },
+  requestsBadgeCount: { type: Number, default: 0 },
+  drawerOpen: { type: Boolean, default: false },
+  drawerMode: { type: Boolean, default: false }
 });
 
-defineEmits(['navigate', 'logout']);
+defineEmits(['navigate', 'logout', 'close-drawer']);
 
-const userInitials = computed(() => {
-  return (
-    props.userName
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0].toUpperCase())
-      .join('') || 'AU'
-  );
-});
+const sidebarElement = ref(null);
+const navigation = computed(() => getRoleNavigation(props.currentRole, {
+  reports: props.reportsBadgeCount,
+  requests: props.requestsBadgeCount
+}));
+const userInitials = computed(() => props.userName
+  .split(' ')
+  .filter(Boolean)
+  .slice(0, 2)
+  .map((part) => part[0].toUpperCase())
+  .join('') || 'AU');
+
+defineExpose({ sidebarElement });
 </script>

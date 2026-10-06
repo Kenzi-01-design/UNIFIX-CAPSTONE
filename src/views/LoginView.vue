@@ -87,21 +87,27 @@
       </div>
 
       <div class="form-group">
-        <label>University Email</label>
+        <label for="login-email">University Email</label>
         <input
+          id="login-email"
           type="email"
           v-model="email"
           placeholder="your.name@nvsu.edu.ph"
+          autocomplete="username"
+          required
           @keyup.enter="handleLogin"
         />
       </div>
 
       <div class="form-group">
-        <label>Password</label>
+        <label for="login-password">Password</label>
         <input
+          id="login-password"
           type="password"
           v-model="password"
           placeholder="••••••••"
+          autocomplete="current-password"
+          required
           @keyup.enter="handleLogin"
         />
       </div>

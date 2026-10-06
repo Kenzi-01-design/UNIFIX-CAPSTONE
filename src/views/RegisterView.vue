@@ -143,7 +143,7 @@ async function submitRegistration() {
 </script>
 
 <style scoped>
-#register-page { min-height:100vh; display:grid; place-items:center; padding:28px 16px; background:var(--bg); }
+#register-page { min-height:100vh; min-height:100dvh; display:grid; place-items:center; padding:28px 16px; background:var(--bg); }
 .register-card { width:min(100%,560px); padding:32px; border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface); box-shadow:var(--shadow); }
 .register-back { display:block; margin:0 0 22px; padding:0; border:0; background:none; color:var(--primary); font:inherit; font-weight:700; cursor:pointer; }
 .register-card h1 { margin:8px 0; color:var(--text); font-size:clamp(24px,4vw,32px); }
@@ -158,4 +158,9 @@ async function submitRegistration() {
 .register-login { margin:20px 0 0; color:var(--text-2); text-align:center; font-size:13px; }
 .register-login button { padding:0; border:0; background:none; color:var(--primary); font:inherit; font-weight:700; cursor:pointer; }
 @media(max-width:520px) { .register-card { padding:22px; } }
+@media(min-width:768px) {
+  .register-form { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .register-form .form-group:nth-child(-n+2),
+  .register-form .btn-primary { grid-column:1/-1; }
+}
 </style>
