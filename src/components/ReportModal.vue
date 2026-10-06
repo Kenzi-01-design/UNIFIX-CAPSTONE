@@ -4,10 +4,9 @@
     <div class="modal-content" v-if="report">
       <div class="modal-header">
         <div>
-          <div class="modal-id">{{ report.id }}</div>
+          <div class="modal-id">{{ report.trackingCode || report.id }}</div>
           <h3>{{ report.title }}</h3>
           <div class="modal-meta">{{ report.cat }} · {{ report.loc }}</div>
-          <div v-if="report.trackingCode" class="modal-tracking-code">Tracking: {{ report.trackingCode }}</div>
         </div>
         <button class="modal-close" @click="$emit('close')">✖</button>
       </div>
@@ -56,17 +55,11 @@
         </div>
 
         <div v-if="report.photo || report.photoAttachments?.length" class="modal-photo-section">
-          <strong>Attached photos</strong>
-          <p v-if="photosLoading" class="photo-message">Loading private photo links…</p>
-          <p v-if="photosError" class="photo-message photo-error" role="alert">{{ photosError }}</p>
-          <div v-for="photo in resolvedPhotos" :key="photo.key" class="modal-photo-preview">
-            <img :src="photo.url" :alt="`${photo.phase === 'after' ? 'After' : 'Before'}: ${report.title}`" />
-            <span>{{ photo.phase === 'after' ? 'After work' : 'Before work' }}</span>
-          </div>
-          <div v-if="!report.photoAttachments?.length && report.photo" class="modal-photo-preview">
-            <img :src="report.photo" :alt="report.title" />
-            <span>Attached photo</span>
-          </div>
+          <PhotoGallery
+            :attachments="report.photoAttachments || []"
+            :legacy-photo="report.photo || ''"
+            :title="report.title"
+          />
         </div>
 
         <section v-if="isOwnCompletedReport" class="report-feedback">
@@ -170,7 +163,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { resolvePhotoUrl } from '../lib/photos.js';
+import PhotoGallery from './PhotoGallery.vue';
 import { useReportFeedback } from '../composables/useReportFeedback.js';
 import { useReports } from '../composables/useReports.js';
 
@@ -195,10 +188,7 @@ const props = defineProps({
 
 const { loadReportFeedback, submitReportFeedback, hasFeedbackForReport } = useReportFeedback();
 const { reopenOwnReport } = useReports();
-const resolvedPhotos = ref([]);
 const rejectionReason = ref('');
-const photosLoading = ref(false);
-const photosError = ref('');
 const feedbackLoading = ref(false);
 const feedbackSubmitting = ref(false);
 const feedbackError = ref('');
@@ -208,31 +198,6 @@ const reopenReason = ref('');
 const reopenError = ref('');
 const reopenSucceeded = ref(false);
 const reopening = ref(false);
-
-watch(
-  () => [props.report?.id, props.isOpen, props.report?.photoAttachments],
-  async () => {
-    resolvedPhotos.value = [];
-    photosError.value = '';
-    if (!props.isOpen || !props.report) return;
-    const attachments = props.report.photoAttachments || [];
-    if (!attachments.length) return;
-
-    photosLoading.value = true;
-    try {
-      resolvedPhotos.value = await Promise.all(attachments.map(async (attachment, index) => ({
-        key: attachment.path || `${attachment.name || 'photo'}-${index}`,
-        phase: attachment.phase || 'before',
-        url: await resolvePhotoUrl(attachment)
-      })));
-    } catch (error) {
-      photosError.value = error.message || 'Unable to load report photos.';
-    } finally {
-      photosLoading.value = false;
-    }
-  },
-  { immediate: true, deep: true }
-);
 
 watch(() => [props.report?.id, props.isOpen], () => {
   rejectionReason.value = '';
@@ -394,21 +359,6 @@ function capitalize(str) {
   background: var(--surface-2, #f8fafc);
 }
 .admin-remark-note p { margin: 5px 0 0; white-space: pre-wrap; }
-.modal-photo-preview {
-  margin-top: 8px;
-  border-radius: 8px;
-  overflow: hidden;
-  max-height: 220px;
-  border: 1px solid var(--border, #e2e8f0);
-}
-.modal-photo-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.modal-photo-preview { position: relative; }
-.modal-photo-preview span { display: block; padding: 6px 9px; color: var(--text-2); font-size: 11px; }
 .photo-message { margin-top: 7px; font-size: 11px; color: var(--text-3); }
 .photo-error { color: var(--red); }
 .report-feedback { margin-top: 16px; padding: 13px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
