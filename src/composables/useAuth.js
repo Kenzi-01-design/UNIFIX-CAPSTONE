@@ -1,13 +1,19 @@
 import { ref, computed } from 'vue';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
+import { accountAccessState, authStateMessage, classifyAuthError } from '../lib/authFlow.js';
 
 // Private module-level state
 const _currentRole = ref('Admin');
 const _activeUserName = ref('Admin User');
 const _activeUserEmail = ref('');
 const _isAuthenticated = ref(false);
+const _authNotice = ref('');
+const _authNoticeCode = ref('');
+const _passwordRecoveryMode = ref(false);
 const LOGIN_EVENTS_KEY = 'unifix-login-events-v1';
 let authProfileGeneration = 0;
+let profileChannel = null;
+let suppressAuthProfileLoad = false;
 
 function loadLoginEvents() {
   try {
@@ -70,14 +76,16 @@ const roleEmails = {
 };
 
 const roleDepts = {
-  Employee: 'College of Engineering',
-  Assistant: 'Campus Administration',
-  Admin: 'Campus Administration',
-  Personnel: 'Maintenance Operations'
+  Employee: 'COE',
+  Assistant: 'CAS',
+  Admin: 'CIT',
+  Personnel: 'CTE'
 };
 
 const defaultSettings = {
-  email: true,
+  email: false,
+  notificationEmail: '',
+  notificationEmailVerified: false,
   inapp: true,
   sms: false,
   urgentAlerts: false,
@@ -95,26 +103,35 @@ async function loadAuthenticatedProfile() {
     if (generation === authProfileGeneration) {
       _isAuthenticated.value = false;
       _activeUserEmail.value = '';
+      _currentRole.value = 'Admin';
+      _activeUserName.value = 'Admin User';
+      _passwordRecoveryMode.value = false;
     }
     return;
   }
 
-  const { data: profile, error } = await supabase
-    .from('user_profiles')
-    .select('name, email, role, is_active')
-    .eq('email', user.email)
-    .maybeSingle();
+  const { profile, error } = await findProfileForUser(user);
   if (generation !== authProfileGeneration) return;
-  if (error) throw error;
-  if (!profile?.is_active) {
-    const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
-    if (signOutError) throw signOutError;
+  if (error) {
+    await endSessionWithNotice('profile-service-unavailable');
+    return;
+  }
+  const state = accountAccessState(profile);
+  if (state !== 'active') {
+    endNotice(state, profile);
+    await endLocalSession();
+    return;
+  }
+  if (profile.role === 'Student') {
+    await endSessionWithNotice('student-public');
     return;
   }
   _currentRole.value = profile.role;
   _activeUserName.value = profile.name;
   _activeUserEmail.value = user.email || '';
   _isAuthenticated.value = true;
+  clearNotice();
+  subscribeToProfile(user);
 }
 
 if (isSupabaseConfigured) {
@@ -123,16 +140,109 @@ if (isSupabaseConfigured) {
       authProfileGeneration += 1;
       _isAuthenticated.value = false;
       _activeUserEmail.value = '';
+      _currentRole.value = 'Admin';
+      _activeUserName.value = 'Admin User';
+      stopProfileSubscription();
+      _passwordRecoveryMode.value = false;
       return;
     }
+    if (event === 'PASSWORD_RECOVERY') {
+      _passwordRecoveryMode.value = true;
+      _isAuthenticated.value = false;
+      _currentRole.value = 'Admin';
+      _activeUserName.value = 'Admin User';
+      _activeUserEmail.value = session.user.email || '';
+      return;
+    }
+    if (_passwordRecoveryMode.value) return;
+    if (suppressAuthProfileLoad) return;
     if (['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(event)) {
       queueMicrotask(() => {
         void loadAuthenticatedProfile().catch((error) => {
           console.error('Could not restore the signed-in UNIFIX profile.', error);
+          void endSessionWithNotice('profile-service-unavailable');
         });
       });
     }
   });
+}
+
+async function findProfileForUser(user) {
+  let { data: profile, error } = await supabase
+    .from('user_profiles')
+    .select('name,email,role,is_active,registration_status,rejection_reason,auth_user_id')
+    .eq('auth_user_id', user.id)
+    .maybeSingle();
+  if (!error && !profile && user.email) {
+    const legacyResult = await supabase
+      .from('user_profiles')
+      .select('name,email,role,is_active,registration_status,rejection_reason,auth_user_id')
+      .is('auth_user_id', null)
+      .eq('email', user.email)
+      .maybeSingle();
+    profile = legacyResult.data;
+    error = legacyResult.error;
+  }
+  return { profile, error };
+}
+
+function endNotice(code, profile = null) {
+  _authNoticeCode.value = code;
+  _authNotice.value = authStateMessage(code, profile);
+}
+
+function clearNotice() {
+  _authNoticeCode.value = '';
+  _authNotice.value = '';
+}
+
+async function endLocalSession() {
+  const { error } = await supabase.auth.signOut({ scope: 'local' });
+  if (error) {
+    console.error('Could not end an inactive UNIFIX session.', error);
+    endNotice('profile-service-unavailable');
+  }
+}
+
+async function endSessionWithNotice(code, profile = null) {
+  endNotice(code, profile);
+  await endLocalSession();
+}
+
+function stopProfileSubscription() {
+  if (profileChannel) {
+    void supabase.removeChannel(profileChannel);
+    profileChannel = null;
+  }
+}
+
+function subscribeToProfile(user) {
+  stopProfileSubscription();
+  profileChannel = supabase
+    .channel(`unifix-profile:${user.id || user.email}`)
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'user_profiles',
+      filter: `auth_user_id=eq.${user.id}`
+    }, () => {
+      void loadAuthenticatedProfile().catch((error) => {
+        console.error('Could not refresh the signed-in UNIFIX profile.', error);
+        void endSessionWithNotice('profile-service-unavailable');
+      });
+    })
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'user_profiles',
+      filter: `email=eq.${user.email}`
+    }, () => {
+      void loadAuthenticatedProfile().catch((error) => {
+        console.error('Could not refresh the signed-in UNIFIX profile.', error);
+        void endSessionWithNotice('profile-service-unavailable');
+      });
+    })
+    .subscribe();
 }
 
 export function useAuth() {
@@ -157,36 +267,52 @@ export function useAuth() {
   }
 
   async function login(email, password, role, technicians = []) {
+    clearNotice();
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password
-      });
-      if (error) throw error;
+      authProfileGeneration += 1;
+      stopProfileSubscription();
+      suppressAuthProfileLoad = true;
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password
+        });
+        if (error) {
+          const state = classifyAuthError(error);
+          endNotice(state);
+          throw new Error(authStateMessage(state));
+        }
 
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('name, role, is_active')
-        .eq('email', data.user.email)
-        .single();
-      if (profileError || !profile || !profile.is_active) {
-        await supabase.auth.signOut();
-        throw new Error('This account has no active university profile.');
-      }
-      if (profile.role === 'Student') {
-        await supabase.auth.signOut();
-        throw new Error('Student accounts submit reports from the UNIFIX home page.');
-      }
+        const { profile, error: profileError } = await findProfileForUser(data.user);
+        if (profileError) {
+          await endSessionWithNotice('profile-service-unavailable');
+          throw new Error(authStateMessage('profile-service-unavailable'));
+        }
+        const state = accountAccessState(profile);
+        if (state !== 'active') {
+          await endSessionWithNotice(state, profile);
+          throw new Error(authStateMessage(state, profile));
+        }
+        if (profile.role === 'Student') {
+          await endSessionWithNotice('student-public');
+          throw new Error(authStateMessage('student-public'));
+        }
 
-      _currentRole.value = profile.role;
-      _activeUserName.value = profile.name;
-      _activeUserEmail.value = data.user.email || '';
-      _isAuthenticated.value = true;
-      return profile.role;
+        _currentRole.value = profile.role;
+        _activeUserName.value = profile.name;
+        _activeUserEmail.value = data.user.email || '';
+        _isAuthenticated.value = true;
+        clearNotice();
+        subscribeToProfile(data.user);
+        return profile.role;
+      } finally {
+        suppressAuthProfileLoad = false;
+      }
     }
 
     if (!isDemoMode) {
-      throw new Error('Authentication is unavailable. Configure Supabase before signing in.');
+      endNotice('network-error');
+      throw new Error(authStateMessage('network-error'));
     }
 
     _currentRole.value = role;
@@ -219,7 +345,74 @@ export function useAuth() {
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: window.location.origin
     });
-    if (error) throw error;
+    if (error) {
+      const state = classifyAuthError(error);
+      throw new Error(state === 'network-error'
+        ? authStateMessage(state)
+        : 'The password recovery email could not be sent. Check the address and try again.');
+    }
+  }
+
+  async function requestRegistrationReapplication(email, password) {
+    if (!isSupabaseConfigured || !supabase) throw new Error('Re-application is unavailable.');
+    suppressAuthProfileLoad = true;
+    let signedInForRequest = false;
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) {
+        const state = classifyAuthError(error);
+        endNotice(state);
+        throw new Error(authStateMessage(state));
+      }
+      signedInForRequest = true;
+      const { profile, error: profileError } = await findProfileForUser(data.user);
+      if (profileError) throw new Error(authStateMessage('profile-service-unavailable'));
+      if (accountAccessState(profile) !== 'rejected') {
+        throw new Error('Only rejected applications may request another review.');
+      }
+      const { error: requestError } = await supabase.rpc('request_registration_reapplication');
+      if (requestError) {
+        throw new Error(/30 days/i.test(requestError.message || '')
+          ? 'You may request another application review once every 30 days.'
+          : 'Your re-application request could not be submitted. Try again later.');
+      }
+      endNotice('reapplication-requested');
+    } finally {
+      try {
+        if (signedInForRequest) {
+          const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
+          if (signOutError) {
+            console.error('Could not end the temporary re-application session.', signOutError);
+            endNotice('profile-service-unavailable');
+          }
+        }
+      } catch (signOutError) {
+        console.error('Could not end the temporary re-application session.', signOutError);
+        endNotice('profile-service-unavailable');
+      } finally {
+        suppressAuthProfileLoad = false;
+      }
+    }
+  }
+
+  async function changePassword(password) {
+    if (!isSupabaseConfigured || !supabase) throw new Error('Password changes are unavailable.');
+    if (password.length < 8) throw new Error('Use a password with at least 8 characters.');
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) {
+      const state = classifyAuthError(error);
+      throw new Error(state === 'network-error'
+        ? authStateMessage(state)
+        : 'The password could not be changed. Please try again.');
+    }
+  }
+
+  async function completePasswordRecovery(password) {
+    await changePassword(password);
+    _passwordRecoveryMode.value = false;
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (error) throw new Error('Your password changed, but sign-out did not complete. Sign out before continuing.');
+    clearNotice();
   }
 
   async function logout() {
@@ -229,14 +422,18 @@ export function useAuth() {
     }
     _isAuthenticated.value = false;
     _activeUserEmail.value = '';
+    _currentRole.value = 'Admin';
+    _activeUserName.value = 'Admin User';
+    clearNotice();
+    stopProfileSubscription();
   }
 
   function getProfileKey() {
-    return `unifix-profile-${_currentRole.value}`;
+    return `unifix-profile-${_activeUserEmail.value.toLowerCase()}-${_currentRole.value}`;
   }
 
   function getSettingsKey() {
-    return `unifix-settings-${_currentRole.value}`;
+    return `unifix-settings-${_activeUserEmail.value.toLowerCase()}-${_currentRole.value}`;
   }
 
   function loadProfile() {
@@ -254,7 +451,7 @@ export function useAuth() {
           : roleEmails[_currentRole.value] || `${_activeUserName.value.toLowerCase().replace(/\s+/g, '.')}@nvsu.edu.ph`,
       phone: '',
       dept: roleDepts[_currentRole.value] || '',
-      location: 'Main Campus',
+      location: 'Bambang Campus',
       updatedAt: 'Not yet'
     };
   }
@@ -268,11 +465,27 @@ export function useAuth() {
     localStorage.setItem(getProfileKey(), JSON.stringify(updated));
 
     if (isSupabaseConfigured) {
-      const { error } = await supabase
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const authUser = sessionData.session?.user;
+      if (!authUser) throw new Error('No signed-in user found.');
+      const { data, error } = await supabase
         .from('user_profiles')
-        .update({ name: updated.name, phone: updated.phone || '', location: updated.location || 'Main Campus' })
-        .eq('email', updated.email);
+        .update({ name: updated.name, phone: updated.phone || '', location: 'Bambang Campus' })
+        .eq('auth_user_id', authUser.id)
+        .select('id')
+        .maybeSingle();
       if (error) throw error;
+      if (!data) {
+        const { error: legacyError } = await supabase
+          .from('user_profiles')
+          .update({ name: updated.name, phone: updated.phone || '', location: 'Bambang Campus' })
+          .is('auth_user_id', null)
+          .eq('email', authUser.email || '')
+          .select('id')
+          .maybeSingle();
+        if (legacyError) throw legacyError;
+      }
     }
     return updated;
   }
@@ -311,6 +524,8 @@ export function useAuth() {
 
     const settings = {
       email: data.email_notifications,
+      notificationEmail: data.notification_email || '',
+      notificationEmailVerified: data.notification_email_verified === true,
       inapp: data.inapp_notifications,
       sms: data.sms_notifications ?? false,
       urgentAlerts: data.urgent_alerts,
@@ -322,13 +537,19 @@ export function useAuth() {
   }
 
   async function saveSettings(settingsData) {
-    localStorage.setItem(getSettingsKey(), JSON.stringify(settingsData));
-    if (!isSupabaseConfigured) return;
+    if (!isSupabaseConfigured) {
+      localStorage.setItem(getSettingsKey(), JSON.stringify(settingsData));
+      return;
+    }
     const { data: sessionData } = await supabase.auth.getSession();
     const email = sessionData.session?.user?.email;
     if (!email) throw new Error('No signed-in user found.');
+    if (settingsData.email && !settingsData.notificationEmailVerified) {
+      throw new Error('Verify your notification email before enabling email updates.');
+    }
     const { error } = await supabase.from('user_preferences').upsert({
       user_email: email,
+      notification_email: settingsData.notificationEmail?.trim().toLowerCase() || null,
       email_notifications: settingsData.email,
       inapp_notifications: settingsData.inapp,
       urgent_alerts: settingsData.urgentAlerts,
@@ -337,6 +558,50 @@ export function useAuth() {
       session_timeout: settingsData.timeout
     });
     if (error) throw error;
+    localStorage.setItem(getSettingsKey(), JSON.stringify(settingsData));
+  }
+
+  async function requestNotificationEmailVerification(email) {
+    if (!isSupabaseConfigured || !supabase) throw new Error('Notification email verification is unavailable.');
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail) || normalizedEmail.length > 254) {
+      throw new Error('Enter a valid notification email address.');
+    }
+    const { error } = await supabase.functions.invoke('notification-email-verification', {
+      body: { action: 'request', email: normalizedEmail }
+    });
+    if (error) {
+      let message = error.message;
+      if (error.context) {
+        try {
+          const response = await error.context.clone().json();
+          if (response?.error) message = response.error;
+        } catch {
+          // Preserve the Functions error when its response is not JSON.
+        }
+      }
+      throw new Error(message || 'Could not send the notification email verification link.');
+    }
+  }
+
+  async function verifyNotificationEmail(token) {
+    if (!isSupabaseConfigured || !supabase) throw new Error('Notification email verification is unavailable.');
+    const { data, error } = await supabase.functions.invoke('notification-email-verification', {
+      body: { action: 'verify', token }
+    });
+    if (error || !data?.verified) {
+      let message = error?.message;
+      if (error?.context) {
+        try {
+          const response = await error.context.clone().json();
+          if (response?.error) message = response.error;
+        } catch {
+          // Preserve the Functions error when its response is not JSON.
+        }
+      }
+      throw new Error(message || 'This verification link is invalid or expired. Request a new one in Settings.');
+    }
+    return data.email;
   }
 
   function resetSettings() {
@@ -348,10 +613,18 @@ export function useAuth() {
     currentRole: _currentRole,
     activeUserName: _activeUserName,
     activeUserEmail: _activeUserEmail,
+    authNotice: _authNotice,
+    authNoticeCode: _authNoticeCode,
+    passwordRecoveryMode: _passwordRecoveryMode,
     isAuthenticated: _isAuthenticated,
     userInitials,
     login,
     sendPasswordReset,
+    requestRegistrationReapplication,
+    requestNotificationEmailVerification,
+    verifyNotificationEmail,
+    changePassword,
+    completePasswordRecovery,
     logout,
     loadProfile,
     saveProfile,

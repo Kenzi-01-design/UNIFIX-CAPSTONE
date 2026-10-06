@@ -4,11 +4,11 @@
       <button type="button" class="register-back" @click="$emit('back')">← Back</button>
       <span class="eyebrow">NUEVA VIZCAYA STATE UNIVERSITY</span>
       <h1>Create your UNIFIX account</h1>
-      <p class="register-intro">Submit your details for administrator review. Your account stays inactive until approved.</p>
+      <p class="register-intro">Submit your details for administrator review. Email confirmation is not required to sign in; your account stays inactive until approved.</p>
 
       <div v-if="submitted" class="register-success" role="status">
         <h2>Registration submitted</h2>
-        <p>If email confirmation is enabled, confirm your address using the message Supabase sends. An administrator must also approve your account before you can sign in.</p>
+        <p>Your account is ready for sign-in after an administrator approves it. You can optionally add and verify a notification email in Settings to receive updates about your reports and requests.</p>
         <button type="button" class="btn-primary" @click="$emit('open-login')">Return to sign in</button>
       </div>
 
@@ -20,10 +20,15 @@
         <div class="form-group">
           <label for="registration-email">University email *</label>
           <input id="registration-email" v-model.trim="form.email" type="email" autocomplete="email" maxlength="254" required />
+          <small v-if="emailDomainError" class="register-error" role="alert">{{ emailDomainError }}</small>
+          <small v-else>Allowed domain{{ allowedEmailDomains.length === 1 ? '' : 's' }}: {{ allowedEmailDomains.map((domain) => `@${domain}`).join(', ') }}</small>
         </div>
         <div class="form-group">
           <label for="registration-department">Department / office</label>
-          <input id="registration-department" v-model.trim="form.department" maxlength="160" autocomplete="organization" />
+          <select id="registration-department" v-model="form.department" autocomplete="organization">
+            <option value="">Select a department</option>
+            <option v-for="department in departments" :key="department" :value="department">{{ department }}</option>
+          </select>
         </div>
         <div class="form-group">
           <label for="registration-phone">Phone</label>
@@ -31,7 +36,9 @@
         </div>
         <div class="form-group">
           <label for="registration-location">Campus / location</label>
-          <input id="registration-location" v-model.trim="form.location" maxlength="160" autocomplete="address-level2" />
+          <select id="registration-location" v-model="form.location" autocomplete="address-level2">
+            <option value="Bambang Campus">Bambang Campus</option>
+          </select>
         </div>
         <div class="form-group">
           <label for="registration-password">Password *</label>
@@ -53,7 +60,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 
 defineEmits(['back', 'open-login']);
@@ -63,13 +70,26 @@ const form = reactive({
   email: '',
   department: '',
   phone: '',
-  location: 'Main Campus',
+  location: 'Bambang Campus',
   password: '',
   confirmPassword: ''
 });
 const submitting = ref(false);
 const submitted = ref(false);
 const error = ref('');
+const departments = ['CIT', 'CAS', 'COE', 'CTE'];
+// If no UX domains are configured, show the same initial default as the server migration.
+const allowedEmailDomains = (import.meta.env.VITE_ALLOWED_EMAIL_DOMAINS || 'nvsu.edu.ph')
+  .split(',')
+  .map((domain) => domain.trim().toLowerCase().replace(/^@/, ''))
+  .filter(Boolean);
+const emailDomainError = computed(() => {
+  const normalizedEmail = form.email.trim().toLowerCase();
+  if (!normalizedEmail || !normalizedEmail.includes('@')) return '';
+  const domain = normalizedEmail.slice(normalizedEmail.lastIndexOf('@') + 1);
+  if (allowedEmailDomains.includes(domain)) return '';
+  return `Use an email address from ${allowedEmailDomains.map((item) => `@${item}`).join(', ')}.`;
+});
 
 async function submitRegistration() {
   error.value = '';
@@ -83,6 +103,10 @@ async function submitRegistration() {
   }
   if (form.password !== form.confirmPassword) {
     error.value = 'The passwords do not match.';
+    return;
+  }
+  if (emailDomainError.value) {
+    error.value = emailDomainError.value;
     return;
   }
 
@@ -104,7 +128,14 @@ async function submitRegistration() {
     if (signUpError) throw signUpError;
     submitted.value = true;
   } catch (registrationError) {
-    error.value = registrationError.message || 'Unable to submit your registration.';
+    const message = registrationError.message || '';
+    if (/already registered|user already exists|already been registered/i.test(message)) {
+      error.value = 'We could not create this registration. If you already have an account, sign in or reset your password.';
+    } else if (/rate limit|too many requests/i.test(message)) {
+      error.value = 'Too many attempts. Please wait a while before trying again.';
+    } else {
+      error.value = message || 'Unable to submit your registration.';
+    }
   } finally {
     submitting.value = false;
   }

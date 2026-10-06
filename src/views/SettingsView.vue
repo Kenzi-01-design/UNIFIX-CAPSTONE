@@ -8,9 +8,32 @@
         </div>
         <div class="account-content">
           <label class="setting-row">
-            <span>Email Updates on Work Orders</span>
-            <input type="checkbox" v-model="settings.email" />
+            <span>Email Updates on Work Orders
+              <small v-if="!settings.notificationEmailVerified">Verify a notification email below before enabling email updates.</small>
+            </span>
+            <input type="checkbox" v-model="settings.email" :disabled="!settings.notificationEmailVerified" />
           </label>
+          <div class="form-group notification-email-setting">
+            <label for="notification-email">Notification email</label>
+            <input
+              id="notification-email"
+              v-model.trim="settings.notificationEmail"
+              type="email"
+              autocomplete="email"
+              maxlength="254"
+              placeholder="name@example.com"
+            />
+            <small v-if="settings.notificationEmailVerified">
+              Verified: {{ settings.notificationEmail }}
+            </small>
+            <small v-else>A verification link will be sent to this address. It is separate from your sign-in email.</small>
+            <button
+              type="button"
+              class="btn-secondary"
+              :disabled="sendingVerification || !settings.notificationEmail.trim()"
+              @click="handleVerifyNotificationEmail"
+            >{{ sendingVerification ? 'Sending…' : settings.notificationEmailVerified ? 'Verify another email' : 'Send verification link' }}</button>
+          </div>
           <label class="setting-row">
             <span>In-App Toast Alerts</span>
             <input type="checkbox" v-model="settings.inapp" />
@@ -42,6 +65,28 @@
                 <option value="60">1 hour</option>
                 <option value="0">Never</option>
               </select>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <span class="panel-title">Change Password</span>
+              </div>
+              <form class="account-content" @submit.prevent="handlePasswordChange">
+                <div class="form-group">
+                  <label for="new-password">New password</label>
+                  <input id="new-password" v-model="newPassword" type="password" autocomplete="new-password" minlength="8" required />
+                </div>
+                <div class="form-group">
+                  <label for="confirm-new-password">Confirm new password</label>
+                  <input id="confirm-new-password" v-model="confirmNewPassword" type="password" autocomplete="new-password" minlength="8" required />
+                </div>
+                <div class="form-actions">
+                  <button class="btn-primary" type="submit" :disabled="changingPassword">
+                    {{ changingPassword ? 'Changing…' : 'Update Password' }}
+                  </button>
+                </div>
+                <small>Password changes are available for Supabase accounts. Use Forgot password on the sign-in page if you cannot sign in.</small>
+              </form>
             </div>
           </div>
 
@@ -92,14 +137,24 @@
 </template>
 
 <script setup>
-import { reactive, computed, onMounted } from 'vue';
+import { reactive, computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { useAuth } from '../composables/useAuth.js';
 import { useToast } from '../composables/useToast.js';
 
-const { loadSettings, fetchSettings, saveSettings, resetSettings } = useAuth();
+const {
+  loadSettings, fetchSettings, saveSettings, resetSettings, changePassword,
+  requestNotificationEmailVerification
+} = useAuth();
 const { showToast } = useToast();
+const newPassword = ref('');
+const confirmNewPassword = ref('');
+const changingPassword = ref(false);
+const sendingVerification = ref(false);
 
 const settings = reactive(loadSettings());
+const verifiedNotificationEmail = ref(
+  settings.notificationEmailVerified ? settings.notificationEmail.trim().toLowerCase() : ''
+);
 const smsEnabled = import.meta.env.VITE_SMS_NOTIFICATIONS_ENABLED === 'true';
 
 const landingLabelMap = {
@@ -114,10 +169,34 @@ const landingLabel = computed(() => landingLabelMap[settings.landing] || 'Dashbo
 onMounted(async () => {
   try {
     Object.assign(settings, await fetchSettings());
+    verifiedNotificationEmail.value = settings.notificationEmailVerified
+      ? settings.notificationEmail.trim().toLowerCase()
+      : '';
   } catch (error) {
     showToast('Could not load saved settings; using local values.', 'error');
   }
 });
+
+watch(() => settings.notificationEmail, (email) => {
+  if (settings.notificationEmailVerified
+    && email.trim().toLowerCase() !== verifiedNotificationEmail.value) {
+    settings.notificationEmailVerified = false;
+    settings.email = false;
+  }
+});
+
+function onNotificationEmailVerified(event) {
+  const email = String(event.detail?.email || '');
+  if (email.toLowerCase() === settings.notificationEmail.trim().toLowerCase()) {
+    verifiedNotificationEmail.value = email.toLowerCase();
+    settings.notificationEmailVerified = true;
+    settings.email = false;
+    showToast('Notification email verified. Enable email updates and save your settings to receive work updates.', 'success');
+  }
+}
+
+window.addEventListener('notification-email-verified', onNotificationEmailVerified);
+onBeforeUnmount(() => window.removeEventListener('notification-email-verified', onNotificationEmailVerified));
 
 async function handleSave() {
   try {
@@ -129,9 +208,42 @@ async function handleSave() {
   }
 }
 
+async function handleVerifyNotificationEmail() {
+  sendingVerification.value = true;
+  try {
+    await requestNotificationEmailVerification(settings.notificationEmail);
+    verifiedNotificationEmail.value = '';
+    settings.notificationEmailVerified = false;
+    settings.email = false;
+    showToast('Verification link sent. Check your notification email, then return to Settings.', 'success');
+  } catch (error) {
+    showToast(error.message || 'Unable to send the verification email.', 'error');
+  } finally {
+    sendingVerification.value = false;
+  }
+}
+
 function handleReset() {
   const defaults = resetSettings();
   Object.assign(settings, defaults);
   showToast('Settings restored to defaults.', 'info');
+}
+
+async function handlePasswordChange() {
+  if (newPassword.value !== confirmNewPassword.value) {
+    showToast('The passwords do not match.', 'error');
+    return;
+  }
+  changingPassword.value = true;
+  try {
+    await changePassword(newPassword.value);
+    newPassword.value = '';
+    confirmNewPassword.value = '';
+    showToast('Password changed successfully.', 'success');
+  } catch (error) {
+    showToast(error.message || 'Unable to change password.', 'error');
+  } finally {
+    changingPassword.value = false;
+  }
 }
 </script>

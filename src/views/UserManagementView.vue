@@ -28,13 +28,13 @@
       </button>
       <button
         class="admin-tab"
-        :class="{ active: activeTab === 'profile' }"
+        :class="{ active: activeTab === 'invite' }"
         type="button"
         role="tab"
-        :aria-selected="activeTab === 'profile'"
-        @click="activeTab = 'profile'"
+        :aria-selected="activeTab === 'invite'"
+        @click="activeTab = 'invite'"
       >
-        {{ editingId ? 'Edit User Profile' : 'Add User Profile' }}
+        {{ editingId ? 'Edit User Profile' : 'Invite User' }}
       </button>
       <button
         class="admin-tab"
@@ -57,11 +57,15 @@
         <div class="user-table-wrap">
           <table>
             <thead>
-              <tr><th>Applicant</th><th>Department</th><th>Contact</th><th>Assign role</th><th>Review</th></tr>
+              <tr><th>Applicant</th><th>Department</th><th>Contact</th><th>Assign role</th><th>Rejection reason</th><th>Review</th></tr>
             </thead>
             <tbody>
               <tr v-for="user in pendingProfiles" :key="user.id">
-                <td><strong>{{ user.name }}</strong><small>{{ user.email }}</small></td>
+                <td>
+                  <strong>{{ user.name }}</strong><small>{{ user.email }}</small>
+                  <small v-if="user.rejectionReason">Reason: {{ user.rejectionReason }}</small>
+                  <small v-if="user.reapplicationRequestedAt">Re-application requested {{ new Date(user.reapplicationRequestedAt).toLocaleString() }}</small>
+                </td>
                 <td>{{ user.department || 'Not set' }}</td>
                 <td>{{ user.phone || 'Not provided' }}</td>
                 <td>
@@ -73,23 +77,32 @@
                     <option v-for="role in roles" :key="role" :value="role">{{ role }}</option>
                   </select>
                 </td>
+                <td>
+                  <textarea
+                    v-model.trim="rejectionReasons[user.id]"
+                    rows="2"
+                    maxlength="500"
+                    :aria-label="`Required rejection reason for ${user.name}`"
+                    placeholder="Required only when rejecting"
+                  ></textarea>
+                </td>
                 <td class="user-actions">
-                  <button type="button" class="admin-action-btn resolve" @click="reviewUser(user, 'approved')">Approve</button>
-                  <button type="button" class="admin-action-btn assign" @click="reviewUser(user, 'rejected')">Reject</button>
+                  <button type="button" class="admin-action-btn resolve" :disabled="reviewingUserId === user.id" @click="reviewUser(user, 'approved')">Approve</button>
+                  <button type="button" class="admin-action-btn assign" :disabled="reviewingUserId === user.id || !rejectionReasons[user.id]?.trim()" @click="reviewUser(user, 'rejected')">Reject</button>
                 </td>
               </tr>
               <tr v-if="!pendingProfiles.length">
-                <td colspan="5" class="empty-users">There are no pending registration requests.</td>
+                <td colspan="6" class="empty-users">There are no pending registration requests.</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p class="user-form-note">Approved users can sign in after any required email confirmation. Rejected accounts remain inactive.</p>
+        <p class="user-form-note">New applicants can sign in after Admin approval without confirming their sign-in email. Rejected accounts remain inactive; applicants may request a new review once every 30 days, and only an Admin can reopen the application.</p>
       </section>
 
-      <section v-else-if="activeTab === 'profile'" class="panel user-form-panel">
+      <section v-else-if="activeTab === 'invite'" class="panel user-form-panel">
         <div class="panel-header">
-          <span class="panel-title">{{ editingId ? 'Edit User Profile' : 'Add User Profile' }}</span>
+          <span class="panel-title">{{ editingId ? 'Edit User Profile' : 'Invite User' }}</span>
         </div>
         <form class="user-form" @submit.prevent="saveUser">
           <div class="form-group">
@@ -100,7 +113,7 @@
             <label>University Email *</label>
             <input v-model.trim="form.email" type="email" required :readonly="Boolean(editingId)" placeholder="name@nvsu.edu.ph" />
           </div>
-          <div class="form-group">
+          <div v-if="!editingId || form.registrationStatus === 'approved'" class="form-group">
             <label>Role *</label>
             <select v-model="form.role" required>
               <option v-for="role in roles" :key="role" :value="role">{{ role }}</option>
@@ -108,7 +121,10 @@
           </div>
           <div class="form-group">
             <label>Department / Office</label>
-            <input v-model.trim="form.department" placeholder="e.g., Campus Administration" />
+            <select v-model="form.department">
+              <option value="">Select a department</option>
+              <option v-for="department in departments" :key="department" :value="department">{{ department }}</option>
+            </select>
           </div>
           <div class="form-group">
             <label>Phone</label>
@@ -116,14 +132,18 @@
           </div>
           <div class="form-group">
             <label>Location</label>
-            <input v-model.trim="form.location" placeholder="Main Campus" />
+            <select v-model="form.location">
+              <option value="Bambang Campus">Bambang Campus</option>
+            </select>
           </div>
           <div class="form-actions">
             <button v-if="editingId" type="button" class="btn-secondary" @click="resetForm">Cancel</button>
-            <button type="submit" class="btn-primary">{{ editingId ? 'Save Changes' : 'Add User' }}</button>
+            <button type="submit" class="btn-primary" :disabled="savingUser">
+              {{ savingUser ? 'Sending…' : editingId ? 'Save Changes' : 'Send Invitation' }}
+            </button>
           </div>
         </form>
-        <p class="user-form-note">This manages the profile record. Create the matching login in Supabase Authentication.</p>
+        <p class="user-form-note">The invitee receives an email link to set a password. Their account becomes active with the role selected here. Demo mode only simulates the invite; no email is sent.</p>
       </section>
 
       <section v-else class="panel user-list-panel">
@@ -145,9 +165,29 @@
                 <td><span :class="['tag', user.isActive ? 'resolved' : 'pending']">{{ user.isActive ? 'Active' : 'Inactive' }}</span></td>
                 <td class="user-actions">
                   <button class="admin-action-btn assign" @click="editUser(user)">Edit</button>
-                  <button class="admin-action-btn" :class="user.isActive ? 'resolve' : 'assign'" @click="toggleUser(user)">
-                    {{ user.isActive ? 'Deactivate' : 'Activate' }}
+                  <button
+                    v-if="user.registrationStatus === 'rejected' && (user.reapplicationRequestedAt || isDemoMode)"
+                    class="admin-action-btn assign"
+                    :disabled="reopeningUserId === user.id"
+                    @click="reopenUser(user)"
+                  >
+                    {{ reopeningUserId === user.id ? 'Reopening…' : 'Re-open application' }}
                   </button>
+                  <button
+                    v-else-if="user.registrationStatus === 'approved'"
+                    class="admin-action-btn"
+                    :class="user.isActive ? 'resolve' : 'assign'"
+                    :disabled="user.isActive && reviewingUserId === user.id"
+                    @click="toggleUser(user)"
+                  >
+                    {{ user.isActive ? 'Deactivate' : 'Reactivate' }}
+                  </button>
+                  <button
+                    v-if="user.authUserId || isDemoMode"
+                    class="admin-action-btn assign"
+                    :disabled="deletingUserId === user.id"
+                    @click="deleteAccount(user)"
+                  >{{ deletingUserId === user.id ? 'Deleting…' : 'Delete account' }}</button>
                 </td>
               </tr>
               <tr v-if="!profiles.length"><td colspan="6" class="empty-users">No user profiles found.</td></tr>
@@ -161,18 +201,28 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
+import { isDemoMode } from '../lib/supabase.js';
 import { useUserProfiles } from '../composables/useUserProfiles.js';
 import { useToast } from '../composables/useToast.js';
 
-const { profiles, profilesLoadError, roles, loadProfiles, addProfile, updateProfile, setProfileActive, reviewRegistration } = useUserProfiles();
+const {
+  profiles, profilesLoadError, roles, loadProfiles, inviteUser, updateProfile,
+  setProfileActive, reviewRegistration, reopenRegistration, deleteUserAccount
+} = useUserProfiles();
 const { showToast } = useToast();
-const activeTab = ref('profile');
+const activeTab = ref('invite');
 const loadingProfiles = ref(false);
+const savingUser = ref(false);
 const editingId = ref('');
-const form = reactive({ name: '', email: '', role: 'Employee', department: '', phone: '', location: 'Main Campus' });
+const reviewingUserId = ref('');
+const reopeningUserId = ref('');
+const deletingUserId = ref('');
+const departments = ['CIT', 'CAS', 'COE', 'CTE'];
+const form = reactive({ name: '', email: '', role: 'Employee', department: '', phone: '', location: 'Bambang Campus' });
 const activeUsers = computed(() => profiles.value.filter((user) => user.isActive).length);
 const pendingProfiles = computed(() => profiles.value.filter((user) => user.registrationStatus === 'pending'));
 const approvalRoles = reactive({});
+const rejectionReasons = reactive({});
 
 onMounted(refreshProfiles);
 
@@ -189,28 +239,34 @@ async function refreshProfiles() {
 
 function resetForm() {
   editingId.value = '';
-  Object.assign(form, { name: '', email: '', role: 'Employee', department: '', phone: '', location: 'Main Campus' });
+  Object.assign(form, { name: '', email: '', role: 'Employee', department: '', phone: '', location: 'Bambang Campus' });
 }
 
 function editUser(user) {
   editingId.value = user.id;
   Object.assign(form, user);
-  activeTab.value = 'profile';
+  activeTab.value = 'invite';
 }
 
 async function saveUser() {
+  savingUser.value = true;
   try {
     if (editingId.value) {
       await updateProfile({ id: editingId.value, ...form });
       showToast('User profile updated.', 'success');
     } else {
-      await addProfile(form);
-      showToast('User profile added. Create its Auth account in Supabase.', 'success');
+      await inviteUser(form);
+      showToast(
+        isDemoMode ? 'Demo invite simulated. No email was sent.' : 'Invitation email sent.',
+        'success'
+      );
     }
     resetForm();
     activeTab.value = 'users';
   } catch (error) {
     showToast(error.message || 'Unable to save user profile.', 'error');
+  } finally {
+    savingUser.value = false;
   }
 }
 
@@ -224,15 +280,43 @@ async function toggleUser(user) {
 }
 
 async function reviewUser(user, decision) {
+  reviewingUserId.value = user.id;
   try {
     const status = decision === 'approved' ? 'approved' : 'rejected';
-    await reviewRegistration(user.id, status, approvalRoles[user.id] || 'Employee');
+    await reviewRegistration(user.id, status, approvalRoles[user.id] || 'Employee', rejectionReasons[user.id] || '');
     showToast(
       status === 'approved' ? `${user.name} was approved.` : `${user.name}'s registration was rejected.`,
       'success'
     );
   } catch (error) {
     showToast(error.message || 'Unable to review this registration.', 'error');
+  } finally {
+    reviewingUserId.value = '';
+  }
+}
+
+async function reopenUser(user) {
+  reopeningUserId.value = user.id;
+  try {
+    await reopenRegistration(user.id);
+    showToast(`${user.name}'s application is pending Admin review again.`, 'success');
+  } catch (error) {
+    showToast(error.message || 'Unable to reopen this application.', 'error');
+  } finally {
+    reopeningUserId.value = '';
+  }
+}
+
+async function deleteAccount(user) {
+  if (!window.confirm(`Delete the Auth account and profile for ${user.name} (${user.email})? Accounts linked to work history cannot be deleted.`)) return;
+  deletingUserId.value = user.id;
+  try {
+    await deleteUserAccount(user.authUserId, user.id);
+    showToast(isDemoMode ? 'Demo account removed.' : 'Auth account and profile deleted.', 'success');
+  } catch (error) {
+    showToast(error.message || 'Unable to delete this account.', 'error');
+  } finally {
+    deletingUserId.value = '';
   }
 }
 

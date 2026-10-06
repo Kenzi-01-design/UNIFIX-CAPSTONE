@@ -163,6 +163,7 @@ frontend settings are read by Vite:
 | `VITE_SUPABASE_URL` | Public Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Public/anon Supabase key; data authorization is enforced by RLS |
 | `VITE_TURNSTILE_SITE_KEY` | Public Turnstile widget key |
+| `VITE_ALLOWED_EMAIL_DOMAINS` | Comma-separated allowed domains displayed by the registration form; the database setting remains the enforcement source |
 | `VITE_ERROR_REPORT_URL` | Optional HTTPS client error-ingestion endpoint; public URL, no credentials |
 | `VITE_SMS_NOTIFICATIONS_ENABLED` | Enables the SMS preference only when its backend provider is configured |
 | `VITE_DEMO_MODE` | Enables local demo behavior; production startup rejects `true` |

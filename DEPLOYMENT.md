@@ -5,7 +5,7 @@ for authentication, Postgres, Storage, and Edge Functions.
 
 ## 1. Prepare Supabase
 
-1. Create a production Supabase project and confirm that email/password authentication and email confirmation are enabled. Add the production site URL and local development URL to the Auth redirect allowlist.
+1. Create a production Supabase project and enable email/password authentication. Add the production site URL and local development URL to the Auth redirect allowlist. Sign-up email confirmation must be disabled as described below; notification email verification is a separate optional Settings flow.
 2. In the SQL Editor, apply the migrations in order:
    `202610050001_phase1_tracking_photos_sla_feedback.sql`,
    `202610050002_phase2_notifications_audit_verification.sql`,
@@ -21,15 +21,22 @@ for authentication, Postgres, Storage, and Edge Functions.
    `202610050012_fix_work_item_email_trigger.sql`, and
    `202610050013_fix_shared_work_item_triggers.sql`,
    `202610050014_fix_pg_trgm_setting_permission.sql`,
-   `202610050015_fix_duplicate_field_shared_trigger.sql`, and
-   `202610050016_remove_sla_and_audit_features.sql`, and
-   `202610050017_user_registration_approval.sql`. If it was applied before
-   older Auth users were created, rerun the updated migration: it backfills
-   existing Auth users who do not have a profile as pending, inactive Employees.
+   `202610050015_fix_duplicate_field_shared_trigger.sql`,
+   `202610050016_remove_sla_and_audit_features.sql`,
+   `202610050017_user_registration_approval.sql`, then
+   `202610060001_link_profiles_to_auth_users.sql`,
+   `202610060002_enforce_university_email_domains.sql`,
+   `202610060003_account_audit_log.sql`,
+   `202610060004_account_state_transitions.sql`,
+   `202610060005_account_notifications_realtime.sql`, and
+   `202610060006_notification_email_verification.sql`. If migration 017 was
+   applied before older Auth users were created, rerun its updated version
+   before applying the new migrations; it backfills missing profiles as pending,
+   inactive Employees.
    For a new project, run the complete `supabase/schema.sql` script. It notifies
    PostgREST to reload its schema cache after all tables and functions are created.
 3. Review RLS and Storage policies in the Dashboard. Do not enable broad anonymous read access to reports, requests, user profiles, notifications, or photos.
-4. For self-registration, apply `202610050017_user_registration_approval.sql` before opening registration. Configure Supabase Auth email confirmation and allowed redirect URLs for each app origin. New registrations receive the fixed Employee role and remain inactive until an Admin approves them in User Management; assign elevated roles only during that review. Never trust client-submitted roles.
+4. For self-registration, apply the registration and account-flow migrations before opening registration. In **Authentication → Providers → Email**, turn **Confirm email** off, then save. New registrations receive the fixed Employee role and remain inactive until an Admin approves them in User Management; assign elevated roles only during that review. Never trust client-submitted roles.
 5. Configure Cloudflare Turnstile with the production host name.
 
 ## 2. Set frontend environment variables
@@ -42,6 +49,7 @@ production environment, configure:
 | `VITE_SUPABASE_URL` | Public Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase publishable/anon key; RLS must remain enabled |
 | `VITE_TURNSTILE_SITE_KEY` | Public Cloudflare Turnstile site key |
+| `VITE_ALLOWED_EMAIL_DOMAINS` | Comma-separated allowed domains shown in registration UX; align with `public.account_security_settings` in Supabase |
 | `VITE_ERROR_REPORT_URL` | Optional public HTTPS error-ingestion endpoint; no credential belongs in this variable |
 | `VITE_SMS_NOTIFICATIONS_ENABLED` | `true` only when the server-side SMS provider is configured |
 | `VITE_DEMO_MODE` | Keep `false` in production |
@@ -68,6 +76,8 @@ supabase secrets set PUBLIC_APP_ORIGINS=https://unifix.example.edu
 supabase secrets set NOTIFICATION_WEBHOOK_SECRET=replace-with-a-long-random-secret
 supabase secrets set RESEND_API_KEY=your-resend-key
 supabase secrets set NOTIFICATION_FROM_EMAIL="UNIFIX <notifications@example.edu>"
+supabase secrets set ADMIN_APP_ORIGINS=https://unifix.example.edu
+supabase secrets set NOTIFICATION_APP_ORIGINS=https://unifix.example.edu
 ```
 
 Optional SMS settings (only if SMS is enabled):
@@ -84,7 +94,17 @@ supabase functions deploy submit-public-report
 supabase functions deploy track-report
 supabase functions deploy swift-worker
 supabase functions deploy deliver-notification
+supabase functions deploy admin-create-user
+supabase functions deploy notification-email-verification
 ```
+
+Turn off sign-up confirmation in **Authentication → Providers → Email → Confirm email**.
+New registrations then use email as their login ID without requiring an Auth
+confirmation message. Users who opt into work-update emails must separately
+verify a notification address from **Settings**. The verification function
+requires the existing Resend settings above and exact frontend origins. The
+registration email is still the account's sign-in ID; this setting does not
+verify or change that ID.
 
 `submit-public-report`, `track-report`, and `swift-worker` validate the
 request origin, bound request sizes, and use database-backed rate limits. The

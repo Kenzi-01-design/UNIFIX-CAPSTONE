@@ -210,7 +210,11 @@ import SettingsView from './views/SettingsView.vue';
 const AdminView = defineAsyncComponent(() => import('./views/AdminView.vue'));
 const EvaluationView = defineAsyncComponent(() => import('./views/EvaluationView.vue'));
 
-const { currentRole, activeUserName, activeUserEmail, isAuthenticated, logout, loadSettings } = useAuth();
+const {
+  currentRole, activeUserName, activeUserEmail, authNotice, passwordRecoveryMode,
+  verifyNotificationEmail,
+  isAuthenticated, logout, loadSettings
+} = useAuth();
 const {
   reports,
   loadReports,
@@ -306,6 +310,12 @@ async function refreshAuthenticatedData() {
 }
 
 let activeIdentity = '';
+watch(authNotice, (message) => {
+  if (message) publicPage.value = 'login';
+});
+watch(passwordRecoveryMode, (recovering) => {
+  if (recovering) publicPage.value = 'login';
+});
 watch([isAuthenticated, currentRole, activeUserEmail], ([authenticated, role, email]) => {
   const nextIdentity = authenticated ? `${email.toLowerCase()}|${role}` : '';
   if (activeIdentity && activeIdentity !== nextIdentity) {
@@ -353,6 +363,7 @@ const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scro
 
 onMounted(() => {
   activityEvents.forEach((event) => window.addEventListener(event, resetInactivityTimer, { passive: true }));
+  void completeNotificationEmailVerification();
 });
 
 onBeforeUnmount(() => {
@@ -362,6 +373,22 @@ onBeforeUnmount(() => {
   stopRequestsSubscription();
   stopNotifications();
 });
+
+async function completeNotificationEmailVerification() {
+  const url = new URL(window.location.href);
+  const token = url.searchParams.get('verify-notification-email');
+  if (!token) return;
+  url.searchParams.delete('verify-notification-email');
+  window.history.replaceState({}, '', url);
+  try {
+    const email = await verifyNotificationEmail(token);
+    window.dispatchEvent(new CustomEvent('notification-email-verified', { detail: { email } }));
+    showToast('Notification email verified. Email updates are still off until you enable and save them in Settings.', 'success');
+  } catch (error) {
+    console.error('Notification email verification failed.', error);
+    showToast(error.message || 'This verification link is invalid or expired. Request a new one in Settings.', 'error');
+  }
+}
 
 function navigateTo(view) {
   if (!canAccessView(currentRole.value, view)) {

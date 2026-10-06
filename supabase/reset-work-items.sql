@@ -56,12 +56,13 @@ delete from public.reports;
 delete from public.requests;
 
 insert into public.user_profiles (
-  id, name, email, role, department, phone, location, is_active, registration_status
+  id, auth_user_id, name, email, role, department, phone, location, is_active, registration_status
 )
 select
   auth_user.id::text,
+  auth_user.id,
   left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'name'), ''), 'New User'), 120),
-  lower(auth_user.email),
+  lower(btrim(auth_user.email)),
   'Employee',
   left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'department'), ''), ''), 160),
   left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'phone'), ''), ''), 40),
@@ -73,7 +74,11 @@ where auth_user.email is not null
   and not exists (
     select 1
     from public.user_profiles profile
-    where lower(profile.email) = lower(auth_user.email)
+    where profile.auth_user_id = auth_user.id
+       or (
+         profile.auth_user_id is null
+         and lower(btrim(profile.email)) = lower(btrim(auth_user.email))
+       )
   )
 on conflict (email) do nothing;
 

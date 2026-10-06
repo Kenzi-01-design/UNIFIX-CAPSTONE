@@ -51,6 +51,7 @@
 
     create table if not exists public.user_profiles (
         id text primary key,
+        auth_user_id uuid unique references auth.users(id) on delete cascade,
         name text not null,
         email text not null unique,
         role text not null check (role in ('Admin', 'Assistant', 'Employee', 'Student', 'Personnel')),
@@ -60,19 +61,50 @@
         is_active boolean not null default true,
         registration_status text not null default 'approved'
           check (registration_status in ('pending', 'approved', 'rejected')),
+        rejection_reason text,
         created_at timestamptz not null default now(),
         updated_at timestamptz not null default now()
         );
+    create table if not exists public.account_audit_log (
+      id bigint generated always as identity primary key,
+      actor_auth_user_id uuid,
+      actor_email text not null,
+      action text not null,
+      target_auth_user_id uuid,
+      target_email text,
+      details jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now()
+    );
+    create index if not exists account_audit_log_created_at_idx
+      on public.account_audit_log (created_at desc);
+    create index if not exists account_audit_log_target_idx
+      on public.account_audit_log (target_auth_user_id, created_at desc);
+    alter table public.user_profiles
+      add column if not exists auth_user_id uuid references auth.users(id) on delete cascade;
+    alter table public.user_profiles
+      add column if not exists rejection_reason text;
+    create unique index if not exists user_profiles_auth_user_id_uidx
+      on public.user_profiles (auth_user_id) where auth_user_id is not null;
     alter table public.user_profiles
       add column if not exists registration_status text not null default 'approved'
       check (registration_status in ('pending', 'approved', 'rejected'));
+
+    create table if not exists public.account_security_settings (
+      singleton boolean primary key default true check (singleton),
+      allowed_email_domains text[] not null default array['nvsu.edu.ph']::text[],
+      updated_at timestamptz not null default now()
+    );
+    insert into public.account_security_settings (singleton, allowed_email_domains)
+      values (true, array['nvsu.edu.ph']::text[]) on conflict (singleton) do nothing;
 
     -- Per-user UI preferences belong on the server too.  Keeping these separate
     -- from the identity profile makes it safe to extend them without granting
     -- users permission to change their role or department.
     create table if not exists public.user_preferences (
         user_email text primary key,
-        email_notifications boolean not null default true,
+        email_notifications boolean not null default false,
+        notification_email text,
+        notification_email_verified boolean not null default false,
         inapp_notifications boolean not null default true,
         urgent_alerts boolean not null default false,
         landing_page text not null default 'dashboard',
@@ -138,6 +170,12 @@
     alter table public.login_events enable row level security;
         alter table public.user_profiles enable row level security;
         alter table public.user_preferences enable row level security;
+        alter table public.account_security_settings enable row level security;
+        alter table public.account_audit_log enable row level security;
+        revoke all on public.account_security_settings from public, anon, authenticated;
+        revoke all on public.account_audit_log from public, anon, authenticated;
+        grant select on public.account_audit_log to authenticated;
+        grant insert, select on public.account_audit_log to service_role;
         -- Role lookup runs with the function owner's privileges to avoid recursive RLS checks.
         create or replace function public.current_user_role()
         returns text
@@ -149,12 +187,44 @@
             select role
             from public.user_profiles
             where is_active
-                and lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+                and registration_status = 'approved'
+                and (
+                  auth_user_id = auth.uid()
+                  or (
+                    auth_user_id is null
+                    and lower(btrim(email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', '')))
+                  )
+                )
+            order by (auth_user_id = auth.uid()) desc nulls last
             limit 1;
         $$;
 
         revoke all on function public.current_user_role() from public;
         grant execute on function public.current_user_role() to authenticated;
+
+        create or replace function public.current_user_profile_name()
+        returns text
+        language sql
+        stable
+        security definer
+        set search_path = public
+        as $$
+            select name
+            from public.user_profiles
+            where is_active
+              and registration_status = 'approved'
+              and (
+                auth_user_id = auth.uid()
+                or (
+                  auth_user_id is null
+                  and lower(btrim(email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', '')))
+                )
+              )
+            order by (auth_user_id = auth.uid()) desc nulls last
+            limit 1;
+        $$;
+        revoke all on function public.current_user_profile_name() from public, anon;
+        grant execute on function public.current_user_profile_name() to authenticated;
 
         drop policy if exists "Allow demo report access" on public.reports;
         drop policy if exists "Allow demo request access" on public.requests;
@@ -178,19 +248,25 @@
         drop policy if exists "Users can update own profile" on public.user_profiles;
         drop policy if exists "Admins can manage profiles" on public.user_profiles;
         drop policy if exists "Users can manage own preferences" on public.user_preferences;
+        drop policy if exists "No client access to account security settings" on public.account_security_settings;
+        create policy "No client access to account security settings" on public.account_security_settings
+            for all to anon, authenticated using (false) with check (false);
+        drop policy if exists "Admins can read account audit log" on public.account_audit_log;
+        create policy "Admins can read account audit log" on public.account_audit_log
+            for select to authenticated using (public.current_user_role() = 'Admin');
 
         create policy "Authenticated users can read reports" on public.reports
             for select to authenticated
             using (
                 public.current_user_role() in ('Admin', 'Assistant', 'Personnel')
-                or lower(reporter) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+                or lower(reporter) = lower(public.current_user_profile_name())
             );
 
         create policy "Users can create own reports" on public.reports
             for insert to authenticated
             with check (
                 public.current_user_role() in ('Admin', 'Assistant', 'Employee', 'Student', 'Personnel')
-                and lower(reporter) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+                and lower(reporter) = lower(public.current_user_profile_name())
             );
 
         create policy "Admins can manage reports" on public.reports
@@ -204,14 +280,14 @@
                 public.current_user_role() = 'Personnel'
                 and exists (
                   select 1 from jsonb_array_elements_text(assigned_personnel) as assigned(name)
-                  where lower(assigned.name) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+                  where lower(assigned.name) = lower(public.current_user_profile_name())
                 )
             )
             with check (
                 public.current_user_role() = 'Personnel'
                 and exists (
                   select 1 from jsonb_array_elements_text(assigned_personnel) as assigned(name)
-                  where lower(assigned.name) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+                  where lower(assigned.name) = lower(public.current_user_profile_name())
                 )
             );
 
@@ -223,17 +299,17 @@
                                     public.current_user_role() = 'Personnel'
                                     and exists (
                                         select 1 from jsonb_array_elements_text(assigned_personnel) as assigned(name)
-                                        where lower(assigned.name) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+                                        where lower(assigned.name) = lower(public.current_user_profile_name())
                                     )
                                 )
-                or lower(requester) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+                or lower(requester) = lower(public.current_user_profile_name())
             );
 
         create policy "Users can create own requests" on public.requests
             for insert to authenticated
             with check (
                 public.current_user_role() in ('Admin', 'Employee')
-                and lower(requester) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+                and lower(requester) = lower(public.current_user_profile_name())
             );
 
         create policy "Users can submit feedback on own requests" on public.requests
@@ -241,12 +317,12 @@
             using (
                 public.current_user_role() = 'Employee'
                 and status = 'action-taken'
-                and lower(requester) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+                and lower(requester) = lower(public.current_user_profile_name())
             )
             with check (
                 public.current_user_role() = 'Employee'
                 and status = 'action-taken'
-                and lower(requester) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+                and lower(requester) = lower(public.current_user_profile_name())
             );
 
         create policy "Personnel can update assigned requests" on public.requests
@@ -255,14 +331,14 @@
                 public.current_user_role() = 'Personnel'
                 and exists (
                     select 1 from jsonb_array_elements_text(assigned_personnel) as assigned(name)
-                    where lower(assigned.name) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+                    where lower(assigned.name) = lower(public.current_user_profile_name())
                 )
             )
             with check (
                 public.current_user_role() = 'Personnel'
                 and exists (
                     select 1 from jsonb_array_elements_text(assigned_personnel) as assigned(name)
-                    where lower(assigned.name) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+                    where lower(assigned.name) = lower(public.current_user_profile_name())
                 )
             );
 
@@ -291,7 +367,7 @@
                 -- report content and reporter identity remain immutable.
                 if not exists (
                     select 1 from jsonb_array_elements_text(old.assigned_personnel) as assigned(name)
-                    where lower(assigned.name) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+                    where lower(assigned.name) = lower(public.current_user_profile_name())
                   )
                   or new.assigned_to is distinct from old.assigned_to
                   or new.assigned_personnel is distinct from old.assigned_personnel
@@ -310,7 +386,7 @@
             elsif public.current_user_role() = 'Personnel' and tg_table_name = 'requests' then
                 if not exists (
                     select 1 from jsonb_array_elements_text(old.assigned_personnel) as assigned(name)
-                    where lower(assigned.name) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+                    where lower(assigned.name) = lower(public.current_user_profile_name())
                   )
                   or new.assigned_to is distinct from old.assigned_to
                   or new.assigned_personnel is distinct from old.assigned_personnel
@@ -319,7 +395,7 @@
                             <> to_jsonb(old) - array['technician_state', 'assignment_note', 'completion_photo'] then
                     raise exception 'Personnel may update only the state of requests assigned to them';
                 end if;
-            elsif public.current_user_role() <> 'Admin' then
+            elsif public.current_user_role() is distinct from 'Admin' then
                 raise exception 'This role cannot update this record';
             end if;
             return new;
@@ -344,15 +420,24 @@
 
         create policy "Users can read own profile" on public.user_profiles
             for select to authenticated
-            using (lower(email) = lower(auth.jwt() ->> 'email'));
+            using (
+              auth_user_id = auth.uid()
+              or (auth_user_id is null and lower(btrim(email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', ''))))
+            );
 
         -- A user may maintain only their contact details.  The trigger below
         -- prevents privilege fields from being changed even if a client submits
         -- a broader update payload.
         create policy "Users can update own profile" on public.user_profiles
             for update to authenticated
-            using (lower(email) = lower(auth.jwt() ->> 'email'))
-            with check (lower(email) = lower(auth.jwt() ->> 'email'));
+            using (
+              auth_user_id = auth.uid()
+              or (auth_user_id is null and lower(btrim(email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', ''))))
+            )
+            with check (
+              auth_user_id = auth.uid()
+              or (auth_user_id is null and lower(btrim(email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', ''))))
+            );
 
         create policy "Admins can manage profiles" on public.user_profiles
             for all to authenticated
@@ -380,10 +465,37 @@
         security definer
         set search_path = public
         as $$
+        declare
+          bootstrap_call boolean := coalesce(current_setting('unifix.first_admin_bootstrap', true) = 'on', false)
+          and not exists (
+            select 1 from public.user_profiles
+            where role = 'Admin' and is_active
+          );
+          email_sync_call boolean;
         begin
-          if public.current_user_role() <> 'Admin' then
+          email_sync_call :=
+          coalesce(current_setting('unifix.auth_email_sync_user_id', true) = new.auth_user_id::text, false)
+          and old.auth_user_id is null
+          and new.auth_user_id is not null
+          and new.id = old.id
+          and new.name = old.name
+          and new.role = old.role
+          and new.department = old.department
+          and new.phone = old.phone
+          and new.location = old.location
+          and new.is_active = old.is_active
+          and new.registration_status = old.registration_status
+          and new.rejection_reason is not distinct from old.rejection_reason;
+          if coalesce(auth.role(), '') <> 'service_role'
+          and public.current_user_role() is distinct from 'Admin'
+          and not bootstrap_call
+          and not email_sync_call then
             if new.id <> old.id
-              or new.email <> old.email
+              or new.auth_user_id is distinct from old.auth_user_id
+              or (
+                new.email is distinct from old.email
+                and not (old.auth_user_id = auth.uid() and new.auth_user_id = old.auth_user_id)
+              )
               or new.role <> old.role
               or new.department <> old.department
               or new.is_active <> old.is_active
@@ -418,20 +530,13 @@
         as $$
         begin
           if new.email is not null then
-            if exists (
-              select 1
-              from public.user_profiles profile
-              where lower(profile.email) = lower(new.email)
-                and profile.id <> new.id::text
-            ) then
-              raise exception 'A university profile already exists for this email address';
-            end if;
             insert into public.user_profiles (
-              id, name, email, role, department, phone, location, is_active, registration_status
+              id, auth_user_id, name, email, role, department, phone, location, is_active, registration_status
             ) values (
               new.id::text,
+              new.id,
               left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'name'), ''), 'New User'), 120),
-              lower(new.email),
+              lower(btrim(new.email)),
               'Employee',
               left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'department'), ''), ''), 160),
               left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'phone'), ''), ''), 40),
@@ -439,17 +544,131 @@
               false,
               'pending'
             )
-            on conflict (email) do nothing;
+            on conflict (email) do update
+              set auth_user_id = excluded.auth_user_id,
+                  role = 'Employee',
+                  is_active = false,
+                  registration_status = 'pending',
+                  updated_at = now()
+              where public.user_profiles.auth_user_id is null
+                 or public.user_profiles.auth_user_id = excluded.auth_user_id;
           end if;
           return new;
         end;
         $$;
+
+        create or replace function public.is_university_email_allowed(p_email text)
+        returns boolean
+        language sql
+        stable
+        security definer
+        set search_path = public
+        as $$
+          select exists (
+            select 1
+            from public.account_security_settings settings
+            cross join lateral unnest(settings.allowed_email_domains) allowed(domain)
+            where settings.singleton
+              and lower(btrim(coalesce(p_email, ''))) ~ '^[^[:space:]@]+@[^[:space:]@]+$'
+              and lower(split_part(btrim(p_email), '@', 2)) = lower(btrim(allowed.domain))
+          );
+        $$;
+        revoke all on function public.is_university_email_allowed(text) from public, anon, authenticated;
+
+        create or replace function public.enforce_university_email_domain()
+        returns trigger
+        language plpgsql
+        security definer
+        set search_path = public
+        as $$
+        begin
+          if new.email is not null and not public.is_university_email_allowed(new.email) then
+            raise exception 'Registration is only available to approved university email domains.';
+          end if;
+          return new;
+        end;
+        $$;
+        revoke all on function public.enforce_university_email_domain() from public, anon, authenticated;
+        drop trigger if exists enforce_university_email_domain on auth.users;
+        create trigger enforce_university_email_domain
+          before insert or update of email on auth.users
+          for each row execute function public.enforce_university_email_domain();
 
         revoke all on function public.handle_new_user_registration() from public, anon, authenticated;
         drop trigger if exists on_auth_user_registered on auth.users;
         create trigger on_auth_user_registered
           after insert on auth.users
           for each row execute function public.handle_new_user_registration();
+
+        create or replace function public.sync_user_profile_email_from_auth()
+        returns trigger
+        language plpgsql
+        security definer
+        set search_path = public
+        as $$
+        begin
+          if new.email is distinct from old.email then
+            perform set_config('unifix.auth_email_sync_user_id', new.id::text, true);
+            update public.user_profiles
+            set email = lower(btrim(new.email)),
+                auth_user_id = new.id
+            where auth_user_id = new.id
+               or (auth_user_id is null and lower(btrim(email)) = lower(btrim(old.email)));
+            perform set_config('unifix.auth_email_sync_user_id', 'off', true);
+          end if;
+          return new;
+        end;
+        $$;
+        revoke all on function public.sync_user_profile_email_from_auth() from public, anon, authenticated;
+        drop trigger if exists sync_user_profile_email_from_auth on auth.users;
+        create trigger sync_user_profile_email_from_auth
+          after update of email on auth.users
+          for each row execute function public.sync_user_profile_email_from_auth();
+
+        with candidates as (
+          select auth_user.id as auth_id, profile.id as profile_id,
+            row_number() over (
+              partition by auth_user.id order by profile.created_at nulls last, profile.id
+            ) as candidate_rank
+          from auth.users auth_user
+          join public.user_profiles profile
+            on lower(btrim(profile.email)) = lower(btrim(auth_user.email))
+          where profile.auth_user_id is null
+        )
+        update public.user_profiles profile
+        set auth_user_id = candidates.auth_id
+        from candidates
+        where candidates.candidate_rank = 1
+          and profile.id = candidates.profile_id
+          and not exists (
+            select 1 from public.user_profiles linked
+            where linked.auth_user_id = candidates.auth_id
+          );
+
+        insert into public.user_profiles (
+          id, auth_user_id, name, email, role, department, phone, location,
+          is_active, registration_status
+        )
+        select
+          auth_user.id::text,
+          auth_user.id,
+          left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'name'), ''), 'New User'), 120),
+          lower(btrim(auth_user.email)),
+          'Employee',
+          left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'department'), ''), ''), 160),
+          left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'phone'), ''), ''), 40),
+          left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'location'), ''), 'Main Campus'), 160),
+          false,
+          'pending'
+        from auth.users auth_user
+        where auth_user.email is not null
+          and not exists (
+            select 1 from public.user_profiles profile
+            where profile.auth_user_id = auth_user.id
+               or (profile.auth_user_id is null
+                   and lower(btrim(profile.email)) = lower(btrim(auth_user.email)))
+          )
+        on conflict do nothing;
 
         revoke all on function public.enforce_profile_update_scope() from public;
         grant execute on function public.enforce_profile_update_scope() to authenticated;
@@ -592,7 +811,7 @@ begin
   elsif public.current_user_role() = 'Personnel' and tg_table_name = 'reports' then
     if not exists (
       select 1 from jsonb_array_elements_text(old.assigned_personnel) as assigned(name)
-      where lower(assigned.name) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+      where lower(assigned.name) = lower(public.current_user_profile_name())
     )
     or new.assigned_to is distinct from old.assigned_to
     or new.assigned_personnel is distinct from old.assigned_personnel
@@ -611,7 +830,7 @@ begin
   elsif public.current_user_role() = 'Personnel' and tg_table_name = 'requests' then
     if not exists (
       select 1 from jsonb_array_elements_text(old.assigned_personnel) as assigned(name)
-      where lower(assigned.name) = lower((select name from public.user_profiles where lower(email) = lower(auth.jwt() ->> 'email') limit 1))
+      where lower(assigned.name) = lower(public.current_user_profile_name())
     )
     or new.assigned_to is distinct from old.assigned_to
     or new.assigned_personnel is distinct from old.assigned_personnel
@@ -650,7 +869,9 @@ create policy "Reporters can submit feedback for their completed reports" on pub
       where r.id = report_id
         and lower(r.reporter) = lower((
           select profile.name from public.user_profiles profile
-          where lower(profile.email) = lower(auth.jwt() ->> 'email') limit 1
+          where profile.auth_user_id = auth.uid()
+             or (profile.auth_user_id is null and lower(btrim(profile.email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', ''))))
+          limit 1
         ))
         and (r.status = 'resolved' or r.technician_state = 'completed')
     )
@@ -931,6 +1152,8 @@ $$;
 revoke all on function public.create_work_item_notification(text, text, text, text, text, text, text, text)
   from public, anon, authenticated;
 
+notify pgrst, 'reload schema';
+
 create or replace function public.notify_work_item_staff(
   p_event_type text,
   p_title text,
@@ -1113,7 +1336,9 @@ begin
       select 1 from jsonb_array_elements_text(old.assigned_personnel) assigned(name)
       where lower(assigned.name) = lower((
         select profile.name from public.user_profiles profile
-        where lower(profile.email) = lower(auth.jwt() ->> 'email') limit 1
+        where profile.auth_user_id = auth.uid()
+           or (profile.auth_user_id is null and lower(btrim(profile.email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', ''))))
+        limit 1
       ))
     ) or new.assigned_to is distinct from old.assigned_to
       or new.assigned_personnel is distinct from old.assigned_personnel
@@ -1868,7 +2093,8 @@ create policy "Users can create own reports" on public.reports
     public.current_user_role() in ('Admin', 'Assistant', 'Employee', 'Student', 'Personnel')
     and lower(reporter) = lower((
       select name from public.user_profiles
-      where lower(email) = lower(auth.jwt() ->> 'email')
+      where auth_user_id = auth.uid()
+         or (auth_user_id is null and lower(btrim(email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', ''))))
       limit 1
     ))
     and status = 'pending'
@@ -1888,7 +2114,8 @@ create policy "Users can create own requests" on public.requests
     public.current_user_role() in ('Admin', 'Employee')
     and lower(requester) = lower((
       select name from public.user_profiles
-      where lower(email) = lower(auth.jwt() ->> 'email')
+      where auth_user_id = auth.uid()
+         or (auth_user_id is null and lower(btrim(email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', ''))))
       limit 1
     ))
     and status = 'submitted'
@@ -1926,7 +2153,8 @@ create policy "Staff can read report photos" on storage.objects
             end
             and lower(assigned.personnel_name) = lower((
               select profile.name from public.user_profiles profile
-              where lower(profile.email) = lower(auth.jwt() ->> 'email')
+              where profile.auth_user_id = auth.uid()
+                 or (profile.auth_user_id is null and lower(btrim(profile.email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', ''))))
               limit 1
             ))
           )
@@ -1945,7 +2173,8 @@ create policy "Staff can read report photos" on storage.objects
             end
             and lower(assigned.personnel_name) = lower((
               select profile.name from public.user_profiles profile
-              where lower(profile.email) = lower(auth.jwt() ->> 'email')
+              where profile.auth_user_id = auth.uid()
+                 or (profile.auth_user_id is null and lower(btrim(profile.email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', ''))))
               limit 1
             ))
           )
@@ -2084,14 +2313,16 @@ create policy "Authenticated users can read reports" on public.reports
         ) as assigned(name)
         where lower(assigned.name) = lower((
           select name from public.user_profiles
-          where lower(email) = lower(auth.jwt() ->> 'email')
+          where auth_user_id = auth.uid()
+             or (auth_user_id is null and lower(btrim(email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', ''))))
           limit 1
         ))
       )
     )
     or lower(reporter) = lower((
       select name from public.user_profiles
-      where lower(email) = lower(auth.jwt() ->> 'email')
+      where auth_user_id = auth.uid()
+         or (auth_user_id is null and lower(btrim(email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', ''))))
       limit 1
     ))
   );
@@ -2111,6 +2342,7 @@ as $$
       select count(*) = 1
       from public.user_profiles profile
       where profile.is_active
+        and profile.registration_status = 'approved'
         and profile.role = 'Personnel'
         and lower(btrim(profile.name)) = lower(btrim(coalesce(p_name, '')))
     )
@@ -2118,8 +2350,15 @@ as $$
       select 1
       from public.user_profiles profile
       where profile.is_active
+        and profile.registration_status = 'approved'
         and profile.role = 'Personnel'
-        and lower(profile.email) = lower(auth.jwt() ->> 'email')
+        and (
+          profile.auth_user_id = auth.uid()
+          or (
+            profile.auth_user_id is null
+            and lower(btrim(profile.email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', '')))
+          )
+        )
         and lower(btrim(profile.name)) = lower(btrim(coalesce(p_name, '')))
     );
 $$;
@@ -2467,4 +2706,784 @@ create index if not exists user_profiles_active_role_idx
 create index if not exists user_profiles_email_lower_idx
   on public.user_profiles (lower(email));
 
+create table if not exists public.account_reapplication_requests (
+  auth_user_id uuid primary key references auth.users(id) on delete cascade,
+  profile_id text references public.user_profiles(id) on delete cascade,
+  requested_at timestamptz not null default now(),
+  reviewed_at timestamptz
+);
+alter table public.account_reapplication_requests
+  add column if not exists profile_id text;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.account_reapplication_requests'::regclass
+      and conname = 'account_reapplication_requests_profile_id_fkey'
+  ) then
+    alter table public.account_reapplication_requests
+      add constraint account_reapplication_requests_profile_id_fkey
+      foreign key (profile_id) references public.user_profiles(id) on delete cascade;
+  end if;
+end;
+$$;
+create index if not exists account_reapplication_requests_profile_id_idx
+  on public.account_reapplication_requests (profile_id);
+update public.account_reapplication_requests request
+set profile_id = profile.id
+from public.user_profiles profile
+where request.profile_id is null
+  and request.auth_user_id = profile.auth_user_id;
+alter table public.account_reapplication_requests enable row level security;
+revoke all on public.account_reapplication_requests from public, anon, authenticated;
+grant select on public.account_reapplication_requests to authenticated;
+drop policy if exists "Admins can read reapplication requests" on public.account_reapplication_requests;
+create policy "Admins can read reapplication requests" on public.account_reapplication_requests
+  for select to authenticated
+  using (public.current_user_role() = 'Admin');
+
+drop policy if exists "Admins can manage profiles" on public.user_profiles;
+drop policy if exists "Admins can read all profiles" on public.user_profiles;
+create policy "Admins can read all profiles" on public.user_profiles
+  for select to authenticated
+  using (public.current_user_role() = 'Admin');
+drop policy if exists "Admins can update profiles" on public.user_profiles;
+create policy "Admins can update profiles" on public.user_profiles
+  for update to authenticated
+  using (public.current_user_role() = 'Admin')
+  with check (public.current_user_role() = 'Admin');
+revoke insert, delete on public.user_profiles from public, anon, authenticated;
+grant select, update on public.user_profiles to authenticated;
+
+create or replace function public.request_registration_reapplication()
+returns timestamptz
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  profile_status text;
+  profile_id text;
+  request_timestamp timestamptz;
+begin
+  if auth.uid() is null then raise exception 'Sign in to request a new application review.'; end if;
+  select id, registration_status into profile_id, profile_status
+  from public.user_profiles
+  where auth_user_id = auth.uid()
+     or (auth_user_id is null
+         and lower(btrim(email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', ''))))
+  order by (auth_user_id = auth.uid()) desc nulls last
+  limit 1;
+  if profile_status is distinct from 'rejected' then
+    raise exception 'Only rejected applications may request a new review.';
+  end if;
+  insert into public.account_reapplication_requests (auth_user_id, profile_id, requested_at, reviewed_at)
+  values (auth.uid(), profile_id, now(), null)
+  on conflict (auth_user_id) do update
+    set profile_id = excluded.profile_id, requested_at = now(), reviewed_at = null
+    where public.account_reapplication_requests.requested_at <= now() - interval '30 days'
+  returning requested_at into request_timestamp;
+  if request_timestamp is null then
+    raise exception 'You may request another application review once every 30 days.';
+  end if;
+  return request_timestamp;
+end;
+$$;
+revoke all on function public.request_registration_reapplication() from public, anon;
+grant execute on function public.request_registration_reapplication() to authenticated;
+
+create or replace function public.reopen_rejected_registration(p_profile_id text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if public.current_user_role() is distinct from 'Admin' then
+    raise exception 'Only an active Admin may reopen an application.';
+  end if;
+  if not exists (
+    select 1 from public.account_reapplication_requests
+    where profile_id = p_profile_id and reviewed_at is null
+  ) then
+    raise exception 'The applicant must request a new review before the application is reopened.';
+  end if;
+  perform set_config('unifix.admin_reopen', 'on', true);
+  update public.user_profiles
+  set registration_status = 'pending', is_active = false,
+      rejection_reason = null, updated_at = now()
+  where id = p_profile_id and registration_status = 'rejected';
+  if not found then raise exception 'This application is no longer rejected.'; end if;
+  perform set_config('unifix.admin_reopen', 'off', true);
+  update public.account_reapplication_requests
+  set reviewed_at = now()
+  where profile_id = p_profile_id;
+end;
+$$;
+revoke all on function public.reopen_rejected_registration(text) from public, anon;
+grant execute on function public.reopen_rejected_registration(text) to authenticated;
+
+create or replace function public.enforce_user_profile_state_transition()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  service_call boolean := coalesce(auth.role(), '') = 'service_role';
+  admin_call boolean := public.current_user_role() = 'Admin';
+  bootstrap_call boolean := coalesce(current_setting('unifix.first_admin_bootstrap', true) = 'on', false)
+    and not exists (
+      select 1 from public.user_profiles
+      where role = 'Admin' and is_active
+    );
+  email_sync_call boolean;
+  other_active_admins bigint;
+begin
+  email_sync_call :=
+    coalesce(current_setting('unifix.auth_email_sync_user_id', true) = new.auth_user_id::text, false)
+    and old.auth_user_id is null
+    and new.auth_user_id is not null
+    and new.id = old.id
+    and new.name = old.name
+    and new.role = old.role
+    and new.department = old.department
+    and new.phone = old.phone
+    and new.location = old.location
+    and new.is_active = old.is_active
+    and new.registration_status = old.registration_status
+    and new.rejection_reason is not distinct from old.rejection_reason;
+  if not service_call and not admin_call and not bootstrap_call then
+    if new.role is distinct from old.role
+      or new.is_active is distinct from old.is_active
+      or new.registration_status is distinct from old.registration_status
+      or new.rejection_reason is distinct from old.rejection_reason then
+      raise exception 'Only an active Admin may change account access or registration state.';
+    end if;
+    return new;
+  end if;
+  if new.auth_user_id is distinct from old.auth_user_id then
+    if not email_sync_call then
+      raise exception 'The Auth user link cannot be changed.';
+    end if;
+  end if;
+
+  if new.registration_status is distinct from old.registration_status then
+    if old.registration_status = 'pending' and new.registration_status = 'approved' then
+      if not new.is_active or new.role not in ('Admin', 'Assistant', 'Employee', 'Personnel')
+        or new.rejection_reason is not null then
+        raise exception 'Approved registrations must have an allowed role and active access.';
+      end if;
+    elsif old.registration_status = 'pending' and new.registration_status = 'rejected' then
+      if new.is_active or nullif(btrim(new.rejection_reason), '') is null then
+        raise exception 'A rejection reason is required and rejected accounts must remain inactive.';
+      end if;
+    elsif old.registration_status = 'rejected' and new.registration_status = 'pending' then
+      if not admin_call or current_setting('unifix.admin_reopen', true) is distinct from 'on'
+        or new.is_active or new.rejection_reason is not null then
+        raise exception 'Rejected applications may be reopened only by an Admin action.';
+      end if;
+    else
+      raise exception 'This registration status transition is not allowed.';
+    end if;
+  elsif new.registration_status = 'pending' then
+    if new.role is distinct from old.role or new.is_active or new.rejection_reason is not null then
+      raise exception 'Pending accounts must remain inactive and cannot be reassigned before approval.';
+    end if;
+  elsif new.registration_status = 'rejected' then
+    if new.role is distinct from old.role or new.is_active then
+      raise exception 'Rejected accounts must remain inactive with their assigned role unchanged.';
+    end if;
+  elsif new.registration_status = 'approved' then
+    if new.rejection_reason is not null then raise exception 'Approved accounts cannot have a rejection reason.'; end if;
+    if new.role not in ('Admin', 'Assistant', 'Employee', 'Personnel') then
+      raise exception 'Choose a valid university role.';
+    end if;
+  end if;
+
+  if old.role = 'Admin' and old.is_active
+    and (new.role is distinct from 'Admin' or not new.is_active) then
+    if old.auth_user_id = auth.uid()
+      or (old.auth_user_id is null
+          and lower(btrim(old.email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', '')))) then
+      raise exception 'You cannot deactivate or demote your own Admin account.';
+    end if;
+    perform pg_advisory_xact_lock(hashtext('unifix-active-admin-count'));
+    select count(*) into other_active_admins
+    from public.user_profiles profile
+    where profile.role = 'Admin' and profile.is_active and profile.id <> old.id;
+    if other_active_admins < 1 then
+      raise exception 'The last active Admin account cannot be deactivated or demoted.';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists enforce_user_profile_state_transition on public.user_profiles;
+create trigger enforce_user_profile_state_transition
+  before update on public.user_profiles
+  for each row execute function public.enforce_user_profile_state_transition();
+revoke all on function public.enforce_user_profile_state_transition() from public, anon, authenticated;
+
+create or replace function public.prevent_last_admin_auth_delete()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_profile public.user_profiles%rowtype;
+  other_active_admins bigint;
+begin
+  select * into target_profile
+  from public.user_profiles
+  where auth_user_id = old.id;
+  if found and target_profile.role = 'Admin' and target_profile.is_active then
+    perform pg_advisory_xact_lock(hashtext('unifix-active-admin-count'));
+    select count(*) into other_active_admins
+    from public.user_profiles profile
+    where profile.role = 'Admin'
+      and profile.is_active
+      and profile.auth_user_id is distinct from old.id;
+    if other_active_admins < 1 then
+      raise exception 'The last active Admin account cannot be deleted.';
+    end if;
+  end if;
+  return old;
+end;
+$$;
+revoke all on function public.prevent_last_admin_auth_delete() from public, anon, authenticated;
+drop trigger if exists prevent_last_admin_auth_delete on auth.users;
+create trigger prevent_last_admin_auth_delete
+  before delete on auth.users
+  for each row execute function public.prevent_last_admin_auth_delete();
+
+create or replace function public.bootstrap_first_admin(p_email text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  bootstrap_profile public.user_profiles%rowtype;
+begin
+  perform pg_advisory_xact_lock(hashtext('unifix-active-admin-count'));
+  if exists (
+    select 1 from public.user_profiles
+    where role = 'Admin' and is_active
+  ) then
+    raise exception 'An active Admin already exists.';
+  end if;
+
+  select profile.* into bootstrap_profile
+  from public.user_profiles profile
+  join auth.users auth_user on auth_user.id = profile.auth_user_id
+  where lower(btrim(profile.email)) = lower(btrim(p_email))
+    and profile.registration_status = 'pending'
+    and auth_user.email_confirmed_at is not null
+    and public.is_university_email_allowed(auth_user.email)
+  for update of profile;
+  if not found then
+    raise exception 'Choose a confirmed university account with a pending profile.';
+  end if;
+
+  perform set_config('unifix.first_admin_bootstrap', 'on', true);
+  update public.user_profiles
+  set role = 'Admin',
+      is_active = true,
+      registration_status = 'approved',
+      rejection_reason = null,
+      updated_at = now()
+  where id = bootstrap_profile.id;
+  perform set_config('unifix.first_admin_bootstrap', 'off', true);
+end;
+$$;
+revoke all on function public.bootstrap_first_admin(text) from public, anon, authenticated, service_role;
+
+create or replace function public.account_user_has_work_history(p_auth_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.user_profiles profile
+    where profile.auth_user_id = p_auth_user_id
+      and (
+        exists (
+          select 1 from public.reports report
+          where lower(coalesce(report.reporter_email, '')) = lower(profile.email)
+             or lower(report.reporter) = lower(profile.name)
+             or exists (
+               select 1 from jsonb_array_elements_text(
+                 case when jsonb_typeof(report.assigned_personnel) = 'array'
+                   then report.assigned_personnel else '[]'::jsonb end
+               ) assigned(name) where lower(assigned.name) = lower(profile.name)
+             )
+        )
+        or exists (
+          select 1 from public.requests request
+          where lower(coalesce(request.requester_email, '')) = lower(profile.email)
+             or lower(request.requester) = lower(profile.name)
+             or exists (
+               select 1 from jsonb_array_elements_text(
+                 case when jsonb_typeof(request.assigned_personnel) = 'array'
+                   then request.assigned_personnel else '[]'::jsonb end
+               ) assigned(name) where lower(assigned.name) = lower(profile.name)
+             )
+        )
+      )
+  );
+$$;
+revoke all on function public.account_user_has_work_history(uuid) from public, anon, authenticated;
+grant execute on function public.account_user_has_work_history(uuid) to service_role;
+
+create or replace function public.audit_user_profile_state_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare action_name text;
+begin
+  if coalesce(auth.role(), '') = 'service_role' then return new; end if;
+  if old.role is distinct from new.role then action_name := 'user_role_changed';
+  elsif old.registration_status is distinct from new.registration_status then
+    action_name := 'registration_' || new.registration_status;
+  elsif old.is_active is distinct from new.is_active then
+    action_name := case when new.is_active then 'user_reactivated' else 'user_deactivated' end;
+  else return new;
+  end if;
+  insert into public.account_audit_log (
+    actor_auth_user_id, actor_email, action, target_auth_user_id, target_email, details
+  ) values (
+    auth.uid(), coalesce(auth.jwt() ->> 'email', 'system'), action_name,
+    new.auth_user_id, new.email,
+    jsonb_build_object(
+      'old_role', old.role, 'new_role', new.role,
+      'old_status', old.registration_status, 'new_status', new.registration_status,
+      'old_is_active', old.is_active, 'new_is_active', new.is_active,
+      'rejection_reason', new.rejection_reason
+    )
+  );
+  return new;
+end;
+$$;
+revoke all on function public.audit_user_profile_state_change() from public, anon, authenticated;
+drop trigger if exists audit_user_profile_state_change on public.user_profiles;
+create trigger audit_user_profile_state_change
+  after update on public.user_profiles
+  for each row execute function public.audit_user_profile_state_change();
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_rel publication_table
+    join pg_class relation_row on relation_row.oid = publication_table.prrelid
+    join pg_namespace relation_schema on relation_schema.oid = relation_row.relnamespace
+    join pg_publication publication_row on publication_row.oid = publication_table.prpubid
+    where publication_row.pubname = 'supabase_realtime'
+      and relation_schema.nspname = 'public'
+      and relation_row.relname = 'user_profiles'
+  ) then
+    execute 'alter publication supabase_realtime add table public.user_profiles';
+  end if;
+end;
+$$;
+
+create or replace function public.notify_pending_account_registration()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  invited_at_value timestamptz;
+  administrator record;
+  new_user_id text := coalesce(new.auth_user_id::text, new.id);
+begin
+  if new.registration_status <> 'pending' or new.is_active then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and old.registration_status is not distinct from new.registration_status then
+    return new;
+  end if;
+  if tg_op = 'INSERT' then
+    select invited_at into invited_at_value
+    from auth.users
+    where id = new.auth_user_id;
+    if invited_at_value is not null then
+      return new;
+    end if;
+  end if;
+
+  for administrator in
+    select auth_user_id, email
+    from public.user_profiles
+    where role = 'Admin' and is_active
+  loop
+    insert into public.notifications (
+      user_email, event_type, title, message, dedupe_key
+    ) values (
+      administrator.email,
+      'account_registration_pending',
+      'New account awaiting approval',
+      new.name || ' (' || new.email || ') submitted an account registration.',
+      'account-registration-pending:' || new_user_id || ':' || coalesce(new.updated_at::text, now()::text)
+        || ':' || coalesce(administrator.auth_user_id::text, lower(administrator.email))
+    )
+    on conflict (dedupe_key) do nothing;
+  end loop;
+  return new;
+end;
+$$;
+revoke all on function public.notify_pending_account_registration() from public, anon, authenticated;
+drop trigger if exists notify_pending_account_registration on public.user_profiles;
+create trigger notify_pending_account_registration
+  after insert or update of registration_status on public.user_profiles
+  for each row execute function public.notify_pending_account_registration();
+
+create or replace function public.notify_account_registration_decision()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  event_key text;
+  notification_title text;
+  notification_message text;
+begin
+  if new.registration_status is not distinct from old.registration_status
+    or new.registration_status not in ('approved', 'rejected') then
+    return new;
+  end if;
+
+  notification_title := case
+    when new.registration_status = 'approved' then 'UNIFIX account approved'
+    else 'UNIFIX registration decision'
+  end;
+  notification_message := case
+    when new.registration_status = 'approved'
+      then 'Your UNIFIX account has been approved. You can now sign in.'
+    else 'Your UNIFIX registration was not approved.'
+      || case when nullif(btrim(new.rejection_reason), '') is null
+        then '' else ' Reason: ' || btrim(new.rejection_reason) end
+  end;
+  event_key := 'account-registration:' || coalesce(new.auth_user_id::text, new.id)
+    || ':' || new.registration_status || ':' || coalesce(new.updated_at::text, now()::text);
+
+  insert into public.notifications (
+    user_email, event_type, title, message, dedupe_key
+  ) values (
+    new.email,
+    'account_registration_' || new.registration_status,
+    notification_title,
+    notification_message,
+    event_key || ':inapp'
+  )
+  on conflict (dedupe_key) do nothing;
+
+  insert into public.notification_deliveries (
+    channel, recipient, subject, body, event_type, dedupe_key
+  ) values (
+    'email',
+    new.email,
+    notification_title,
+    notification_message,
+    'account_registration_' || new.registration_status,
+    event_key || ':email'
+  )
+  on conflict (dedupe_key) do nothing;
+  return new;
+end;
+$$;
+revoke all on function public.notify_account_registration_decision() from public, anon, authenticated;
+drop trigger if exists notify_account_registration_decision on public.user_profiles;
+create trigger notify_account_registration_decision
+  after update of registration_status on public.user_profiles
+  for each row execute function public.notify_account_registration_decision();
+
 notify pgrst, 'reload schema';
+
+alter table public.user_preferences
+  add column if not exists notification_email text,
+  add column if not exists notification_email_verified boolean not null default false;
+create extension if not exists pgcrypto with schema extensions;
+alter table public.user_preferences
+  alter column email_notifications set default false;
+update public.user_preferences
+set email_notifications = false
+where notification_email_verified = false;
+
+create table if not exists public.notification_email_verifications (
+  auth_user_id uuid primary key references auth.users(id) on delete cascade,
+  login_email text not null,
+  notification_email text not null,
+  token_hash text not null,
+  requested_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  attempt_count integer not null default 0
+);
+alter table public.notification_email_verifications enable row level security;
+revoke all on public.notification_email_verifications from public, anon, authenticated;
+grant all on public.notification_email_verifications to service_role;
+
+drop function if exists public.begin_notification_email_verification(text);
+create or replace function public.begin_notification_email_verification(p_email text, p_auth_user_id uuid)
+returns table (token text, notification_email text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_auth_user_id uuid := p_auth_user_id;
+  login_email text;
+  normalized_notification_email text := lower(btrim(coalesce(p_email, '')));
+  token_value text;
+begin
+  if coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Notification email verification must be requested through the verification service.';
+  end if;
+  select lower(btrim(auth_user.email)) into login_email
+  from auth.users auth_user
+  where auth_user.id = current_auth_user_id
+    and auth_user.email is not null;
+  if current_auth_user_id is null or login_email is null or not exists (
+    select 1 from public.user_profiles profile
+    where profile.auth_user_id = current_auth_user_id
+      and profile.is_active
+      and profile.registration_status = 'approved'
+  ) then
+    raise exception 'Sign in with an active, approved account to verify a notification email.';
+  end if;
+  if length(normalized_notification_email) > 254
+    or normalized_notification_email !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then
+    raise exception 'Enter a valid notification email address.';
+  end if;
+  if exists (
+    select 1 from public.notification_email_verifications verification
+    where verification.auth_user_id = current_auth_user_id
+      and verification.requested_at > now() - interval '1 minute'
+  ) then
+    raise exception 'Please wait one minute before requesting another verification email.';
+  end if;
+
+  token_value := replace(gen_random_uuid()::text, '-', '')
+    || replace(gen_random_uuid()::text, '-', '')
+    || replace(gen_random_uuid()::text, '-', '')
+    || replace(gen_random_uuid()::text, '-', '');
+
+  insert into public.notification_email_verifications (
+    auth_user_id, login_email, notification_email, token_hash, requested_at, expires_at, attempt_count
+  ) values (
+    current_auth_user_id,
+    login_email,
+    normalized_notification_email,
+    encode(extensions.digest(convert_to(token_value, 'UTF8'), 'sha256'), 'hex'),
+    now(),
+    now() + interval '30 minutes',
+    0
+  )
+  on conflict (auth_user_id) do update
+  set login_email = excluded.login_email,
+      notification_email = excluded.notification_email,
+      token_hash = excluded.token_hash,
+      requested_at = excluded.requested_at,
+      expires_at = excluded.expires_at,
+      attempt_count = 0;
+
+  insert into public.user_preferences (
+    user_email, notification_email, notification_email_verified, email_notifications
+  ) values (
+    login_email, normalized_notification_email, false, false
+  )
+  on conflict (user_email) do update
+  set notification_email = excluded.notification_email,
+      notification_email_verified = false,
+      email_notifications = false,
+      updated_at = now();
+
+  return query select token_value, normalized_notification_email;
+end;
+$$;
+revoke all on function public.begin_notification_email_verification(text, uuid) from public, anon, authenticated;
+grant execute on function public.begin_notification_email_verification(text, uuid) to service_role;
+
+create or replace function public.complete_notification_email_verification(p_token_hash text)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  verification public.notification_email_verifications%rowtype;
+begin
+  select * into verification
+  from public.notification_email_verifications
+  where token_hash = p_token_hash
+  for update;
+  if not found or verification.expires_at <= now() or verification.attempt_count >= 5 then
+    raise exception 'This verification link is invalid or expired. Request a new one in Settings.';
+  end if;
+
+  update public.user_preferences
+  set notification_email_verified = true,
+      email_notifications = false,
+      updated_at = now()
+  where lower(user_email) = verification.login_email
+    and lower(notification_email) = verification.notification_email;
+  if not found then
+    delete from public.notification_email_verifications
+    where auth_user_id = verification.auth_user_id;
+    raise exception 'The notification email changed. Request a new verification link in Settings.';
+  end if;
+
+  delete from public.notification_email_verifications
+  where auth_user_id = verification.auth_user_id;
+  return verification.notification_email;
+end;
+$$;
+revoke all on function public.complete_notification_email_verification(text) from public, anon, authenticated;
+grant execute on function public.complete_notification_email_verification(text) to service_role;
+
+create or replace function public.enforce_notification_email_verification()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if coalesce(auth.role(), '') <> 'service_role' then
+    if tg_op = 'INSERT' then
+      new.notification_email_verified := false;
+      if new.notification_email is not null then
+        new.email_notifications := false;
+      end if;
+      return new;
+    end if;
+    if new.notification_email_verified is distinct from old.notification_email_verified
+      and new.notification_email_verified then
+      raise exception 'Notification email verification must be completed through the verification link.';
+    end if;
+    if new.notification_email is distinct from old.notification_email then
+      new.notification_email_verified := false;
+      new.email_notifications := false;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.enforce_notification_email_verification() from public, anon, authenticated;
+drop trigger if exists enforce_notification_email_verification on public.user_preferences;
+create trigger enforce_notification_email_verification
+  before insert or update on public.user_preferences
+  for each row execute function public.enforce_notification_email_verification();
+
+create or replace function public.create_work_item_notification(
+  p_email text,
+  p_event_type text,
+  p_title text,
+  p_message text,
+  p_entity_type text,
+  p_entity_id text,
+  p_tracking_code text default null,
+  p_sms_message text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  normalized_email text := lower(btrim(coalesce(p_email, '')));
+  recipient_email text := normalized_email;
+  inapp_enabled boolean;
+  email_enabled boolean;
+  notification_email_verified boolean;
+  sms_enabled boolean;
+  phone_number text;
+  account_profile_active boolean;
+  item_updated_at timestamptz;
+  event_key text;
+  account_profile_found boolean := false;
+begin
+  if normalized_email = '' then return; end if;
+
+  if p_entity_type = 'report' then
+    select updated_at into item_updated_at from public.reports where id = p_entity_id;
+  elsif p_entity_type = 'request' then
+    select updated_at into item_updated_at from public.requests where id = p_entity_id;
+  end if;
+  event_key := md5(concat_ws('|',
+    normalized_email, p_event_type, p_entity_type, p_entity_id,
+    coalesce(p_tracking_code, ''), coalesce(item_updated_at::text, ''),
+    coalesce(p_title, ''), coalesce(p_message, '')
+  ));
+
+  select
+    coalesce(preferences.inapp_notifications, true),
+    coalesce(preferences.email_notifications, false),
+    coalesce(preferences.notification_email_verified, false),
+    coalesce(preferences.sms_notifications, false),
+    nullif(btrim(profile.phone), ''),
+    nullif(lower(btrim(preferences.notification_email)), ''),
+    profile.is_active and profile.registration_status = 'approved'
+  into
+    inapp_enabled, email_enabled, notification_email_verified, sms_enabled, phone_number,
+    recipient_email, account_profile_active
+  from public.user_profiles profile
+  left join public.user_preferences preferences
+    on lower(preferences.user_email) = lower(profile.email)
+  where lower(profile.email) = normalized_email
+  limit 1;
+  account_profile_found := found;
+
+  if account_profile_found then
+    inapp_enabled := coalesce(inapp_enabled, false) and account_profile_active;
+    email_enabled := coalesce(email_enabled, false) and notification_email_verified and account_profile_active;
+    sms_enabled := coalesce(sms_enabled, false) and account_profile_active;
+    if not notification_email_verified or recipient_email is null then
+      email_enabled := false;
+    end if;
+  else
+    recipient_email := normalized_email;
+    email_enabled := true;
+  end if;
+
+  if inapp_enabled then
+    insert into public.notifications (
+      user_email, event_type, title, message, entity_type, entity_id, tracking_code, dedupe_key
+    ) values (
+      normalized_email, p_event_type, p_title, p_message, p_entity_type, p_entity_id,
+      p_tracking_code, event_key || ':inapp'
+    )
+    on conflict (dedupe_key) do nothing;
+  end if;
+
+  if coalesce(email_enabled, false) then
+    insert into public.notification_deliveries (
+      channel, recipient, subject, body, event_type, entity_type, entity_id, tracking_code, dedupe_key
+    ) values (
+      'email', recipient_email, p_title,
+      p_message || case when p_tracking_code is null then '' else E'\n\nTracking code: ' || p_tracking_code end,
+      p_event_type, p_entity_type, p_entity_id, p_tracking_code, event_key || ':email'
+    )
+    on conflict (dedupe_key) do nothing;
+  end if;
+
+  if sms_enabled and phone_number is not null and p_sms_message is not null then
+    insert into public.notification_deliveries (
+      channel, recipient, body, event_type, entity_type, entity_id, tracking_code, dedupe_key
+    ) values (
+      'sms', phone_number, p_sms_message, p_event_type, p_entity_type, p_entity_id,
+      p_tracking_code, event_key || ':sms'
+    )
+    on conflict (dedupe_key) do nothing;
+  end if;
+end;
+$$;
+revoke all on function public.create_work_item_notification(text, text, text, text, text, text, text, text)
+  from public, anon, authenticated;

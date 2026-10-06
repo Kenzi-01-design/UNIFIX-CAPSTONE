@@ -43,11 +43,9 @@
 
           <div class="form-group">
             <label>Designated Campus / Location</label>
-            <input
-              type="text"
-              v-model="profile.location"
-              placeholder="e.g., Main Campus, Engineering Building"
-            />
+            <select v-model="profile.location">
+              <option value="Bambang Campus">Bambang Campus</option>
+            </select>
           </div>
 
           <div class="form-actions">
