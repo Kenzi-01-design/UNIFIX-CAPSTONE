@@ -3,41 +3,69 @@ import { isSupabaseConfigured, supabase } from './supabase.js';
 export const MAX_PHOTO_COUNT = 3;
 export const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_SOURCE_PHOTO_SIZE = 25 * 1024 * 1024;
 const BUCKET = 'report-photos';
 
-export function validatePhotoFile(file) {
+export function encodeStoragePathForUrl(path) {
+  return String(path)
+    .split('/')
+    .map((segment) => {
+      try {
+        return encodeURIComponent(decodeURIComponent(segment));
+      } catch (error) {
+        if (!(error instanceof URIError)) throw error;
+        return encodeURIComponent(segment);
+      }
+    })
+    .join('/');
+}
+
+function validatePhotoType(file) {
   if (!ALLOWED_TYPES.has(file.type)) {
     throw new Error('Photos must be JPG, PNG, or WebP images.');
   }
+}
+
+export function validatePhotoFile(file) {
+  validatePhotoType(file);
   if (file.size > MAX_PHOTO_SIZE) {
     throw new Error('Each photo must be 5 MB or smaller.');
   }
 }
 
 export async function compressPhoto(file) {
-  validatePhotoFile(file);
+  validatePhotoType(file);
+  if (file.size > MAX_SOURCE_PHOTO_SIZE) {
+    throw new Error('Each original photo must be 25 MB or smaller.');
+  }
   if (typeof createImageBitmap !== 'function') {
     throw new Error('This browser cannot process image attachments. Try a current browser.');
   }
 
   const bitmap = await createImageBitmap(file);
   try {
-    const scale = Math.min(1, 1920 / Math.max(bitmap.width, bitmap.height));
+    let scale = Math.min(1, 1920 / Math.max(bitmap.width, bitmap.height));
     const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Unable to process the selected photo.');
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
 
-    const blob = await new Promise((resolve, reject) => {
-      canvas.toBlob(
-        (result) => result ? resolve(result) : reject(new Error('Unable to compress the selected photo.')),
-        'image/webp',
-        0.82
-      );
-    });
-    if (blob.size > MAX_PHOTO_SIZE) {
+    let blob;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const quality = Math.max(0.5, 0.82 - attempt * 0.08);
+      blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (result) => result ? resolve(result) : reject(new Error('Unable to compress the selected photo.')),
+          'image/webp',
+          quality
+        );
+      });
+      if (blob.size <= MAX_PHOTO_SIZE) break;
+      scale *= 0.8;
+    }
+    if (!blob || blob.size > MAX_PHOTO_SIZE) {
       throw new Error('The compressed photo is still over 5 MB. Select a smaller image.');
     }
 
@@ -89,7 +117,8 @@ export async function uploadPhotoFiles(files, { entityType, entityId, phase = 'b
     const attachments = [];
     for (const file of selected) {
       const id = crypto.randomUUID();
-      const path = `${userData.user.id}/${entityType}/${encodeURIComponent(entityId)}/${phase}/${id}.webp`;
+      const extension = file.type === 'image/jpeg' ? 'jpg' : file.type.slice('image/'.length);
+      const path = `${userData.user.id}/${entityType}/${encodeURIComponent(entityId)}/${phase}/${id}.${extension}`;
       const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
         cacheControl: '3600',
         contentType: file.type,
@@ -115,7 +144,8 @@ export async function resolvePhotoUrl(attachment) {
     throw new Error('The photo attachment is not available.');
   }
 
-  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(attachment.path, 3600);
+  const path = encodeStoragePathForUrl(attachment.path);
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
   if (error) throw error;
   if (!data?.signedUrl) throw new Error('The photo service did not return a view link.');
   return data.signedUrl;
