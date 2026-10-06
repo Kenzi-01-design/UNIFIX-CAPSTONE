@@ -64,49 +64,6 @@
   --transition-normal: 220ms ease;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --bg: #101714;
-    --primary: #16723c;
-    --primary-light: #23864d;
-    --primary-dark: #a5efbe;
-    --primary-bg: #183526;
-    --accent: #e5b94f;
-    --accent-light: #f1cb70;
-    --accent-bg: #362d18;
-    --green: #34a861;
-    --green-light: #51c47c;
-    --green-bg: #173324;
-    --red: #ff8179;
-    --red-light: #b42318;
-    --red-bg: #3a2222;
-    --yellow: #e6bd58;
-    --yellow-bg: #362d18;
-    --amber: #f0c15f;
-    --amber-bg: #362d18;
-    --warning: #f0c15f;
-    --warning-bg: #362d18;
-    --success: #73d696;
-    --success-bg: #173324;
-    --danger: #ff8179;
-    --danger-bg: #3a2222;
-    --surface: #18211c;
-    --surface-2: #111915;
-    --surface-3: #202d25;
-    --border: #2a3b30;
-    --border-dark: #3c5444;
-    --text: #eff7f1;
-    --text-2: #c3d2c8;
-    --text-3: #9aada0;
-    --focus-ring: rgba(134, 224, 168, 0.48);
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.28);
-    --shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-    --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.38);
-  }
-
-}
-
 *,
 *::before,
 *::after {
@@ -3190,12 +3147,6 @@ button,
 
   .topbar-right {
     gap: 4px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .btn-danger {
-    color: #21100f;
   }
 }
 
