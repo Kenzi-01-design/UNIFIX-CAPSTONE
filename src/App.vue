@@ -207,7 +207,7 @@ import PersonnelTasksView from './views/PersonnelTasksView.vue';
 import ProfileView from './views/ProfileView.vue';
 import SettingsView from './views/SettingsView.vue';
 
-const AdminView = defineAsyncComponent(() => import('./views/AdminView.vue'));
+const AdminView = defineAsyncComponent(() => import('./views/Adminview.vue'));
 const EvaluationView = defineAsyncComponent(() => import('./views/EvaluationView.vue'));
 
 const {
