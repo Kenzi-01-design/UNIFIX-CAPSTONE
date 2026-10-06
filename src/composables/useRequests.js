@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { useNotifications } from './useNotifications.js';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { createDemoTrackingCode } from '../lib/tracking.js';
+import { createRequestId } from '../lib/requestId.js';
 import { removeUploadedPhotos, uploadPhotoFiles } from '../lib/photos.js';
 import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork } from '../lib/workflow.js';
 import { validateRequestInput } from '../lib/validation.js';
@@ -269,11 +270,10 @@ export function useRequests() {
 
   async function addRequest(reqData, photoFiles = []) {
     validateRequestInput(reqData);
-    const nextId = `#REQ-${200 + requests.value.length + 1}`;
     const newReq = {
-      id: nextId,
-      trackingCode: createDemoTrackingCode(),
       ...reqData,
+      id: createRequestId(),
+      trackingCode: createDemoTrackingCode(),
       risk: reqData.risk || 'low',
       status: 'submitted',
       adminResponse: '',
