@@ -604,9 +604,14 @@ function handleModalResolve(id) {
 }
 
 async function handleModalTechAccept(id) {
-  const accepted = await techAccept(id, activeUserName.value);
-  closeReportModal();
-  showToast(accepted ? `${id} accepted.` : 'Unable to save acceptance. Check your Supabase access.', accepted ? 'success' : 'error');
+  try {
+    const accepted = await techAccept(id, activeUserName.value);
+    closeReportModal();
+    showToast(accepted ? `${id} accepted.` : 'This report is no longer assigned to your account.', accepted ? 'success' : 'error');
+  } catch (error) {
+    console.error('Could not save report acceptance.', error);
+    showToast(error.message || 'Unable to save acceptance. Check your connection and account permissions.', 'error');
+  }
 }
 
 async function handleModalTechStart(id) {

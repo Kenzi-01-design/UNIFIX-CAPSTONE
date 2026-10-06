@@ -258,13 +258,18 @@ function getNextStepLabel(state) {
 }
 
 async function handleAccept(task) {
-  const accepted = task.kind === 'request'
-    ? await requestAccept(task.id, activeUserName.value)
-    : await techAccept(task.id, activeUserName.value);
-  if (accepted) {
-    showToast(`${task.id} accepted. Proceed when ready.`, 'success');
-  } else {
-    showToast('Unable to save acceptance. Check your assignment and Supabase access.', 'error');
+  try {
+    const accepted = task.kind === 'request'
+      ? await requestAccept(task.id, activeUserName.value)
+      : await techAccept(task.id, activeUserName.value);
+    if (accepted) {
+      showToast(`${task.id} accepted. Proceed when ready.`, 'success');
+    } else {
+      showToast('This work item is no longer assigned to your account. Refresh your task list.', 'error');
+    }
+  } catch (error) {
+    console.error('Could not save work acceptance.', error);
+    showToast(error.message || 'Unable to save acceptance. Check your connection and account permissions.', 'error');
   }
 }
 

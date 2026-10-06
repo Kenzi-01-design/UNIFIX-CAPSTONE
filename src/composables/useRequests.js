@@ -4,7 +4,7 @@ import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { createDemoTrackingCode } from '../lib/tracking.js';
 import { createRequestId } from '../lib/requestId.js';
 import { removeUploadedPhotos, uploadPhotoFiles } from '../lib/photos.js';
-import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork } from '../lib/workflow.js';
+import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork, isAssignedToPersonnel } from '../lib/workflow.js';
 import { validateRequestInput } from '../lib/validation.js';
 
 const STORAGE_KEY = 'unifix-requests-v1';
@@ -489,12 +489,7 @@ export function useRequests() {
   }
 
   function isAssignedTo(request, name) {
-    const assigned = Array.isArray(request.assignedPersonnel)
-      ? request.assignedPersonnel
-      : (request.assignedTo || '').split(',').map((item) => item.trim()).filter(Boolean);
-    return assigned.some(
-      (assignedName) => assignedName.trim().toLowerCase() === String(name || '').trim().toLowerCase()
-    );
+    return isAssignedToPersonnel(request, name);
   }
 
   async function requestAccept(requestId, currentPersonnel) {
@@ -513,8 +508,7 @@ export function useRequests() {
       request.techState = previousState;
       request.status = previousStatus;
       saveRequests();
-      console.warn('Failed saving request acceptance', error);
-      return false;
+      throw error;
     }
   }
 
@@ -598,7 +592,7 @@ export function useRequests() {
     setRequestRemark,
     setRequestFeedback,
     assignRequest,
-    isAssignedTo,
+    isAssignedTo: isAssignedToPersonnel,
     requestAccept,
     requestStart,
     requestComplete

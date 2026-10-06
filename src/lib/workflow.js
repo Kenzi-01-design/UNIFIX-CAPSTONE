@@ -1,10 +1,16 @@
-export function canSubmitWorkForVerification(item, personnelName) {
+export function isAssignedToPersonnel(item, personnelName) {
   const assigned = Array.isArray(item?.assignedPersonnel)
     ? item.assignedPersonnel
     : String(item?.assignedTo || '').split(',').map((name) => name.trim()).filter(Boolean);
+  const currentName = String(personnelName || '').trim().toLowerCase();
+  return Boolean(currentName)
+    && assigned.some((name) => String(name || '').trim().toLowerCase() === currentName);
+}
+
+export function canSubmitWorkForVerification(item, personnelName) {
   return item?.status === 'in-progress'
     && item?.techState === 'started'
-    && assigned.some((name) => name.toLowerCase() === String(personnelName || '').trim().toLowerCase());
+    && isAssignedToPersonnel(item, personnelName);
 }
 
 export function canVerifyCompletedWork(item) {

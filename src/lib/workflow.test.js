@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork } from './workflow.js';
+import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork, isAssignedToPersonnel } from './workflow.js';
 import { validateReportInput, validateRequestInput } from './validation.js';
 import { calculateSusScore } from '../composables/useEvaluation.js';
 
@@ -13,6 +13,12 @@ describe('work verification transitions', () => {
   it('allows assigned personnel to submit started work for verification', () => {
     expect(canSubmitWorkForVerification(startedAssignment, 'juan dela cruz')).toBe(true);
     expect(canSubmitWorkForVerification(startedAssignment, 'Other technician')).toBe(false);
+  });
+
+  it('matches assigned personnel despite casing or surrounding whitespace', () => {
+    expect(isAssignedToPersonnel({ assignedPersonnel: ['  Juan dela Cruz  '] }, 'juan DELA CRUZ')).toBe(true);
+    expect(isAssignedToPersonnel({ assignedTo: 'Ana Torres, Juan dela Cruz' }, ' JUAN DELA CRUZ ')).toBe(true);
+    expect(isAssignedToPersonnel({ assignedPersonnel: ['Juan dela Cruz'] }, '')).toBe(false);
   });
 
   describe('work item input validation', () => {

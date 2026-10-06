@@ -3,7 +3,7 @@ import { useNotifications } from './useNotifications.js';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { createDemoTrackingCode } from '../lib/tracking.js';
 import { removeUploadedPhotos, uploadPhotoFiles } from '../lib/photos.js';
-import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork } from '../lib/workflow.js';
+import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork, isAssignedToPersonnel } from '../lib/workflow.js';
 import { validateReportInput } from '../lib/validation.js';
 
 const STORAGE_KEY = 'unifix-reports-v2';
@@ -674,7 +674,7 @@ export function useReports() {
 
   async function techAccept(reportId, currentTechName) {
     const report = reports.value.find((r) => r.id === reportId);
-    if (!report || !normalizePersonnel(report).includes(currentTechName)) return false;
+    if (!report || !isAssignedToPersonnel(report, currentTechName)) return false;
 
     const previousState = report.techState;
     const previousStatus = report.status;
@@ -688,14 +688,13 @@ export function useReports() {
       report.techState = previousState;
       report.status = previousStatus;
       saveReports();
-      console.warn('Failed saving report acceptance', error);
-      return false;
+      throw error;
     }
   }
 
   async function techStart(reportId, currentTechName) {
     const report = reports.value.find((r) => r.id === reportId);
-    if (!report || !normalizePersonnel(report).includes(currentTechName)) return false;
+    if (!report || !isAssignedToPersonnel(report, currentTechName)) return false;
 
     const previousState = report.techState;
     const previousStatus = report.status;
@@ -769,9 +768,7 @@ export function useReports() {
     stopReportsSubscription,
     clearReportsForAccountChange,
     getActiveLoad,
-    isAssignedTo: (report, name) => normalizePersonnel(report).some(
-      (assignedName) => assignedName.trim().toLowerCase() === String(name || '').trim().toLowerCase()
-    ),
+    isAssignedTo: isAssignedToPersonnel,
     findRecommendedTech,
     addReport,
     mergeDuplicateReports,
