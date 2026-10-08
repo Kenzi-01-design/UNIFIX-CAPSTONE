@@ -77,6 +77,18 @@
   }
 }
 
+@keyframes login-sky-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 0.55;
+    transform: translateY(0);
+  }
+}
+
 
 
 body {
@@ -310,6 +322,12 @@ textarea,
   display: none;
 }
 .login-campus-art {
+  display: none;
+}
+.login-sky-art {
+  display: none;
+}
+.login-campus-label {
   display: none;
 }
 .form-group {
@@ -4143,6 +4161,57 @@ tbody td {
     animation: login-campus-arrive 900ms 120ms ease-out both, login-campus-drift 14s 1s ease-in-out infinite;
   }
 
+  .login-sky-art {
+    position: absolute;
+    z-index: 0;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 100%;
+    height: min(35%, 320px);
+    color: #648e71;
+    opacity: 0.55;
+    pointer-events: none;
+    animation: login-sky-arrive 850ms ease-out both;
+  }
+
+  .login-sky-art .sky-mountain-back {
+    fill: #a9c4a1;
+    opacity: 0.28;
+  }
+
+  .login-sky-art .sky-mountain-front {
+    fill: #84ad8e;
+    opacity: 0.24;
+  }
+
+  .login-sky-art .sky-ridge {
+    stroke: #63886d;
+    stroke-width: 1.5;
+    opacity: 0.42;
+  }
+
+  .login-sky-art .sky-cloud {
+    stroke: #fff;
+    stroke-linecap: round;
+    stroke-width: 3;
+    opacity: 0.82;
+  }
+
+  .login-sky-art .sky-route {
+    stroke: #c18e4f;
+    stroke-width: 1.5;
+    opacity: 0.48;
+  }
+
+  .login-sky-art .sky-route-dash {
+    stroke: #c18e4f;
+    stroke-dasharray: 3 8;
+    stroke-linecap: round;
+    stroke-width: 2;
+    opacity: 0.76;
+  }
+
   .login-campus-art .campus-art-lawn {
     fill: #a8c393;
     stroke: none;
@@ -4196,14 +4265,40 @@ tbody td {
     animation: login-rise 550ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
   }
 
-  .login-brand::before {
-    display: block;
-    margin-bottom: 12px;
-    color: #627b6b;
-    content: "NVSU  /  CAMPUS MAINTENANCE";
-    font-size: 10px;
+  .login-campus-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    min-height: 34px;
+    margin-bottom: 15px;
+    padding: 5px 12px 5px 6px;
+    border: 1px solid rgba(77, 119, 85, 0.16);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 5px 16px rgba(47, 86, 56, 0.06);
+    color: #5d7562;
+    font-size: 9px;
     font-weight: 800;
-    letter-spacing: 0.17em;
+    letter-spacing: 0.1em;
+    animation: login-rise 500ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+  }
+
+  .login-campus-label-icon {
+    display: grid;
+    width: 22px;
+    height: 22px;
+    place-items: center;
+    border-radius: 50%;
+    background: #e6f0e4;
+    color: #17633c;
+  }
+
+  .login-campus-label > i {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: #c18e4f;
   }
 
   .login-brand::after {

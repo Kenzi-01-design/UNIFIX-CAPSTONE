@@ -4,6 +4,14 @@
       <div class="orb"></div>
       <div class="orb"></div>
       <div class="orb"></div>
+      <svg class="login-sky-art" viewBox="0 0 1000 300" fill="none" aria-hidden="true">
+        <path class="sky-mountain-back" d="M0 203L114 127L168 158L287 66L390 155L466 103L572 179L682 78L788 164L874 112L1000 185V300H0V203Z" />
+        <path class="sky-mountain-front" d="M0 228L112 172L213 211L342 118L447 204L559 142L670 220L778 143L884 211L1000 161V300H0V228Z" />
+        <path class="sky-ridge" d="M0 228L112 172L213 211L342 118L447 204L559 142L670 220L778 143L884 211L1000 161" />
+        <path class="sky-cloud" d="M104 81H173M131 63H206M812 56H880M841 76H915" />
+        <path class="sky-route" d="M77 265H247L286 239H407M618 253H742L781 222H925" />
+        <path class="sky-route-dash" d="M112 265H195M663 253H714M821 222H877" />
+      </svg>
       <svg class="login-campus-art" viewBox="0 0 900 420" fill="none" aria-hidden="true">
         <path class="campus-art-lawn" d="M26 385H874L708 401H192L26 385Z" />
         <path class="campus-art-wing" d="M118 274L222 220L326 274V385H118V274Z" />
@@ -28,6 +36,12 @@
         <path d="M26 385L192 401H708L874 385" />
       </svg>
       <div class="login-brand">
+        <div class="login-campus-label">
+          <span class="login-campus-label-icon"><UiIcon name="building" :size="14" /></span>
+          <span>NVSU CAMPUS SERVICES</span>
+          <i></i>
+          <span>REPORT · ROUTE · RESTORE</span>
+        </div>
         <div class="brand-icon"><UiIcon name="work" :size="28" /></div>
         <h1>UNIFIX</h1>
         <p>Nueva Vizcaya State University Maintenance Operations — faster repairs, safer campuses.</p>
