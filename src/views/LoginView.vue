@@ -4,6 +4,29 @@
       <div class="orb"></div>
       <div class="orb"></div>
       <div class="orb"></div>
+      <svg class="login-campus-art" viewBox="0 0 900 420" fill="none" aria-hidden="true">
+        <path class="campus-art-lawn" d="M26 385H874L708 401H192L26 385Z" />
+        <path class="campus-art-wing" d="M118 274L222 220L326 274V385H118V274Z" />
+        <path class="campus-art-wing" d="M574 274L678 220L782 274V385H574V274Z" />
+        <path class="campus-art-main" d="M326 183L450 122L574 183V385H326V183Z" />
+        <path class="campus-art-roof" d="M326 132V95L450 34L574 95V132L450 71L326 132Z" />
+        <path class="campus-art-trim" d="M326 132L450 71L574 132M222 220L326 274L430 220M470 220L574 274L678 220" />
+        <path class="campus-art-door" d="M409 385V316C409 293 427 275 450 275C473 275 491 293 491 316V385H409Z" />
+        <path class="campus-art-window" d="M157 314H190M254 314H287M353 224H386M514 224H547M613 314H646M710 314H743" />
+        <path d="M26 385H874" />
+        <path d="M118 385V274L222 220L326 274V385M574 385V274L678 220L782 274V385" />
+        <path d="M222 220V183L326 132L430 183V385M470 385V183L574 132L678 183V385" />
+        <path d="M326 132V95L450 34L574 95V132" />
+        <path d="M284 385V323C284 289 311 262 345 262H555C589 262 616 289 616 323V385" />
+        <path d="M409 385V316C409 293 427 275 450 275C473 275 491 293 491 316V385" />
+        <path d="M450 275V211M423 211H477" />
+        <path d="M157 314H190M254 314H287M353 224H386M514 224H547M613 314H646M710 314H743" />
+        <path d="M169 274V353M266 274V353M365 183V253M535 183V253M625 274V353M732 274V353" />
+        <path d="M80 385C80 356 96 333 118 324C140 333 156 356 156 385M744 385C744 356 760 333 782 324C804 333 820 356 820 385" />
+        <path d="M118 345V385M782 345V385" />
+        <path d="M450 34V10M436 22H464" />
+        <path d="M26 385L192 401H708L874 385" />
+      </svg>
       <div class="login-brand">
         <div class="brand-icon"><UiIcon name="work" :size="28" /></div>
         <h1>UNIFIX</h1>
