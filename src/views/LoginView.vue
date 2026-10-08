@@ -9,6 +9,25 @@
         <h1>UNIFIX</h1>
         <p>Nueva Vizcaya State University Maintenance Operations — faster repairs, safer campuses.</p>
       </div>
+      <div class="login-showcase" aria-hidden="true">
+        <div class="login-showcase-topline">
+          <span><i></i> CAMPUS OPERATIONS</span>
+          <span>NVSU · SERVICE WORKFLOW</span>
+        </div>
+        <div class="login-showcase-status">
+          <div class="login-showcase-icon"><UiIcon name="building" :size="21" /></div>
+          <div>
+            <strong>Campus care, connected</strong>
+            <span>Every issue gets to the right team.</span>
+          </div>
+          <span class="login-showcase-check"><UiIcon name="success" :size="17" /></span>
+        </div>
+        <div class="login-showcase-track"><span></span></div>
+        <div class="login-showcase-footer">
+          <span><UiIcon name="zap" :size="15" /> Real-time updates</span>
+          <span><UiIcon name="tasks" :size="15" /> Faster repairs</span>
+        </div>
+      </div>
       <div class="login-features">
         <div class="login-feature">
           <div class="feat-icon"><UiIcon name="zap" /></div>
