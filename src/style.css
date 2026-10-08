@@ -4346,6 +4346,10 @@ tbody td {
     animation: login-rise 600ms 90ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
   }
 
+  .login-showcase {
+    display: none;
+  }
+
   .login-showcase-topline,
   .login-showcase-status,
   .login-showcase-footer,
