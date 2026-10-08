@@ -88,6 +88,14 @@
             </select>
             <small v-if="locationLoading">Loading managed campus locations…</small>
             <small v-else-if="locationError" class="form-inline-error">{{ locationError }} Using built-in building options.</small>
+            <small v-if="locationPrefillError" class="form-inline-error" role="alert">{{ locationPrefillError }}</small>
+            <small
+              v-else-if="prefillLocationId && selectedLocationId === prefillLocationId"
+              class="form-inline-success"
+              role="status"
+            >
+              QR verified: {{ reportLocation }}
+            </small>
           </div>
         </div>
         <div class="form-row triple">
@@ -177,7 +185,11 @@
         </div>
         <div class="form-actions">
           <button class="btn-secondary" :disabled="isSubmitting || photosProcessing" @click="clearForm">Clear Form</button>
-          <button class="btn-accent" :disabled="isSubmitting || photosProcessing" @click="handleSubmit">
+          <button
+            class="btn-accent"
+            :disabled="isSubmitting || photosProcessing || Boolean(prefillLocationId && locationPrefillError)"
+            @click="handleSubmit"
+          >
             <UiIcon v-if="!isSubmitting" name="report" :size="16" /> {{ isSubmitting ? 'Submitting…' : 'Submit Report' }}
           </button>
         </div>
@@ -245,6 +257,9 @@ const photosProcessing = ref(false);
 const submission = ref(null);
 const selectedLocationId = ref('');
 const locationError = ref('');
+const locationPrefillError = ref('');
+const locationsLoaded = ref(false);
+const locationPrefillHandled = ref(false);
 const isOnline = ref(typeof navigator === 'undefined' || navigator.onLine);
 const offlineDrafts = ref([]);
 const offlineDraftScope = ref('');
@@ -320,11 +335,14 @@ function clearForm() {
   form.landmark = '';
   form.email = '';
   selectedLocationId.value = '';
+  locationPrefillHandled.value = false;
+  locationPrefillError.value = '';
   selectedPhotos.value = [];
   duplicatePrompt.value = false;
   duplicateChoice.value = '';
   duplicateNote.value = '';
   duplicateSaved.value = null;
+  applyLocationPrefill();
 }
 
 function startAnotherReport() {
@@ -343,6 +361,10 @@ const locationSelectValue = computed({
       form.floor = selected.floor;
       form.room = selected.room;
     }
+    if (selected || demoBuildings.includes(value)) {
+      locationPrefillHandled.value = true;
+      locationPrefillError.value = '';
+    }
     duplicateChoice.value = '';
   }
 });
@@ -357,17 +379,26 @@ const reportLocation = computed(() => {
 });
 
 function applyLocationPrefill() {
-  if (!props.prefillLocationId) return;
+  if (!props.prefillLocationId || !locationsLoaded.value || locationPrefillHandled.value) return;
   const selected = activeLocations.value.find((location) => location.id === props.prefillLocationId);
-  if (!selected) return;
-  selectedLocationId.value = selected.id;
-  form.bldg = selected.building;
-  form.floor = selected.floor;
-  form.room = selected.room;
+  if (selected) {
+    selectedLocationId.value = selected.id;
+    form.bldg = selected.building;
+    form.floor = selected.floor;
+    form.room = selected.room;
+    locationPrefillError.value = '';
+  } else {
+    locationPrefillError.value = 'This QR code does not match an active facility. Select the correct building manually before submitting.';
+  }
+  locationPrefillHandled.value = true;
 }
 
 watch(activeLocations, applyLocationPrefill, { deep: true, immediate: true });
-watch(() => props.prefillLocationId, applyLocationPrefill);
+watch(() => props.prefillLocationId, () => {
+  locationPrefillHandled.value = false;
+  locationPrefillError.value = '';
+  applyLocationPrefill();
+});
 watch(
   () => [form.title, form.cat, form.bldg, form.floor, form.room, form.landmark],
   () => {
@@ -379,10 +410,19 @@ watch(
   }
 );
 
-onMounted(() => {
-  void loadLocations().catch((error) => {
+onMounted(async () => {
+  try {
+    await loadLocations();
+  } catch (error) {
     locationError.value = error.message || 'Managed campus locations could not be loaded.';
-  });
+    if (props.prefillLocationId) {
+      locationPrefillError.value = 'The QR facility could not be verified. Select the correct building manually before submitting.';
+      locationPrefillHandled.value = true;
+    }
+  } finally {
+    locationsLoaded.value = true;
+    applyLocationPrefill();
+  }
   if (props.publicMode) {
     window.addEventListener('online', handleConnectionChange);
     window.addEventListener('offline', handleConnectionChange);
@@ -506,6 +546,10 @@ function formatStatus(status) {
 }
 
 async function handleSubmit() {
+  if (locationPrefillError.value) {
+    showToast(locationPrefillError.value, 'error');
+    return;
+  }
   if (photosProcessing.value) {
     showToast('Wait for photo processing to finish before submitting.', 'info');
     return;
@@ -627,6 +671,7 @@ async function handleSubmit() {
 .submission-confirmation { max-width: 760px; margin: 28px auto; }
 .submission-confirmation > p { color: var(--text-2); font-size: 13px; }
 .form-inline-error { color: var(--red); }
+.form-inline-success { color: var(--primary); font-weight: 700; }
 .offline-draft-banner,.offline-state { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:16px; padding:13px 14px; border:1px solid var(--border-dark); border-radius:var(--radius-sm); background:var(--surface-2); color:var(--text-2); font-size:12px; }
 .offline-draft-banner strong { color:var(--text); font-size:13px; }
 .offline-draft-banner p { margin-top:3px; }

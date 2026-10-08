@@ -26,7 +26,7 @@
     />
 
     <SubmitReportView
-      v-else-if="!isAuthenticated && publicPage === 'report'"
+      v-else-if="publicPage === 'report' && (!isAuthenticated || Boolean(locationPrefillId))"
       public-mode
       :captcha-required="isSupabaseConfigured"
       :prefill-location-id="locationPrefillId"
@@ -559,7 +559,7 @@ async function handleLogout() {
 }
 
 function handleReportSubmitted(newReport) {
-  showToast(`Report ${newReport.id} logged. Keep tracking code ${newReport.trackingCode}.`, 'info');
+  showToast(`Report ${newReport.trackingCode || newReport.id} logged. Keep this code to track its status.`, 'info');
 }
 
 function handlePublicReportSubmitted(newReport) {

@@ -42,7 +42,10 @@
             <div class="facility-location-details">
               <strong>{{ locationLabel(location) }}</strong>
               <small>{{ location.isActive ? 'Available in report forms' : 'Inactive' }}</small>
-              <code>/report?location={{ location.id }}</code>
+              <div class="facility-qr-link">
+                <code>/report?location={{ encodeURIComponent(location.id) }}</code>
+                <a :href="locationReportUrl(location)" target="_blank" rel="noopener noreferrer">Open report form</a>
+              </div>
             </div>
             <button class="btn-secondary" type="button" @click="editLocation(location)">Edit</button>
             <button class="btn-secondary" type="button" @click="toggleLocation(location)">
@@ -178,6 +181,12 @@ function locationName(id) {
   return locations.value.find((location) => location.id === id)?.building || '';
 }
 
+function locationReportUrl(location) {
+  const url = new URL('/report', window.location.origin);
+  url.searchParams.set('location', location.id);
+  return url.toString();
+}
+
 async function refreshLocations() {
   locationError.value = '';
   try {
@@ -194,9 +203,11 @@ async function generateQrCodes() {
     const { toDataURL } = await import('qrcode');
     const generated = {};
     for (const location of activeLocations.value) {
-      const url = new URL('/report', window.location.origin);
-      url.searchParams.set('location', location.id);
-      generated[location.id] = await toDataURL(url.toString(), { width: 220, margin: 1, errorCorrectionLevel: 'M' });
+      generated[location.id] = await toDataURL(locationReportUrl(location), {
+        width: 220,
+        margin: 1,
+        errorCorrectionLevel: 'H'
+      });
     }
     qrCodes.value = generated;
   } catch (error) {
@@ -270,12 +281,14 @@ function printQrSheets() {
   printWindow.opener = null;
   const cards = activeLocations.value.map((location) => `
     <article><img src="${qrCodes.value[location.id]}" alt="QR code">
-      <h2>${escapeHtml(locationLabel(location))}</h2><small>Scan to report an issue at this facility</small>
+      <h2>${escapeHtml(locationLabel(location))}</h2>
+      <small>Scan to report an issue at this facility</small>
+      <small>${escapeHtml(locationReportUrl(location))}</small>
     </article>`).join('');
   printWindow.document.write(`<!doctype html><html><head><title>UNIFIX Facility QR Codes</title><style>
     body{font:12px Arial,sans-serif;margin:12mm}.sheet{display:grid;grid-template-columns:repeat(3,1fr);gap:10mm}
     article{border:1px solid #bbc9bf;border-radius:6px;padding:8mm;text-align:center;break-inside:avoid}
-    img{width:38mm;height:38mm}h2{font-size:13px;margin:5px 0}small{color:#52635a}
+    img{width:38mm;height:38mm}h2{font-size:13px;margin:5px 0}small{display:block;color:#52635a;overflow-wrap:anywhere;margin-top:3px}
     @page{size:A4;margin:12mm}@media print{body{margin:0}}
     </style></head><body><main class="sheet">${cards}</main><script>window.onload=()=>window.print()<\/script></body></html>`);
   printWindow.document.close();
@@ -375,6 +388,8 @@ onMounted(async () => {
 .facility-location-details { display:grid; flex:1; gap:3px; min-width:0; }
 .facility-location-details small,.facility-location-details code,.facility-schedule p,.facility-schedule small { color:var(--text-3); font-size:11px; }
 .facility-location-details code { overflow:hidden; text-overflow:ellipsis; }
+.facility-qr-link { display:grid; gap:3px; min-width:0; }
+.facility-qr-link a { color:var(--primary); font-size:11px; font-weight:700; overflow-wrap:anywhere; }
 .facility-location button,.facility-schedule-actions button { margin-top:0; white-space:nowrap; }
 .facility-toolbar,.facility-schedule-actions { display:flex; align-items:center; gap:8px; }
 .facility-toolbar { margin-left:auto; flex-wrap:wrap; }
