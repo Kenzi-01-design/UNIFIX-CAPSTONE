@@ -83,7 +83,6 @@
             <UiIcon name="tasks" :size="20" /><span>Personnel</span>
           </button>
         </div>
-        <small class="role-hint">The role assigned to your account controls access; this selection does not grant a role.</small>
       </div>
 
       <div class="form-group">
