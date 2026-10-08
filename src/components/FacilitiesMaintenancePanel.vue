@@ -12,14 +12,14 @@
     <template v-if="activeTab === 'locations'">
       <div class="panel facilities-card">
         <div class="panel-header">
-          <span class="panel-title">Manage facility locations</span>
+          <span class="panel-title">{{ locationForm.id ? `Editing ${locationForm.building}` : 'Manage facility locations' }}</span>
           <button class="btn-secondary" type="button" :disabled="qrLoading || !activeLocations.length" @click="printQrSheets">
             {{ qrLoading ? 'Preparing…' : 'Print QR sheets' }}
           </button>
         </div>
         <form class="facility-form" @submit.prevent="createLocation">
           <label>Building *
-            <input v-model="locationForm.building" maxlength="120" required placeholder="e.g., Engineering Building" />
+            <input ref="locationBuildingInput" v-model="locationForm.building" maxlength="120" required placeholder="e.g., Engineering Building" />
           </label>
           <label>Floor
             <input v-model="locationForm.floor" maxlength="80" placeholder="e.g., Floor 2" />
@@ -135,7 +135,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useLocations } from '../composables/useLocations.js';
 import { useMaintenanceSchedules } from '../composables/useMaintenanceSchedules.js';
 import { useReports } from '../composables/useReports.js';
@@ -149,6 +149,7 @@ const saving = ref(false);
 const generating = ref(false);
 const locationError = ref('');
 const scheduleError = ref('');
+const locationBuildingInput = ref(null);
 const locationForm = reactive({ id: '', building: '', floor: '', room: '' });
 const scheduleForm = reactive({
   id: '',
@@ -224,7 +225,7 @@ async function createLocation() {
   }
 }
 
-function editLocation(location) {
+async function editLocation(location) {
   Object.assign(locationForm, {
     id: location.id,
     building: location.building,
@@ -232,6 +233,9 @@ function editLocation(location) {
     room: location.room
   });
   locationError.value = '';
+  await nextTick();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  locationBuildingInput.value?.focus({ preventScroll: true });
 }
 
 function resetLocationForm() {

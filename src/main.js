@@ -7,6 +7,23 @@ import { reportClientError } from './lib/clientErrorReporting.js'
 const configurationErrors = getProductionConfigurationErrors(import.meta.env)
 const mountTarget = document.querySelector('#app')
 
+window.addEventListener('vite:preloadError', (event) => {
+  const reloadKey = 'unifix-preload-reload-at';
+  const now = Date.now();
+
+  try {
+    const lastReload = Number(sessionStorage.getItem(reloadKey) || 0);
+    if (now - lastReload < 30_000) return;
+    sessionStorage.setItem(reloadKey, String(now));
+  } catch (error) {
+    console.warn('Could not check the stale-asset reload guard.', error);
+    return;
+  }
+
+  event.preventDefault();
+  window.location.reload();
+});
+
 if (!mountTarget) {
   throw new Error('Could not find the UNIFIX application mount point.')
 }
