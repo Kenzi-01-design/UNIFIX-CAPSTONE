@@ -4063,68 +4063,41 @@ tbody td {
     min-height: 100vh;
     min-height: 100dvh;
     overflow: hidden;
-    background: #fbfdfb;
+    background: #f8f9f6;
   }
 
   .login-visual {
     flex: 0 1 58%;
-    align-items: stretch;
+    align-items: center;
     justify-content: center;
-    gap: clamp(18px, 2.2vh, 26px);
+    gap: clamp(16px, 2vh, 22px);
     padding: clamp(42px, 5.6vw, 88px);
-    background:
-      radial-gradient(ellipse at 86% 13%, rgba(100, 194, 133, 0.24), transparent 34%),
-      radial-gradient(ellipse at 9% 92%, rgba(15, 128, 80, 0.4), transparent 43%),
-      linear-gradient(145deg, #073b29 0%, #0b5b36 56%, #137347 100%);
+    background: #f0f2ec;
   }
 
   .login-visual::before {
     background-image:
-      radial-gradient(rgba(255, 255, 255, 0.11) 1px, transparent 1px),
-      linear-gradient(120deg, transparent 43%, rgba(255, 255, 255, 0.035) 43.1%, transparent 43.3%);
-    background-size: 24px 24px, auto;
-    mask-image: linear-gradient(135deg, black, transparent 76%);
+      linear-gradient(rgba(32, 73, 53, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(32, 73, 53, 0.035) 1px, transparent 1px);
+    background-size: 34px 34px;
+    mask-image: linear-gradient(to bottom, transparent, black 22%, black 78%, transparent);
   }
 
   .login-visual .orb {
-    background: rgba(255, 255, 255, 0.045);
-    border: 1px solid rgba(255, 255, 255, 0.09);
-  }
-
-  .login-visual .orb:nth-child(1) {
-    width: clamp(240px, 29vw, 430px);
-    height: clamp(240px, 29vw, 430px);
-    top: -20%;
-    right: -13%;
-  }
-
-  .login-visual .orb:nth-child(2) {
-    width: clamp(180px, 21vw, 310px);
-    height: clamp(180px, 21vw, 310px);
-    bottom: -18%;
-    left: -9%;
-  }
-
-  .login-visual .orb:nth-child(3) {
-    display: block;
-    width: 54px;
-    height: 54px;
-    top: 16%;
-    left: 12%;
-    animation-delay: -5s;
+    display: none;
   }
 
   .login-brand {
-    width: min(100%, 600px);
-    max-width: 600px;
-    text-align: left;
+    width: min(100%, 620px);
+    max-width: 620px;
+    text-align: center;
     animation: login-rise 550ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
   }
 
   .login-brand::before {
     display: block;
-    margin-bottom: 16px;
-    color: rgba(214, 255, 226, 0.76);
+    margin-bottom: 12px;
+    color: #627b6b;
     content: "NVSU  /  CAMPUS MAINTENANCE";
     font-size: 10px;
     font-weight: 800;
@@ -4136,27 +4109,30 @@ tbody td {
   }
 
   .login-brand .brand-icon {
-    width: 56px;
-    height: 56px;
-    margin: 0 0 17px;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    border-radius: 17px;
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08));
-    box-shadow: 0 12px 28px rgba(2, 32, 18, 0.2);
+    width: 58px;
+    height: 58px;
+    margin: 0 auto 14px;
+    border: 1px solid #d5e1d5;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(29, 63, 43, 0.09);
+    color: #17633c;
   }
 
   .login-brand h1 {
-    margin-bottom: 12px;
-    font-size: clamp(42px, 5vw, 64px);
-    letter-spacing: -0.055em;
+    margin-bottom: 10px;
+    color: #183c2d;
+    font-size: clamp(40px, 4.5vw, 58px);
+    letter-spacing: -0.06em;
     line-height: 1;
   }
 
   .login-brand p {
-    max-width: 460px;
-    color: rgba(255, 255, 255, 0.8);
-    font-size: clamp(14px, 1.3vw, 16px);
-    line-height: 1.65;
+    max-width: 430px;
+    margin: 0 auto;
+    color: #5f7065;
+    font-size: clamp(14px, 1.2vw, 16px);
+    line-height: 1.6;
   }
 
   .login-showcase {
@@ -4165,12 +4141,11 @@ tbody td {
     display: grid;
     width: min(100%, 560px);
     gap: 14px;
-    padding: clamp(15px, 1.7vw, 21px);
-    border: 1px solid rgba(255, 255, 255, 0.21);
-    border-radius: 22px;
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.075));
-    box-shadow: 0 24px 58px rgba(2, 30, 18, 0.2);
-    backdrop-filter: blur(14px);
+    padding: clamp(16px, 1.7vw, 21px);
+    border: 1px solid #e0e8df;
+    border-radius: 20px;
+    background: #fff;
+    box-shadow: 0 16px 42px rgba(29, 63, 43, 0.08), 0 2px 5px rgba(29, 63, 43, 0.035);
     animation: login-rise 600ms 90ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
   }
 
@@ -4184,11 +4159,12 @@ tbody td {
 
   .login-showcase-topline,
   .login-showcase-status {
-    justify-content: space-between;
+    justify-content: center;
   }
 
   .login-showcase-topline {
-    color: rgba(255, 255, 255, 0.7);
+    gap: 14px;
+    color: #718075;
     font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.11em;
@@ -4205,17 +4181,18 @@ tbody td {
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #b5f2c4;
-    box-shadow: 0 0 0 4px rgba(181, 242, 196, 0.12);
+    background: #228454;
+    box-shadow: 0 0 0 4px rgba(34, 132, 84, 0.1);
   }
 
   .login-showcase-status {
-    justify-content: flex-start;
-    gap: 13px;
-    padding: 13px;
-    border: 1px solid rgba(255, 255, 255, 0.13);
+    position: relative;
+    flex-direction: column;
+    gap: 9px;
+    padding: 17px 42px;
+    border: 1px solid #edf1eb;
     border-radius: 15px;
-    background: rgba(5, 47, 28, 0.25);
+    background: #f8faf7;
   }
 
   .login-showcase-icon,
@@ -4223,48 +4200,51 @@ tbody td {
     display: grid;
     flex: 0 0 auto;
     place-items: center;
-    color: #e4ffeb;
+    color: #17633c;
   }
 
   .login-showcase-icon {
-    width: 42px;
-    height: 42px;
+    width: 40px;
+    height: 40px;
     border-radius: 13px;
-    background: rgba(183, 245, 202, 0.16);
+    background: #e7f2e9;
   }
 
   .login-showcase-status > div:nth-child(2) {
     display: grid;
     min-width: 0;
     gap: 3px;
+    text-align: center;
   }
 
   .login-showcase-status strong {
-    color: #fff;
+    color: #203c2e;
     font-size: 13px;
     line-height: 1.4;
   }
 
   .login-showcase-status > div:nth-child(2) span {
-    color: rgba(255, 255, 255, 0.72);
+    color: #748177;
     font-size: 11px;
     line-height: 1.45;
   }
 
   .login-showcase-check {
+    position: absolute;
+    top: 12px;
+    right: 12px;
     width: 27px;
     height: 27px;
-    margin-left: auto;
     border-radius: 50%;
-    background: rgba(181, 242, 196, 0.14);
-    color: #b5f2c4;
+    background: #e5f3e8;
+    color: #228454;
   }
 
   .login-showcase-track {
     height: 4px;
     overflow: hidden;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.15);
+    background: #e7eee7;
   }
 
   .login-showcase-track span {
@@ -4272,15 +4252,15 @@ tbody td {
     width: 72%;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, #b5f2c4, #e1f6a4);
+    background: linear-gradient(90deg, #257c4d, #72a76c);
     transform-origin: left;
     animation: login-progress 900ms 250ms ease-out both;
   }
 
   .login-showcase-footer {
-    justify-content: space-between;
+    justify-content: center;
     gap: 10px;
-    color: rgba(255, 255, 255, 0.82);
+    color: #627468;
     font-size: 11px;
     font-weight: 600;
   }
@@ -4301,13 +4281,14 @@ tbody td {
     min-width: 0;
     min-height: 104px;
     flex-direction: column;
-    align-items: flex-start;
-    justify-content: space-between;
+    align-items: center;
+    justify-content: center;
     gap: 12px;
     padding: 12px;
-    border-color: rgba(255, 255, 255, 0.15);
+    border-color: #e1e9df;
     border-radius: 15px;
-    background: rgba(255, 255, 255, 0.075);
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 5px 16px rgba(29, 63, 43, 0.035);
     animation: login-rise 500ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
   }
 
@@ -4326,16 +4307,17 @@ tbody td {
   .login-feature .feat-icon {
     width: 32px;
     height: 32px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid #dce9dd;
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.13);
-    color: #e4ffeb;
+    background: #eaf3eb;
+    color: #17633c;
   }
 
   .login-feature span {
-    color: rgba(255, 255, 255, 0.9);
+    color: #52665a;
     font-size: 11px;
     line-height: 1.45;
+    text-align: center;
   }
 
   .login-form-wrap {
