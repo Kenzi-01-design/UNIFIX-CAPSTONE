@@ -43,6 +43,21 @@ export async function submitPublicReport(report, captchaToken, photos = []) {
   return data.report;
 }
 
+export async function getPublicFacilityIssues(locationId, reportOffset = 0, requestOffset = 0, limit = 50) {
+  if (!supabase) throw new Error('The facility issue feed is not configured.');
+  const { data, error } = await supabase.rpc('get_public_facility_issues', {
+    p_location_id: locationId,
+    p_report_offset: reportOffset,
+    p_request_offset: requestOffset,
+    p_limit: limit
+  });
+  if (error) {
+    console.error('Could not load the public facility issue feed.', error);
+    throw new Error('Current issues for this facility could not be loaded. Please try again later.');
+  }
+  return data;
+}
+
 export async function lookupPublicReport(trackingCode) {
   const data = await invokePublicFunction('track-report', { action: 'lookup', trackingCode });
   if (!data?.workItem) throw new Error('The tracking service returned an invalid response.');

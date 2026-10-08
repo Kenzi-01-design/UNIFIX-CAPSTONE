@@ -43,8 +43,11 @@
               <strong>{{ locationLabel(location) }}</strong>
               <small>{{ location.isActive ? 'Available in report forms' : 'Inactive' }}</small>
               <div class="facility-qr-link">
-                <code>/report?location={{ encodeURIComponent(location.id) }}</code>
-                <a :href="locationReportUrl(location)" target="_blank" rel="noopener noreferrer">Open report form</a>
+                <template v-if="location.isActive">
+                  <code>/facility?location={{ encodeURIComponent(location.id) }}</code>
+                  <a :href="facilityStatusUrl(location)" target="_blank" rel="noopener noreferrer">View facility status</a>
+                </template>
+                <small v-else>Facility QR unavailable while inactive</small>
               </div>
             </div>
             <button class="btn-secondary" type="button" @click="editLocation(location)">Edit</button>
@@ -181,8 +184,8 @@ function locationName(id) {
   return locations.value.find((location) => location.id === id)?.building || '';
 }
 
-function locationReportUrl(location) {
-  const url = new URL('/report', window.location.origin);
+function facilityStatusUrl(location) {
+  const url = new URL('/facility', window.location.origin);
   url.searchParams.set('location', location.id);
   return url.toString();
 }
@@ -203,7 +206,7 @@ async function generateQrCodes() {
     const { toDataURL } = await import('qrcode');
     const generated = {};
     for (const location of activeLocations.value) {
-      generated[location.id] = await toDataURL(locationReportUrl(location), {
+      generated[location.id] = await toDataURL(facilityStatusUrl(location), {
         width: 220,
         margin: 1,
         errorCorrectionLevel: 'H'
@@ -282,8 +285,8 @@ function printQrSheets() {
   const cards = activeLocations.value.map((location) => `
     <article><img src="${qrCodes.value[location.id]}" alt="QR code">
       <h2>${escapeHtml(locationLabel(location))}</h2>
-      <small>Scan to report an issue at this facility</small>
-      <small>${escapeHtml(locationReportUrl(location))}</small>
+      <small>Scan to view current issues or report a new one</small>
+      <small>${escapeHtml(facilityStatusUrl(location))}</small>
     </article>`).join('');
   printWindow.document.write(`<!doctype html><html><head><title>UNIFIX Facility QR Codes</title><style>
     body{font:12px Arial,sans-serif;margin:12mm}.sheet{display:grid;grid-template-columns:repeat(3,1fr);gap:10mm}

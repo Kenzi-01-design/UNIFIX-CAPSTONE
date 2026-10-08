@@ -3,9 +3,15 @@
     <!-- Toast Feedback Overlay -->
     <ToastContainer :toasts="toasts" />
 
+    <FacilityIssuesView
+      v-if="publicPage === 'facility'"
+      :location-id="locationPrefillId"
+      @back="returnFromFacilityPage"
+    />
+
     <!-- Public entry point -->
     <HomeView
-      v-if="!isAuthenticated && publicPage === 'home'"
+      v-else-if="!isAuthenticated && publicPage === 'home'"
       @open-report="publicPage = 'report'"
       @open-login="publicPage = 'login'"
       @open-register="publicPage = 'register'"
@@ -227,6 +233,7 @@ import TrackReportView from './views/TrackReportView.vue';
 import DashboardView from './views/DashboardView.vue';
 import SubmitReportView from './views/SubmitReportView.vue';
 import SubmitRequestView from './views/SubmitRequestView.vue';
+import FacilityIssuesView from './views/FacilityIssuesView.vue';
 import MyRequisitionsView from './views/MyRequisitionsView.vue';
 import ActivityLogView from './views/ActivityLogView.vue';
 import UserManagementView from './views/UserManagementView.vue';
@@ -280,8 +287,12 @@ const navDrawerOpen = ref(false);
 const sidebarRef = ref(null);
 let drawerReturnFocus = null;
 let previousBodyOverflow = '';
-const locationPrefillId = new URLSearchParams(window.location.search).get('location') || '';
-const publicPage = ref(window.location.pathname.replace(/\/+$/, '') === '/report' ? 'report' : 'home');
+const initialUrl = new URL(window.location.href);
+const locationPrefillId = initialUrl.searchParams.get('location') || '';
+const routePath = window.location.pathname.replace(/\/+$/, '');
+const isFacilityStatusRoute = routePath === '/facility'
+  || (routePath === '/report' && Boolean(locationPrefillId) && initialUrl.searchParams.get('new') !== '1');
+const publicPage = ref(isFacilityStatusRoute ? 'facility' : routePath === '/report' ? 'report' : 'home');
 const activeReportFilter = ref({});
 const activeRequestStatus = ref('');
 const isModalOpen = ref(false);
@@ -543,6 +554,11 @@ function openReportsWithFilter(filters = {}) {
 function handleLoginSuccess(landingView) {
   currentView.value = canAccessView(currentRole.value, landingView) ? landingView : 'dashboard';
   resetInactivityTimer();
+}
+
+function returnFromFacilityPage() {
+  window.history.pushState({}, '', '/');
+  publicPage.value = 'home';
 }
 
 async function handleLogout() {
