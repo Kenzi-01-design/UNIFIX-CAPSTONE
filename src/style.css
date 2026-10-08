@@ -452,13 +452,9 @@ textarea,
 .sidebar-logo .logo-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, var(--primary), var(--primary-light));
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
+  display: block;
   flex-shrink: 0;
+  filter: drop-shadow(0 4px 8px rgba(15, 107, 61, 0.18));
 }
 .sidebar-logo .logo-text {
   font-size: 17px;
@@ -4314,6 +4310,11 @@ tbody td {
     background: #fff;
     box-shadow: 0 8px 24px rgba(29, 63, 43, 0.09);
     color: #17633c;
+  }
+
+  .login-brand .brand-icon .brand-mark {
+    display: block;
+    filter: drop-shadow(0 4px 8px rgba(15, 107, 61, 0.2));
   }
 
   .login-brand h1 {

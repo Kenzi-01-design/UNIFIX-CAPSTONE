@@ -42,7 +42,7 @@
           <i></i>
           <span>REPORT · ROUTE · RESTORE</span>
         </div>
-        <div class="brand-icon"><UiIcon name="work" :size="28" /></div>
+        <div class="brand-icon"><BrandMark :size="36" /></div>
         <h1>UNIFIX</h1>
         <p>Nueva Vizcaya State University Maintenance Operations — faster repairs, safer campuses.</p>
       </div>
@@ -208,6 +208,7 @@ import { useToast } from '../composables/useToast.js';
 import { useNotifications } from '../composables/useNotifications.js';
 import { isDemoMode, isSupabaseConfigured } from '../lib/supabase.js';
 import UiIcon from '../components/UiIcon.vue';
+import BrandMark from '../components/BrandMark.vue';
 
 defineProps({ showBack: Boolean });
 const emit = defineEmits(['logged-in', 'back', 'register']);

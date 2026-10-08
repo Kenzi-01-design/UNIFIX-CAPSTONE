@@ -13,7 +13,7 @@
   >
     <div class="sidebar-header">
       <div class="sidebar-logo">
-        <div class="logo-icon"><UiIcon name="work" :size="22" /></div>
+        <BrandMark class="logo-icon" :size="36" />
         <div class="logo-text">UNI<span>FIX</span></div>
         <button
           v-if="drawerOpen"
@@ -72,6 +72,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import UiIcon from './UiIcon.vue';
+import BrandMark from './BrandMark.vue';
 import { getRoleNavigation } from '../lib/navigation.js';
 
 const props = defineProps({
