@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { isValidSupabaseUrl } from './runtimeConfig.js';
+import { getPublicFunctionErrorMessage } from './publicFunctionErrors.js';
 
 const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
 const supabaseAnonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
@@ -23,16 +24,7 @@ async function invokePublicFunction(name, body) {
   const { data, error } = await supabase.functions.invoke(name, { body });
 
   if (error) {
-    let message = error.message;
-    if (error.context) {
-      try {
-        const body = await error.context.clone().json();
-        if (body?.error) message = body.error;
-      } catch {
-        // Keep the original client error when the function response is not JSON.
-      }
-    }
-    throw new Error(message);
+    throw new Error(await getPublicFunctionErrorMessage(name, error));
   }
   return data;
 }
