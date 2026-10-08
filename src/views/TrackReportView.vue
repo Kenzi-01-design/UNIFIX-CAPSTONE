@@ -263,5 +263,17 @@ h1 { margin-top: 7px; font-size: clamp(28px, 5vw, 38px); letter-spacing: -1px; }
 .tracking-feedback select, .tracking-feedback textarea { width: 100%; padding: 9px; border: 1px solid var(--border-dark); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; }
 .tracking-feedback button { margin-top: 10px; }
 .feedback-thanks { margin-top: 7px; color: var(--primary); font-size: 12px; }
-@media(max-width: 540px) { .tracking-form-row button { width: 100%; } }
+@media(max-width: 767px) {
+  .tracking-page { min-height: 100dvh; padding: 16px 14px 32px; }
+  .back-link { min-height: 44px; margin-bottom: 12px; }
+  .tracking-card { padding: 18px; border-radius: 18px; }
+  .tracking-card h1 { margin-top: 5px; font-size: clamp(25px, 7vw, 32px); line-height: 1.2; }
+  .tracking-intro { margin-top: 8px; line-height: 1.55; }
+  .tracking-form { margin-top: 16px; }
+}
+@media(max-width: 540px) {
+  .tracking-form-row { flex-direction: column; }
+  .tracking-form-row input { width: 100%; height: 48px; min-height: 48px; flex: 0 0 48px; padding-block: 0; }
+  .tracking-form-row button { width: 100%; min-height: 48px; }
+}
 </style>
