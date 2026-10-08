@@ -6,7 +6,7 @@
         <span class="panel-action">{{ activityEntries.length }} items</span>
       </div>
 
-      <div style="overflow-x: auto">
+      <div class="responsive-table-scroll responsive-table-scroll--activity" style="overflow-x: auto">
         <table>
           <thead>
             <tr>

@@ -60,7 +60,7 @@
         <p v-if="reapplicationsLoadError" class="user-form-note" role="status">
           Registration requests loaded, but re-application details could not be loaded.
         </p>
-        <div class="user-table-wrap">
+        <div class="user-table-wrap responsive-table-scroll responsive-table-scroll--approvals">
           <table>
             <thead>
               <tr><th>Applicant</th><th>Requested role</th><th>Department</th><th>Contact</th><th>Confirm / assign role</th><th>Rejection reason</th><th>Review</th></tr>
@@ -160,7 +160,7 @@
           <span class="panel-title">University Users</span>
           <span class="panel-action">{{ activeUsers }} active</span>
         </div>
-        <div class="user-table-wrap">
+        <div class="user-table-wrap responsive-table-scroll responsive-table-scroll--users">
           <table>
             <thead>
               <tr><th>User</th><th>Role</th><th>Department</th><th>Approval</th><th>Access</th><th>Actions</th></tr>

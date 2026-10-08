@@ -36,6 +36,7 @@ async function render() {
     widgetId = window.turnstile.render(container.value, {
       sitekey: props.siteKey,
       theme: 'light',
+      size: window.matchMedia('(max-width: 767px)').matches ? 'flexible' : 'normal',
       callback: (token) => emit('success', token),
       'expired-callback': () => emit('expired'),
       'error-callback': (code) => emit('error', code)

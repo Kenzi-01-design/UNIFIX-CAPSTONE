@@ -2954,3 +2954,130 @@ tbody td {
     gap: 4px;
   }
 }
+
+@media (max-width: 1023px) {
+  #app {
+    --compact-control-height: 44px;
+    --compact-control-font-size: 16px;
+    --compact-surface-radius: 16px;
+    --compact-surface-shadow: 0 2px 10px rgba(26, 31, 54, 0.06);
+  }
+
+  #app :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+    select,
+    textarea
+  ) {
+    min-height: var(--compact-control-height);
+    font-size: var(--compact-control-font-size);
+  }
+
+  #app :is(
+    .panel,
+    .form-card,
+    .report-card,
+    .personnel-metric,
+    .evaluation-form,
+    .evaluation-result-card
+  ) {
+    border-radius: var(--compact-surface-radius);
+    box-shadow: var(--compact-surface-shadow);
+  }
+
+  .sidebar .nav-item {
+    min-height: 44px;
+  }
+
+  .responsive-table-scroll {
+    max-width: 100%;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .responsive-table-scroll--activity table {
+    min-width: 640px;
+  }
+
+  .report-table-wrap > div[style*="overflow-x: auto"] table {
+    min-width: 900px;
+  }
+
+  .admin-requests-panel > div[style*="overflow-x: auto"] table {
+    min-width: 820px;
+  }
+
+  .responsive-table-scroll--approvals table {
+    min-width: 960px;
+  }
+
+  .responsive-table-scroll--users table {
+    min-width: 760px;
+  }
+
+  .responsive-table-scroll .admin-action-btn {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 767px) {
+  body {
+    min-width: 0;
+  }
+
+  .modal {
+    align-items: flex-end;
+  }
+
+  #app .modal > .modal-content {
+    display: flex;
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - env(safe-area-inset-top) - 8px);
+    flex-direction: column;
+    margin: 0;
+    overflow: hidden;
+    border-radius: 16px 16px 0 0;
+  }
+
+  #app .modal-header {
+    flex: 0 0 auto;
+    background: var(--surface);
+  }
+
+  #app .modal-body {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  #app .modal-actions {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  #app .modal-actions > button {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  #app .modal-actions .request-reject {
+    grid-column: 1 / -1;
+  }
+
+  #app .modal-close {
+    display: grid;
+    width: 44px;
+    min-height: 44px;
+    flex: 0 0 44px;
+    place-items: center;
+    border-radius: var(--radius-sm);
+  }
+}

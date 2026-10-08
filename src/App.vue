@@ -707,7 +707,13 @@ async function handleModalTechComplete(id) {
     margin-left: 0;
   }
   .page-content {
-    padding: 16px;
+    padding: clamp(16px, 3vw, 24px);
+  }
+}
+
+@media (max-width: 600px) {
+  .page-content {
+    padding: 16px 14px calc(92px + env(safe-area-inset-bottom));
   }
 }
 </style>

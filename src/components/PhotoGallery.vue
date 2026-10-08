@@ -160,4 +160,8 @@ onBeforeUnmount(() => {
 .photo-lightbox-close { flex: 0 0 auto; width: 36px; height: 36px; border: 1px solid var(--border, #dce8df); border-radius: 8px; background: var(--surface-2, #f7faf7); color: var(--text, #17211b); font-size: 24px; line-height: 1; cursor: pointer; }
 .photo-lightbox-image { display: block; width: 100%; min-height: 0; max-height: calc(94vh - 105px); object-fit: contain; background: #101412; }
 .photo-lightbox-filename { padding: 0 18px 12px; overflow-wrap: anywhere; }
+@media (max-width: 1023px) {
+  .photo-lightbox-close { width: 44px; height: 44px; }
+  .photo-open-button { min-height: 44px; padding: 8px; text-align: center; }
+}
 </style>
