@@ -4,36 +4,73 @@
       <div class="orb"></div>
       <div class="orb"></div>
       <div class="orb"></div>
-      <svg class="login-sky-art" viewBox="0 0 1000 300" fill="none" aria-hidden="true">
-        <path class="sky-mountain-back" d="M0 203L114 127L168 158L287 66L390 155L466 103L572 179L682 78L788 164L874 112L1000 185V300H0V203Z" />
-        <path class="sky-mountain-front" d="M0 228L112 172L213 211L342 118L447 204L559 142L670 220L778 143L884 211L1000 161V300H0V228Z" />
-        <path class="sky-ridge" d="M0 228L112 172L213 211L342 118L447 204L559 142L670 220L778 143L884 211L1000 161" />
-        <path class="sky-cloud" d="M104 81H173M131 63H206M812 56H880M841 76H915" />
-        <path class="sky-route" d="M77 265H247L286 239H407M618 253H742L781 222H925" />
-        <path class="sky-route-dash" d="M112 265H195M663 253H714M821 222H877" />
-      </svg>
-      <svg class="login-campus-art" viewBox="0 0 900 420" fill="none" aria-hidden="true">
-        <path class="campus-art-lawn" d="M26 385H874L708 401H192L26 385Z" />
-        <path class="campus-art-wing" d="M118 274L222 220L326 274V385H118V274Z" />
-        <path class="campus-art-wing" d="M574 274L678 220L782 274V385H574V274Z" />
-        <path class="campus-art-main" d="M326 183L450 122L574 183V385H326V183Z" />
-        <path class="campus-art-roof" d="M326 132V95L450 34L574 95V132L450 71L326 132Z" />
-        <path class="campus-art-trim" d="M326 132L450 71L574 132M222 220L326 274L430 220M470 220L574 274L678 220" />
-        <path class="campus-art-door" d="M409 385V316C409 293 427 275 450 275C473 275 491 293 491 316V385H409Z" />
-        <path class="campus-art-window" d="M157 314H190M254 314H287M353 224H386M514 224H547M613 314H646M710 314H743" />
-        <path d="M26 385H874" />
-        <path d="M118 385V274L222 220L326 274V385M574 385V274L678 220L782 274V385" />
-        <path d="M222 220V183L326 132L430 183V385M470 385V183L574 132L678 183V385" />
-        <path d="M326 132V95L450 34L574 95V132" />
-        <path d="M284 385V323C284 289 311 262 345 262H555C589 262 616 289 616 323V385" />
-        <path d="M409 385V316C409 293 427 275 450 275C473 275 491 293 491 316V385" />
-        <path d="M450 275V211M423 211H477" />
-        <path d="M157 314H190M254 314H287M353 224H386M514 224H547M613 314H646M710 314H743" />
-        <path d="M169 274V353M266 274V353M365 183V253M535 183V253M625 274V353M732 274V353" />
-        <path d="M80 385C80 356 96 333 118 324C140 333 156 356 156 385M744 385C744 356 760 333 782 324C804 333 820 356 820 385" />
-        <path d="M118 345V385M782 345V385" />
-        <path d="M450 34V10M436 22H464" />
-        <path d="M26 385L192 401H708L874 385" />
+      <svg class="login-campus-art" viewBox="0 0 1440 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="morning-sky" x1="720" y1="0" x2="720" y2="790" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#9ABBC1" />
+            <stop offset=".48" stop-color="#E4D5B2" />
+            <stop offset="1" stop-color="#E9C98D" />
+          </linearGradient>
+          <linearGradient id="morning-campus" x1="720" y1="310" x2="720" y2="1000" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#638B72" />
+            <stop offset="1" stop-color="#174B37" />
+          </linearGradient>
+          <linearGradient id="morning-path" x1="720" y1="680" x2="720" y2="1000" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#EBD9B3" />
+            <stop offset="1" stop-color="#D6C39F" />
+          </linearGradient>
+          <radialGradient id="morning-sun" cx="0" cy="0" r="1" gradientTransform="matrix(0 220 -300 0 1110 205)" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#FFF4D7" stop-opacity=".9" />
+            <stop offset="1" stop-color="#F5D99F" stop-opacity="0" />
+          </radialGradient>
+          <filter id="foliage-soften" x="-10%" y="-20%" width="120%" height="140%">
+            <feGaussianBlur stdDeviation="8" />
+          </filter>
+        </defs>
+        <path fill="url(#morning-sky)" d="M0 0h1440v1000H0z" />
+        <path fill="url(#morning-sun)" d="M0 0h1440v600H0z" />
+        <circle cx="1110" cy="207" r="61" fill="#F8E4B8" fill-opacity=".62" />
+
+        <path fill="#718D8A" fill-opacity=".68" d="m0 494 116-88 86 49 149-151 118 126 119-103 124 103 126-166 139 145 114-77 154 115v250H0V494Z" />
+        <path fill="#536F68" fill-opacity=".72" d="m0 556 137-81 126 49 153-107 123 91 135-73 122 78 147-116 136 87 127-75 134 70v210H0V556Z" />
+        <path fill="#9EB293" fill-opacity=".76" d="M0 662c181-40 293-36 446-7 167 32 268-8 426-23 208-20 361 37 568 4v364H0V662Z" />
+        <path fill="#6D9273" fill-opacity=".88" d="M0 733c190-35 347-11 494 27 178 46 335-8 508-23 157-13 293 21 438-10v273H0V733Z" />
+
+        <path fill="url(#morning-campus)" d="M0 636c139-28 270-11 403 20 159 38 277 15 424-14 224-45 394-36 613 11v347H0V636Z" />
+        <path fill="#E8D8B5" fill-opacity=".58" d="m0 690 165-22 120 13v237H0V690Zm1150-4 133 8 157 33v191h-290V686Z" />
+
+        <g class="campus-building-scene">
+          <path fill="#264D3D" fill-opacity=".25" d="M309 607h827v238H309z" />
+          <path fill="#D8D1B8" d="M351 480h740v278H351z" />
+          <path fill="#EDE4CB" d="M390 420h663v52H390z" />
+          <path fill="#466B55" d="M332 448h778v31H332z" />
+          <path fill="#E8D8B5" fill-opacity=".88" d="M373 454h696v12H373z" />
+          <path fill="#315B47" d="M405 504h632v254H405z" />
+          <path fill="#D1C7AA" d="M438 528h566v230H438z" />
+          <path fill="#416B54" d="M474 548h494v210H474z" />
+          <path fill="#EADBB9" d="M507 570h428v188H507z" />
+          <path fill="#355E49" d="M554 596h334v162H554z" />
+          <path fill="#BCD0C0" fill-opacity=".68" d="M583 623h276v135H583z" />
+          <path fill="none" stroke="#F3E8CE" stroke-width="9" d="M721 299v459M373 452h696" />
+          <path fill="none" stroke="#B9B194" stroke-width="4" d="M438 528v230m566-230v230M507 570v188m428-188v188M583 623v135m276-135v135" />
+          <path fill="#E2C27C" d="M708 700a13 13 0 0 1 26 0v58h-26z" />
+          <path fill="#D5C8A8" d="M277 570h141v188H277zM1022 570h141v188h-141z" />
+          <path fill="#456B53" d="M260 561h177v22H260zm745 0h177v22h-177z" />
+          <path fill="#BFCDB6" d="M300 598h95v160h-95zm745 0h95v160h-95z" />
+        </g>
+
+        <path fill="url(#morning-path)" d="M0 1000v-71c225-60 398-91 544-111 77-11 127-53 177-115 47 62 96 104 174 115 147 20 320 51 545 111v71H0Z" />
+        <path fill="none" stroke="#F8EED8" stroke-opacity=".66" stroke-width="5" d="M721 706c-22 86-72 136-141 181M719 706c22 86 72 136 141 181" />
+
+        <g class="campus-trees" fill="#1C5139">
+          <path d="M77 764c-13-44 5-87 29-112-2-42 15-78 40-96 31 24 42 61 37 97 26 29 37 68 24 111l35 236H45l32-236Zm1110-15c-14-40 3-80 27-104-2-38 13-72 37-91 29 22 40 57 35 91 24 27 35 63 22 104l33 251h-183l29-251Z" />
+          <path d="M240 816c-11-33 2-64 22-84-1-31 11-58 31-74 23 18 32 46 28 73 19 23 28 51 17 85l26 184H214l26-184Zm917-4c-10-31 2-59 21-77-1-29 10-54 29-69 22 17 30 43 27 68 18 21 26 47 16 78l24 186h-161l24-186Z" />
+        </g>
+        <g filter="url(#foliage-soften)" fill="#174B37" fill-opacity=".76">
+          <ellipse cx="81" cy="962" rx="178" ry="118" />
+          <ellipse cx="1372" cy="964" rx="200" ry="126" />
+        </g>
+        <path fill="none" stroke="#FFF5DC" stroke-opacity=".32" stroke-width="2" d="M0 805c112-24 199-24 300-7m840-9c105-23 198-18 300 8" />
       </svg>
       <div class="login-brand">
         <div class="login-campus-label">
@@ -44,7 +81,7 @@
         </div>
         <div class="brand-icon"><BrandMark :size="36" /></div>
         <h1>UNIFIX</h1>
-        <p>Nueva Vizcaya State University Maintenance Operations — faster repairs, safer campuses.</p>
+        <p>Care for our campus, built on community and pride.</p>
       </div>
       <div class="login-showcase" aria-hidden="true">
         <div class="login-showcase-topline">
@@ -101,7 +138,14 @@
         </button>
       </form>
       <template v-else>
-      <h2>Welcome back</h2>
+      <div class="login-form-brand" aria-label="UNIFIX, NVSU Campus Maintenance">
+        <span class="login-form-brand-icon"><BrandMark :size="27" /></span>
+        <span>
+          <strong>UNIFIX</strong>
+          <small>NVSU Campus Maintenance</small>
+        </span>
+      </div>
+      <h2>Welcome back, Nueva Vizcayano.</h2>
       <p class="sub">Sign in with your NVSU institutional account.</p>
       <p v-if="authNotice" class="login-auth-notice" role="alert">{{ authNotice }}</p>
       
