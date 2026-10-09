@@ -145,7 +145,7 @@
           <small>NVSU Campus Maintenance</small>
         </span>
       </div>
-      <h2>Welcome back, Nueva Vizcayano.</h2>
+      <h2>Welcome</h2>
       <p class="sub">Sign in with your NVSU institutional account.</p>
       <p v-if="authNotice" class="login-auth-notice" role="alert">{{ authNotice }}</p>
       
@@ -232,7 +232,7 @@
 
       <p class="login-register-link">
         Need an account?
-        <button type="button" @click="$emit('register')">Submit a registration request</button>
+        <button type="button" @click="$emit('register')">Create account</button>
       </p>
 
       <p style="margin-top: 20px; font-size: 12px; color: var(--text-3); text-align: center;">

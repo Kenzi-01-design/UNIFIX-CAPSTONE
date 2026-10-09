@@ -4741,75 +4741,13 @@ tbody td {
   #login-page {
     flex-direction: column;
     align-items: stretch;
-    overflow: hidden auto;
-    background: linear-gradient(165deg, #d9e6da 0%, #f2e9d6 42%, #f7f8f4 100%);
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: auto;
+    background: #f7faf7;
   }
 
   .login-visual {
-    display: flex;
-    min-height: 246px;
-    flex: 0 0 246px;
-    gap: 0;
-    padding: 30px 18px 46px;
-    background: linear-gradient(145deg, #174b37 0%, #32714f 52%, #c59a52 100%);
-  }
-
-  .login-visual::before {
-    z-index: 1;
-    background:
-      linear-gradient(135deg, rgba(14, 57, 41, 0.16), rgba(20, 76, 52, 0.03) 52%, rgba(199, 147, 65, 0.2)),
-      linear-gradient(0deg, rgba(14, 57, 41, 0.24), transparent 64%);
-  }
-
-  .login-campus-art {
-    position: absolute;
-    z-index: 0;
-    inset: 0;
-    display: block;
-    width: 100%;
-    height: 100%;
-    --campus-art-opacity: 0.76;
-    opacity: var(--campus-art-opacity);
-    filter: blur(1.5px);
-    pointer-events: none;
-    animation: login-campus-arrive 900ms 120ms ease-out both;
-  }
-
-  .login-brand {
-    max-width: 390px;
-    margin-top: -7px;
-    text-align: center;
-  }
-
-  .login-campus-label {
-    margin-bottom: 10px;
-    font-size: 7px;
-    letter-spacing: 0.045em;
-  }
-
-  .login-brand .brand-icon {
-    width: 46px;
-    height: 46px;
-    margin-bottom: 7px;
-    border-radius: 14px;
-  }
-
-  .login-brand h1 {
-    font-size: 30px;
-    color: #174b37;
-  }
-
-  .login-brand p {
-    max-width: 350px;
-    font-size: 11px;
-    color: #294f3b;
-  }
-
-  .login-features {
-    display: none;
-  }
-
-  .login-showcase {
     display: none;
   }
 
@@ -4817,36 +4755,12 @@ tbody td {
     display: none;
   }
 
-  .login-brand,
-  .login-features {
-    width: min(100%, 390px);
-  }
-
-  .login-campus-label {
-    gap: 5px;
-    min-height: 28px;
-    margin-bottom: 8px;
-    padding-right: 7px;
-    font-size: 7px;
-    letter-spacing: 0.045em;
-  }
-
-  .login-campus-label-icon {
-    width: 19px;
-    height: 19px;
-  }
-
   .login-form-wrap {
-    width: auto;
-    max-width: none;
+    width: 100%;
+    max-width: 520px;
     flex: 1 0 auto;
-    margin: -24px 14px 24px;
-    padding: 28px clamp(20px, 6vw, 32px) calc(28px + env(safe-area-inset-bottom));
-    border: 1px solid rgba(255, 255, 255, 0.88);
-    border-radius: 22px;
-    background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 18px 48px rgba(37, 66, 47, 0.12);
-    position: relative;
-    z-index: 2;
+    margin: 0 auto;
+    padding: 30px clamp(20px, 6vw, 32px) calc(28px + env(safe-area-inset-bottom));
+    background: #fff;
   }
 }
