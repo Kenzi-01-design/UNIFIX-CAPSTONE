@@ -3171,6 +3171,8 @@ tbody td {
 
   #login-page .login-visual .login-brand-copy {
     min-width: 0;
+    flex: 1 1 auto;
+    text-align: center;
   }
 
   #login-page .login-visual .login-brand-copy h1 {
@@ -3183,7 +3185,7 @@ tbody td {
 
   #login-page .login-visual .login-brand-copy p {
     max-width: 360px;
-    margin: 0;
+    margin: 0 auto;
     color: #294f3b;
     font-size: clamp(12px, 1.2vw, 15px);
     line-height: 1.45;
