@@ -3142,11 +3142,10 @@ tbody td {
 
 @media (min-width: 768px) {
   #login-page .login-visual .login-brand-lockup {
-    display: flex;
+    display: grid;
     width: min(100%, 500px);
-    align-items: center;
-    justify-content: center;
-    gap: clamp(12px, 2vw, 20px);
+    justify-items: center;
+    gap: 8px;
     margin: 0 auto;
     padding: clamp(14px, 2vw, 22px);
     border: 1px solid rgba(255, 255, 255, 0.86);
@@ -3156,7 +3155,14 @@ tbody td {
     text-align: left;
   }
 
-  #login-page .login-visual .login-brand-lockup .brand-icon {
+  #login-page .login-visual .login-brand-heading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(12px, 2vw, 20px);
+  }
+
+  #login-page .login-visual .login-brand-heading .brand-icon {
     display: grid;
     width: 58px;
     height: 58px;
@@ -3169,23 +3175,18 @@ tbody td {
     box-shadow: 0 5px 14px rgba(29, 63, 43, 0.1);
   }
 
-  #login-page .login-visual .login-brand-copy {
-    min-width: 0;
-    flex: 1 1 auto;
-    text-align: center;
-  }
-
-  #login-page .login-visual .login-brand-copy h1 {
-    margin: 0 0 5px;
+  #login-page .login-visual .login-brand-heading h1 {
+    margin: 0;
     color: #174b37;
     font-size: clamp(32px, 4.5vw, 48px);
     letter-spacing: -0.055em;
     line-height: 1;
   }
 
-  #login-page .login-visual .login-brand-copy p {
+  #login-page .login-visual .login-brand-tagline {
     max-width: 360px;
     margin: 0 auto;
+    text-align: center;
     color: #294f3b;
     font-size: clamp(12px, 1.2vw, 15px);
     line-height: 1.45;

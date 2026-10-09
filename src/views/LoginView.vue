@@ -80,11 +80,11 @@
           <span>REPORT · ROUTE · RESTORE</span>
         </div>
         <div class="login-brand-lockup">
-          <div class="brand-icon"><BrandMark :size="36" /></div>
-          <div class="login-brand-copy">
+          <div class="login-brand-heading">
+            <div class="brand-icon"><BrandMark :size="36" /></div>
             <h1>UNIFIX</h1>
-            <p>Care for our campus, built on community and pride.</p>
           </div>
+          <p class="login-brand-tagline">Care for our campus, built on community and pride.</p>
         </div>
       </div>
       <div class="login-showcase" aria-hidden="true">
