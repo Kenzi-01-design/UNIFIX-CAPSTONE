@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">UNIFIX campus care app icon</title>
+  <rect width="512" height="512" rx="112" fill="#0F6B3D"/>
+  <g transform="translate(80 72) scale(7.2)">
+    <path d="M24 3.5 42 10v12.8c0 10.3-6.9 18-18 22.2C12.9 40.8 6 33.1 6 22.8V10l18-6.5Z" fill="#FFFDF7"/>
+    <path d="M12.5 19.5h8v-4h7v4h8v15h-23v-15Z" fill="#0F6B3D" stroke="#0F6B3D" stroke-linejoin="round"/>
+    <path d="M16 23h3v3h-3zm6 0h3v3h-3zm6 0h3v3h-3zm-6 6h5v5h-5z" fill="#FFFDF7"/>
+    <circle cx="35.5" cy="34.5" r="8" fill="#DEA510" stroke="#0F6B3D" stroke-width="2"/>
+    <path d="m31.8 34.4 2.4 2.4 5-5.1" fill="none" stroke="#0A4F2D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

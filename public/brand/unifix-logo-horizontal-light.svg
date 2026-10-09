@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 470 112" role="img" aria-labelledby="title desc">
+  <title id="title">UNIFIX — NVSU Maintenance System</title>
+  <desc id="desc">A protected campus building with a gold resolved check, beside the UNIFIX wordmark.</desc>
+  <g transform="translate(8 8)">
+    <path d="M40 2 76 15v25.6C76 61.2 62.2 76.6 40 86 17.8 76.6 4 61.2 4 40.6V15L40 2Z" fill="#0F6B3D"/>
+    <path d="M17 34h16v-8h14v8h16v30H17V34Z" fill="#FFFDF7" stroke="#FFFDF7" stroke-linejoin="round"/>
+    <path d="M24 41h6v6h-6zm12 0h6v6h-6zm12 0h6v6h-6zM35 53h10v11H35z" fill="#0F6B3D"/>
+    <circle cx="65" cy="65" r="16" fill="#DEA510" stroke="#FFFDF7" stroke-width="4"/>
+    <path d="m57.5 64.8 4.8 4.8 10-10.2" fill="none" stroke="#0A4F2D" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="108" y="63" fill="#123E2B" font-family="Plus Jakarta Sans, Poppins, Montserrat, Arial, sans-serif" font-size="47" font-weight="800" letter-spacing="-2">UNI<tspan fill="#B17A00">FIX</tspan></text>
+  <text x="111" y="88" fill="#53665A" font-family="Plus Jakarta Sans, Poppins, Montserrat, Arial, sans-serif" font-size="13" font-weight="600" letter-spacing="1.15">NVSU MAINTENANCE SYSTEM</text>
+</svg>

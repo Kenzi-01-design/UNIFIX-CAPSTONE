@@ -5,17 +5,26 @@
     :height="size"
     viewBox="0 0 48 48"
     fill="none"
-    aria-hidden="true"
+    role="img"
+    aria-label="UNIFIX campus care mark"
     focusable="false"
   >
-    <rect x="2" y="2" width="44" height="44" rx="15" fill="#0F6B3D" />
-    <rect x="3" y="3" width="42" height="42" rx="14" stroke="white" stroke-opacity=".18" />
-    <path d="M10 21.5 24 12l14 9.5" stroke="#F0C56A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-    <path d="M13 21v16h22V21L24 13.5 13 21Z" fill="white" />
-    <path d="M18 24h4v4h-4zM26 24h4v4h-4z" fill="#0F6B3D" />
-    <path d="M21 37v-7h6v7" fill="#DDEEE1" />
-    <path d="M36.5 9.5v5M34 12h5" stroke="#F0C56A" stroke-width="1.8" stroke-linecap="round" />
-    <circle cx="36.5" cy="12" r="5.5" stroke="#F0C56A" stroke-opacity=".42" />
+    <path
+      d="M24 3.5 42 10v12.8c0 10.3-6.9 18-18 22.2C12.9 40.8 6 33.1 6 22.8V10l18-6.5Z"
+      fill="#0F6B3D"
+    />
+    <path
+      d="M12.5 19.5h8v-4h7v4h8v15h-23v-15Z"
+      fill="#FFFDF7"
+      stroke="#FFFDF7"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M16 23h3v3h-3zm6 0h3v3h-3zm6 0h3v3h-3zM22 29h5v5h-5z"
+      fill="#0F6B3D"
+    />
+    <circle cx="35.5" cy="34.5" r="8" fill="#DEA510" stroke="#FFFDF7" stroke-width="2" />
+    <path d="m31.8 34.4 2.4 2.4 5-5.1" stroke="#0A4F2D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
   </svg>
 </template>
 
