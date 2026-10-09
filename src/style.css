@@ -4812,11 +4812,7 @@ tbody td {
   }
 
   .login-visual {
-    display: flex;
-    min-height: 0;
-    flex: 0 0 auto;
-    gap: 11px;
-    padding: 22px 16px 16px;
+    display: none;
   }
 
   .login-sky-art {
