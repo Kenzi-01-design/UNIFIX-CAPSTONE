@@ -35,6 +35,32 @@ function loadLoginEvents() {
 
 const loginEvents = ref(isSupabaseConfigured ? [] : loadLoginEvents());
 
+function mapLoginEvent(event) {
+  const timestamp = new Date(event.logged_in_at).getTime();
+  return {
+    id: event.id,
+    type: 'LOGIN',
+    title: event.user_name,
+    date: Number.isNaN(timestamp) ? 'Unknown date' : new Date(timestamp).toLocaleString(),
+    timestamp: Number.isNaN(timestamp) ? 0 : timestamp,
+    statusClass: 'resolved',
+    statusLabel: 'Successful',
+    details: `${event.role} signed in with ${event.email}`
+  };
+}
+
+function applyRealtimeLoginEvent(event) {
+  if (!event?.id || !event.logged_in_at) return;
+  loginEventsRequestGeneration += 1;
+  const mappedEvent = mapLoginEvent(event);
+  loginEvents.value = [mappedEvent, ...loginEvents.value.filter((item) => item.id !== mappedEvent.id)]
+    .sort((left, right) => right.timestamp - left.timestamp)
+    .slice(0, 500);
+  void loadLoginEventsFromSupabase().catch((error) => {
+    console.error('Could not refresh login history after a realtime update.', error);
+  });
+}
+
 async function loadLoginEventsFromSupabase() {
   if (!isSupabaseConfigured) return;
   const generation = ++loginEventsLoadGeneration;
@@ -52,16 +78,7 @@ async function loadLoginEventsFromSupabase() {
   }
   if (generation !== loginEventsLoadGeneration || requestGeneration !== loginEventsRequestGeneration) return;
   loginHistoryError.value = '';
-  loginEvents.value = (data || []).map((event) => ({
-    id: event.id,
-    type: 'LOGIN',
-    title: event.user_name,
-    date: new Date(event.logged_in_at).toLocaleString(),
-    timestamp: new Date(event.logged_in_at).getTime(),
-    statusClass: 'resolved',
-    statusLabel: 'Successful',
-    details: `${event.role} signed in with ${event.email}`
-  }));
+  loginEvents.value = (data || []).map(mapLoginEvent);
 }
 
 function stopLoginEventsSubscription() {
@@ -103,10 +120,8 @@ function subscribeToLoginEvents() {
 
   const channel = supabase
     .channel('login-events-live-updates')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'login_events' }, () => {
-      void loadLoginEventsFromSupabase().catch((error) => {
-        console.error('Could not refresh login history after a realtime update.', error);
-      });
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'login_events' }, (payload) => {
+      applyRealtimeLoginEvent(payload.new);
     })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {

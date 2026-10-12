@@ -148,12 +148,12 @@ describe('useAuth sign-in handling', () => {
 
     expect(mocks.channel.on).toHaveBeenCalledWith(
       'postgres_changes',
-      { event: '*', schema: 'public', table: 'login_events' },
+      { event: 'INSERT', schema: 'public', table: 'login_events' },
       expect.any(Function)
     );
   });
 
-  it('refreshes the Admin login history when any staff member signs in', async () => {
+  it('adds staff sign-ins from realtime payloads immediately to Admin login history', async () => {
     mocks.profileResult = {
       data: {
         auth_user_id: 'auth-admin',
@@ -171,20 +171,27 @@ describe('useAuth sign-in handling', () => {
     const loginEventsQuery = mocks.channel.on.mock.calls.find(([, filter]) => filter.table === 'login_events');
     expect(loginEventsQuery).toBeDefined();
 
-    mocks.loginEventsResult = [{
-      id: 'LOGIN-personnel-1',
-      user_name: 'Personnel User',
-      role: 'Personnel',
-      email: 'personnel@nvsu.edu.ph',
-      logged_in_at: '2026-10-12T09:00:00.000Z'
-    }];
-    loginEventsQuery[2]();
+    const staffRoles = ['Employee', 'Assistant', 'Personnel'];
+    const realtimeRows = staffRoles.map((role, index) => ({
+      id: `LOGIN-${role.toLowerCase()}-1`,
+      user_name: `${role} User`,
+      role,
+      email: `${role.toLowerCase()}@nvsu.edu.ph`,
+      logged_in_at: `2026-10-12T09:0${index}:00.000Z`
+    }));
 
-    await vi.waitFor(() => {
+    for (const row of realtimeRows) {
+      loginEventsQuery[2]({ new: row });
       expect(auth.loginEvents.value).toContainEqual(expect.objectContaining({
-        title: 'Personnel User',
-        details: 'Personnel signed in with personnel@nvsu.edu.ph'
+        id: row.id,
+        title: row.user_name,
+        details: `${row.role} signed in with ${row.email}`
       }));
+    }
+
+    mocks.loginEventsResult = realtimeRows;
+    await vi.waitFor(() => {
+      expect(auth.loginEvents.value).toHaveLength(staffRoles.length);
     });
   });
 
