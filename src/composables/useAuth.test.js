@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   auth: {
@@ -40,6 +40,11 @@ async function loadAuth() {
 }
 
 describe('useAuth sign-in handling', () => {
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('localStorage', {
@@ -227,6 +232,35 @@ describe('useAuth sign-in handling', () => {
       }));
     });
     expect(auth.loginEvents.value[0].date).toContain('GMT+8');
+  });
+
+  it('polls login history as a fallback when Realtime misses an event', async () => {
+    vi.useFakeTimers();
+    mocks.auth.signInWithPassword.mockResolvedValue({
+      data: { user: { id: 'auth-admin', email: 'admin@nvsu.edu.ph' } },
+      error: null
+    });
+    mocks.profileResult = {
+      data: {
+        auth_user_id: 'auth-admin',
+        name: 'Admin User',
+        email: 'admin@nvsu.edu.ph',
+        role: 'Admin',
+        is_active: true,
+        registration_status: 'approved'
+      },
+      error: null
+    };
+    const auth = await loadAuth();
+    await auth.login('admin@nvsu.edu.ph', 'password', 'Admin');
+    for (let turn = 0; turn < 5; turn += 1) await Promise.resolve();
+
+    const initialReads = mocks.from.mock.calls.filter(([table]) => table === 'login_events').length;
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(mocks.from.mock.calls.filter(([table]) => table === 'login_events').length)
+      .toBeGreaterThan(initialReads);
+    await auth.logout();
   });
 
   it('signs out a pending account and reports its review state', async () => {

@@ -13,11 +13,13 @@ const _authNoticeCode = ref('');
 const _passwordRecoveryMode = ref(false);
 const loginHistoryError = ref('');
 const LOGIN_EVENTS_KEY = 'unifix-login-events-v1';
+const LOGIN_HISTORY_POLL_INTERVAL = 10_000;
 let authProfileGeneration = 0;
 let profileChannel = null;
 let suppressAuthProfileLoad = false;
 let loginEventsChannel = null;
 let loginEventsRetryTimer = null;
+let loginEventsPollTimer = null;
 let loginEventsRetryAttempt = 0;
 let loginEventsSubscriptionWanted = false;
 let loginEventsLoadGeneration = 0;
@@ -113,6 +115,10 @@ function stopLoginEventsSubscription() {
     clearTimeout(loginEventsRetryTimer);
     loginEventsRetryTimer = null;
   }
+  if (loginEventsPollTimer) {
+    clearTimeout(loginEventsPollTimer);
+    loginEventsPollTimer = null;
+  }
   if (loginEventsChannel) {
     void supabase.removeChannel(loginEventsChannel).catch((error) => {
       console.error('Could not stop the login events realtime subscription.', error);
@@ -129,6 +135,16 @@ async function refreshLoginEvents() {
   }
 }
 
+function scheduleLoginEventsRefresh() {
+  if (!loginEventsSubscriptionWanted || loginEventsPollTimer) return;
+  loginEventsPollTimer = setTimeout(async () => {
+    loginEventsPollTimer = null;
+    if (!loginEventsSubscriptionWanted || _currentRole.value !== 'Admin' || !_isAuthenticated.value) return;
+    await refreshLoginEvents();
+    scheduleLoginEventsRefresh();
+  }, LOGIN_HISTORY_POLL_INTERVAL);
+}
+
 function scheduleLoginEventsRetry() {
   if (!loginEventsSubscriptionWanted || loginEventsRetryTimer) return;
   const delay = Math.min(1000 * (2 ** loginEventsRetryAttempt), 30_000);
@@ -142,6 +158,7 @@ function scheduleLoginEventsRetry() {
 function subscribeToLoginEvents() {
   loginEventsSubscriptionWanted = true;
   if (!isSupabaseConfigured || _currentRole.value !== 'Admin' || !_isAuthenticated.value || loginEventsChannel) return;
+  scheduleLoginEventsRefresh();
 
   const channel = supabase
     .channel('login-events-live-updates')
