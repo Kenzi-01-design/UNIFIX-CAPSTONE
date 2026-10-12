@@ -184,9 +184,10 @@ async function submitRegistration() {
 <style scoped>
 #register-page { min-height:100vh; min-height:100dvh; display:grid; place-items:center; padding:28px 16px; background:var(--bg); }
 .register-card { width:min(100%,560px); padding:32px; border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface); box-shadow:var(--shadow); }
-.register-back { margin-bottom:22px; }
-.register-card h1 { margin:8px 0; color:var(--text); font-size:clamp(24px,4vw,32px); }
-.register-intro,.register-success p { color:var(--text-2); line-height:1.6; }
+.register-back { display:flex; width:max-content; margin:0 0 18px; }
+.register-card > .eyebrow { display:block; margin-bottom:8px; }
+.register-card h1 { margin:0 0 10px; color:var(--text); font-size:clamp(24px,4vw,32px); }
+.register-intro,.register-success p { margin:0; color:var(--text-2); line-height:1.6; }
 .register-form { display:grid; gap:14px; margin-top:22px; }
 .register-form .form-group { margin:0; }
 .register-form input { width:100%; }
