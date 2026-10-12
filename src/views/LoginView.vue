@@ -72,12 +72,12 @@
         <g class="login-philippine-flag">
           <path fill="#164A8A" d="M724 306c39 0 89-8 150-16v53c-61 8-111 16-150 16V306Z" />
           <path fill="#CE2028" d="M724 359c39 0 89-8 150-16v53c-61 8-111 16-150 16v-53Z" />
-          <path fill="#FFFDF7" d="M724 306 789 352.07 724 412Z" />
+          <path fill="#FFFDF7" d="M724 306 790.75 354 724 412Z" />
           <circle cx="747" cy="359" r="9" fill="#F6C744" />
           <path fill="#F6C744" d="m747 345 2.2 8.4 7.7-4-5.9 6.5 8 3.2-8.6.7 3.3 8-6.7-5.6-2.8 8.1-.9-8.6-8 3.3 5.7-6.7-8.2-2.7 8.7-.9-3.3-8 6.8 5.7 2.6-8.4Z" />
-          <use href="#philippine-flag-star" fill="#F6C744" transform="translate(735 320)" />
-          <use href="#philippine-flag-star" fill="#F6C744" transform="translate(735 398)" />
-          <use href="#philippine-flag-star" fill="#F6C744" transform="translate(778 352.07)" />
+          <use href="#philippine-flag-star" fill="#F6C744" transform="translate(734 319)" />
+          <use href="#philippine-flag-star" fill="#F6C744" transform="translate(734 399)" />
+          <use href="#philippine-flag-star" fill="#F6C744" transform="translate(780 354)" />
         </g>
 
         <path fill="url(#morning-path)" d="M0 1000v-58c250-73 451-94 602-124 54-11 94-46 118-112 24 66 64 101 118 112 151 30 352 51 602 124v58H0Z" />
