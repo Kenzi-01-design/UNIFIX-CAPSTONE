@@ -1,7 +1,10 @@
 <template>
   <main class="facility-public-page">
     <header class="facility-public-header">
-      <button class="back-link" type="button" @click="$emit('back')">← Back to UNIFIX</button>
+      <button class="public-back-button" type="button" @click="$emit('back')">
+        <UiIcon name="arrow-left" :size="16" />
+        <span>Back to UNIFIX</span>
+      </button>
       <span class="facility-public-brand">UNIFIX · Campus Facility Status</span>
     </header>
 
@@ -100,6 +103,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
+import UiIcon from '../components/UiIcon.vue';
 import { getPublicFacilityIssues, isDemoMode, isSupabaseConfigured } from '../lib/supabase.js';
 import { useReports } from '../composables/useReports.js';
 import { useRequests } from '../composables/useRequests.js';
@@ -236,15 +240,23 @@ onMounted(() => {
 .facility-public-error p { line-height:1.5; }
 .facility-load-more { display:flex; justify-content:center; margin-top:20px; }
 @media(max-width:767px) {
-  .facility-public-page { padding:16px 0 32px; }
-  .facility-public-header { align-items:flex-start; flex-direction:column; gap:8px; margin-bottom:16px; }
-  .facility-public-header .back-link { min-height:44px; }
-  .facility-public-hero { padding:20px; }
+  .facility-public-page { padding:16px 14px calc(32px + env(safe-area-inset-bottom)); }
+  .facility-public-header { align-items:flex-start; flex-direction:column; gap:10px; margin-bottom:16px; }
+  .facility-public-header .public-back-button { margin-bottom:0; }
+  .facility-public-brand { padding-left:2px; }
+  .facility-public-hero { padding:18px 16px; }
   .facility-report-link { width:100%; }
-  .facility-public-summary { gap:8px; }
-  .facility-public-summary article { align-items:flex-start; flex-direction:column-reverse; gap:6px; padding:12px; }
+  .facility-public-summary { gap:8px; margin:14px 0; }
+  .facility-public-summary article { align-items:flex-start; flex-direction:column-reverse; gap:6px; padding:12px 10px; }
+  .facility-public-summary span { font-size:12px; line-height:1.35; }
   .facility-public-summary strong { font-size:21px; }
   .facility-issue-grid { grid-template-columns:1fr; }
+  .facility-issue-section > header { align-items:flex-start; }
+  .facility-issue-section h2 { font-size:17px; line-height:1.35; }
+  .facility-issue-section header p { line-height:1.45; }
+  .facility-issue-card,.facility-issue-empty { padding:14px; }
+  .facility-issue-card-top,.facility-issue-meta { align-items:flex-start; }
+  .facility-issue-meta time { overflow-wrap:anywhere; }
   .facility-load-more button,.facility-public-error button { min-height:44px; }
 }
 </style>
