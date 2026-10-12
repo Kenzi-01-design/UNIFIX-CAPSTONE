@@ -389,7 +389,7 @@ async function submitRecovery() {
 <style scoped>
 .login-form-header { position: relative; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 22px; }
 .login-back { grid-column: 1; justify-self: start; margin: 0; min-height: 40px; padding-inline: 10px; gap: 6px; font-size: 12px; }
-.login-form-brand { display: flex; grid-column: 2; justify-self: center; margin: 0; gap: 8px; }
+.login-form-brand { display: flex; grid-column: 3; justify-self: end; margin: 0; gap: 8px; }
 .login-form-brand-icon { width: 40px; height: 40px; border-radius: 12px; }
 .login-form-brand-icon .brand-mark { width: 24px; height: 24px; }
 .login-form-brand strong { font-size: 13px; }
