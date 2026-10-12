@@ -78,7 +78,11 @@ describe('useAuth sign-in handling', () => {
       data: {
         auth_user_id: 'auth-user-1',
         name: 'Employee User',
+        email: 'employee@nvsu.edu.ph',
         role: 'Employee',
+        department: 'College of Engineering',
+        phone: '09171234567',
+        location: 'Bambang Campus',
         is_active: true,
         registration_status: 'approved'
       },
@@ -89,6 +93,21 @@ describe('useAuth sign-in handling', () => {
     await expect(auth.login('employee@nvsu.edu.ph', 'password', 'Admin')).resolves.toBe('Employee');
     expect(auth.currentRole.value).toBe('Employee');
     expect(auth.isAuthenticated.value).toBe(true);
+    localStorage.getItem.mockReturnValue(JSON.stringify({
+      name: 'Old cached name',
+      email: 'old@nvsu.edu.ph',
+      phone: '',
+      dept: '',
+      location: 'Old Campus',
+      updatedAt: 'Yesterday'
+    }));
+    expect(auth.loadProfile()).toMatchObject({
+      name: 'Employee User',
+      email: 'employee@nvsu.edu.ph',
+      dept: 'College of Engineering',
+      phone: '09171234567',
+      location: 'Bambang Campus'
+    });
     expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
       user_name: 'Employee User',
       role: 'Employee',

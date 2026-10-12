@@ -6,6 +6,7 @@ import { accountAccessState, authStateMessage, classifyAuthError } from '../lib/
 const _currentRole = ref('Admin');
 const _activeUserName = ref('Admin User');
 const _activeUserEmail = ref('');
+const _activeUserProfile = ref(null);
 const _isAuthenticated = ref(false);
 const _authNotice = ref('');
 const _authNoticeCode = ref('');
@@ -179,6 +180,7 @@ async function loadAuthenticatedProfile() {
     if (generation === authProfileGeneration) {
       _isAuthenticated.value = false;
       _activeUserEmail.value = '';
+      _activeUserProfile.value = null;
       _currentRole.value = 'Admin';
       _activeUserName.value = 'Admin User';
       _passwordRecoveryMode.value = false;
@@ -205,6 +207,7 @@ async function loadAuthenticatedProfile() {
   _currentRole.value = profile.role;
   _activeUserName.value = profile.name;
   _activeUserEmail.value = user.email || '';
+  _activeUserProfile.value = profile;
   _isAuthenticated.value = true;
   clearNotice();
   subscribeToProfile(user);
@@ -218,6 +221,7 @@ if (isSupabaseConfigured) {
       authProfileGeneration += 1;
       _isAuthenticated.value = false;
       _activeUserEmail.value = '';
+      _activeUserProfile.value = null;
       _currentRole.value = 'Admin';
       _activeUserName.value = 'Admin User';
       stopProfileSubscription();
@@ -231,6 +235,7 @@ if (isSupabaseConfigured) {
       _currentRole.value = 'Admin';
       _activeUserName.value = 'Admin User';
       _activeUserEmail.value = session.user.email || '';
+      _activeUserProfile.value = null;
       return;
     }
     if (_passwordRecoveryMode.value) return;
@@ -249,13 +254,13 @@ if (isSupabaseConfigured) {
 async function findProfileForUser(user) {
   let { data: profile, error } = await supabase
     .from('user_profiles')
-    .select('name,email,role,is_active,registration_status,rejection_reason,auth_user_id')
+    .select('name,email,role,department,phone,location,is_active,registration_status,rejection_reason,auth_user_id')
     .eq('auth_user_id', user.id)
     .maybeSingle();
   if (!error && !profile && user.email) {
     const legacyResult = await supabase
       .from('user_profiles')
-      .select('name,email,role,is_active,registration_status,rejection_reason,auth_user_id')
+      .select('name,email,role,department,phone,location,is_active,registration_status,rejection_reason,auth_user_id')
       .is('auth_user_id', null)
       .eq('email', user.email)
       .maybeSingle();
@@ -380,6 +385,7 @@ export function useAuth() {
         _currentRole.value = profile.role;
         _activeUserName.value = profile.name;
         _activeUserEmail.value = data.user.email || '';
+        _activeUserProfile.value = profile;
         _isAuthenticated.value = true;
         clearNotice();
         subscribeToProfile(data.user);
@@ -411,6 +417,7 @@ export function useAuth() {
         ? resolvePersonnelName(email, technicians)
         : roleNames[role] || 'User';
     _activeUserEmail.value = email.trim().toLowerCase();
+    _activeUserProfile.value = null;
     _isAuthenticated.value = true;
 
     const event = {
@@ -512,6 +519,7 @@ export function useAuth() {
     }
     _isAuthenticated.value = false;
     _activeUserEmail.value = '';
+    _activeUserProfile.value = null;
     _currentRole.value = 'Admin';
     _activeUserName.value = 'Admin User';
     clearNotice();
@@ -527,22 +535,24 @@ export function useAuth() {
   }
 
   function loadProfile() {
+    let savedProfile = {};
     try {
       const saved = localStorage.getItem(getProfileKey());
-      if (saved) return JSON.parse(saved);
+      if (saved) savedProfile = JSON.parse(saved);
     } catch (e) {
       console.warn('Failed loading profile', e);
     }
+    const userProfile = _activeUserProfile.value;
     return {
-      name: _activeUserName.value,
-      email:
-        _currentRole.value === 'Personnel'
-          ? `${_activeUserName.value.toLowerCase().replace(/\s+/g, '.')}@nvsu.edu.ph`
-          : roleEmails[_currentRole.value] || `${_activeUserName.value.toLowerCase().replace(/\s+/g, '.')}@nvsu.edu.ph`,
-      phone: '',
-      dept: roleDepts[_currentRole.value] || '',
-      location: 'Bambang Campus',
-      updatedAt: 'Not yet'
+      ...savedProfile,
+      name: userProfile?.name || savedProfile.name || _activeUserName.value,
+      email: _activeUserEmail.value || userProfile?.email || savedProfile.email
+        || roleEmails[_currentRole.value]
+        || `${_activeUserName.value.toLowerCase().replace(/\s+/g, '.')}@nvsu.edu.ph`,
+      phone: userProfile?.phone ?? savedProfile.phone ?? '',
+      dept: userProfile?.department ?? savedProfile.dept ?? roleDepts[_currentRole.value] ?? '',
+      location: userProfile?.location || savedProfile.location || 'Bambang Campus',
+      updatedAt: savedProfile.updatedAt || 'Not yet'
     };
   }
 
@@ -552,6 +562,14 @@ export function useAuth() {
       updatedAt: new Date().toLocaleString()
     };
     _activeUserName.value = updated.name;
+    _activeUserProfile.value = {
+      ..._activeUserProfile.value,
+      name: updated.name,
+      email: updated.email,
+      department: updated.dept,
+      phone: updated.phone,
+      location: updated.location
+    };
     localStorage.setItem(getProfileKey(), JSON.stringify(updated));
 
     if (isSupabaseConfigured) {
