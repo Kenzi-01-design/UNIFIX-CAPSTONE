@@ -1,16 +1,31 @@
--- DESTRUCTIVE: permanently removes all reports and requests, along with
--- notifications and notification deliveries linked to those work items.
--- Report feedback is removed by its ON DELETE CASCADE foreign key.
--- Also removes all anonymous evaluation responses.
--- This does not remove Storage objects; clear the report-photos bucket
--- separately in Supabase Storage after reviewing the scope.
--- All Auth accounts, profiles, preferences, login history, locations,
--- maintenance schedules, and their settings are preserved. Auth accounts
--- that lack a profile are restored as pending/inactive Employees for Admin review.
+-- DESTRUCTIVE: permanently removes all reports, requests, anonymous
+-- evaluation responses, and the work-item history/notifications associated
+-- with reports and requests.
+--
+-- Preserves all Auth accounts, profiles, account notifications, login
+-- history, preferences, locations, maintenance schedules, and settings.
+-- Report feedback and duplicate votes are removed by their ON DELETE CASCADE
+-- foreign keys. Report photo files in the report-photos Storage bucket are
+-- not removed by SQL; delete those through Supabase Storage after reviewing
+-- that the bucket contains only files intended to be cleared.
 
 begin;
 
 delete from public.evaluation_responses;
+
+delete from public.work_item_activity
+where entity_type in ('report', 'request');
+
+do $$
+begin
+  if to_regclass('public.audit_log') is not null then
+    execute $delete$
+      delete from public.audit_log
+      where entity_type in ('report', 'request')
+    $delete$;
+  end if;
+end;
+$$;
 
 delete from public.notification_deliveries delivery
 where exists (
@@ -54,32 +69,5 @@ or exists (
 
 delete from public.reports;
 delete from public.requests;
-
-insert into public.user_profiles (
-  id, auth_user_id, name, email, role, department, phone, location, is_active, registration_status
-)
-select
-  auth_user.id::text,
-  auth_user.id,
-  left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'name'), ''), 'New User'), 120),
-  lower(btrim(auth_user.email)),
-  'Employee',
-  left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'department'), ''), ''), 160),
-  left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'phone'), ''), ''), 40),
-  left(coalesce(nullif(btrim(auth_user.raw_user_meta_data ->> 'location'), ''), 'Main Campus'), 160),
-  false,
-  'pending'
-from auth.users auth_user
-where auth_user.email is not null
-  and not exists (
-    select 1
-    from public.user_profiles profile
-    where profile.auth_user_id = auth_user.id
-       or (
-         profile.auth_user_id is null
-         and lower(btrim(profile.email)) = lower(btrim(auth_user.email))
-       )
-  )
-on conflict (email) do nothing;
 
 commit;
