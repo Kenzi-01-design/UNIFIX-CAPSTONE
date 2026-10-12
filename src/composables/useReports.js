@@ -156,15 +156,7 @@ const initialReports = [
   }
 ];
 
-const DEMO_TECHNICIANS = [
-  { name: 'Juan dela Cruz', specialty: 'Electrical' },
-  { name: 'Pedro Reyes', specialty: 'Plumbing' },
-  { name: 'Ana Torres', specialty: 'HVAC' },
-  { name: 'Carlo Mendoza', specialty: 'Network' },
-  { name: 'Liza Cruz', specialty: 'Civil' },
-  { name: 'Maria Santos', specialty: 'Sanitation' }
-];
-const technicians = reactive(DEMO_TECHNICIANS.map((technician) => ({ ...technician })));
+const technicians = reactive([]);
 
 function loadPersistedReports() {
   if (isSupabaseConfigured) return [];
@@ -389,12 +381,14 @@ export function useReports() {
   }
 
   async function loadTechnicians() {
+    technicians.splice(0, technicians.length);
     if (!isSupabaseConfigured) return technicians;
     const { data, error } = await supabase
       .from('user_profiles')
       .select('name, department')
       .eq('role', 'Personnel')
       .eq('is_active', true)
+      .eq('registration_status', 'approved')
       .order('name', { ascending: true });
     if (error) throw error;
     technicians.splice(
@@ -665,9 +659,13 @@ export function useReports() {
       });
 
     if (!queue.length) return null;
+    if (!technicians.length) {
+      throw new Error('No active personnel accounts are available for assignment.');
+    }
 
     const top = queue[0];
     const recommended = findRecommendedTech(top);
+    if (!recommended) throw new Error('No active personnel accounts are available for assignment.');
     const status = top.status === 'urgent' ? 'in-progress' : top.status;
     const report = await assignReport(top.id, [recommended.name], status, top.assignNote, top.targetDate);
     return report ? { report, tech: recommended } : null;

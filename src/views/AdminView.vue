@@ -160,6 +160,9 @@
                   <span><strong>{{ t.name }}</strong><small>{{ t.specialty }} · {{ getActiveLoad(t.name) }} active</small></span>
                   <b>{{ assignForm.techs.includes(t.name) ? '✓' : '+' }}</b>
                 </button>
+                <p v-if="!technicians.length" class="assigned-personnel-empty" role="status">
+                  No active personnel accounts are available. Approve and activate a Personnel account to assign work.
+                </p>
               </div>
             </div>
             <div class="form-group">
@@ -180,7 +183,7 @@
               <textarea v-model="assignForm.note" placeholder="Add work instructions or priority details..." rows="3"></textarea>
             </div>
             <div class="assign-btns">
-              <button class="btn-secondary" style="flex: 1" :disabled="assigning" @click="handleAutoPick">
+              <button class="btn-secondary" style="flex: 1" :disabled="assigning || !technicians.length" @click="handleAutoPick">
                 Auto-Pick Next
               </button>
               <button class="btn-primary" style="flex: 1; margin-top: 0" :disabled="assigning" @click="handleAssign">
@@ -420,7 +423,9 @@ function syncFormWithWorkItem() {
     const recommended = findRecommendedTech(selectedReport.value);
     assignForm.techs = Array.isArray(selectedReport.value.assignedPersonnel)
       ? [...selectedReport.value.assignedPersonnel]
-      : (selectedReport.value.assignedTo ? selectedReport.value.assignedTo.split(',').map((name) => name.trim()) : [recommended.name]);
+      : (selectedReport.value.assignedTo
+        ? selectedReport.value.assignedTo.split(',').map((name) => name.trim())
+        : (recommended ? [recommended.name] : []));
     assignForm.status = selectedReport.value.status === 'pending' ? 'in-progress' : selectedReport.value.status;
     assignForm.note = selectedReport.value.assignNote || '';
     assignForm.targetDate = selectedReport.value.targetDate || '';
@@ -489,6 +494,10 @@ async function handleAssign() {
 
 async function handleAutoPick() {
   if (assigning.value) return;
+  if (!technicians.length) {
+    showToast('No active personnel accounts are available for assignment.', 'error');
+    return;
+  }
   assigning.value = true;
   try {
     const result = await assignNextInQueue();

@@ -252,6 +252,7 @@ const {
 const {
   reports,
   loadReports,
+  loadTechnicians,
   subscribeToReports,
   stopReportsSubscription,
   clearReportsForAccountChange,
@@ -340,11 +341,21 @@ const selectedRequest = computed(() => {
 
 async function refreshAuthenticatedData() {
   if (!isAuthenticated.value) return;
-  const results = await Promise.allSettled([loadReports(), loadRequests()]);
-  const failedLoads = results.filter((result) => result.status === 'rejected');
-  if (failedLoads.length) {
-    console.error('Some work items could not be loaded for the signed-in account.', failedLoads);
+  const [reportsResult, requestsResult, personnelResult] = await Promise.allSettled([
+    loadReports(),
+    loadRequests(),
+    ...(currentRole.value === 'Admin' ? [loadTechnicians()] : [])
+  ]);
+  if (reportsResult.status === 'rejected' || requestsResult.status === 'rejected') {
+    console.error('Some work items could not be loaded for the signed-in account.', {
+      reports: reportsResult,
+      requests: requestsResult
+    });
     showToast('Some work items could not be loaded. Please refresh or try again.', 'error');
+  }
+  if (personnelResult?.status === 'rejected') {
+    console.error('Active personnel accounts could not be loaded.', personnelResult.reason);
+    showToast('Personnel accounts could not be loaded for assignment. Please refresh or try again.', 'error');
   }
   subscribeToReports();
   subscribeToRequests();
