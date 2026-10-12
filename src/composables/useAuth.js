@@ -4,7 +4,7 @@ import { accountAccessState, authStateMessage, classifyAuthError } from '../lib/
 
 // Private module-level state
 const _currentRole = ref('Admin');
-const _activeUserName = ref('Admin User');
+const _activeUserName = ref('');
 const _activeUserEmail = ref('');
 const _activeUserProfile = ref(null);
 const _isAuthenticated = ref(false);
@@ -131,32 +131,11 @@ async function recordLoginEvent(user, profile) {
   }
 }
 
-const roleNames = {
-  Employee: 'Prof. Reyes',
-  Assistant: 'Admin Assistant',
-  Admin: 'Admin User',
-  Personnel: 'Juan dela Cruz'
-};
-
 const roleInitials = {
-  Employee: 'PR',
-  Assistant: 'AA',
-  Admin: 'AU',
-  Personnel: 'JD'
-};
-
-const roleEmails = {
-  Employee: 'prof.reyes@nvsu.edu.ph',
-  Assistant: 'admin.assistant@nvsu.edu.ph',
-  Admin: 'admin.user@nvsu.edu.ph',
-  Personnel: 'juan.delacruz@nvsu.edu.ph'
-};
-
-const roleDepts = {
-  Employee: 'COE',
-  Assistant: 'CAS',
-  Admin: 'CIT',
-  Personnel: 'CTE'
+  Employee: 'E',
+  Assistant: 'A',
+  Admin: 'A',
+  Personnel: 'P'
 };
 
 const defaultSettings = {
@@ -182,7 +161,7 @@ async function loadAuthenticatedProfile() {
       _activeUserEmail.value = '';
       _activeUserProfile.value = null;
       _currentRole.value = 'Admin';
-      _activeUserName.value = 'Admin User';
+      _activeUserName.value = '';
       _passwordRecoveryMode.value = false;
     }
     return;
@@ -223,7 +202,7 @@ if (isSupabaseConfigured) {
       _activeUserEmail.value = '';
       _activeUserProfile.value = null;
       _currentRole.value = 'Admin';
-      _activeUserName.value = 'Admin User';
+      _activeUserName.value = '';
       stopProfileSubscription();
       stopLoginEventsSubscription();
       _passwordRecoveryMode.value = false;
@@ -233,7 +212,7 @@ if (isSupabaseConfigured) {
       _passwordRecoveryMode.value = true;
       _isAuthenticated.value = false;
       _currentRole.value = 'Admin';
-      _activeUserName.value = 'Admin User';
+      _activeUserName.value = '';
       _activeUserEmail.value = session.user.email || '';
       _activeUserProfile.value = null;
       return;
@@ -341,16 +320,16 @@ export function useAuth() {
     );
   });
 
-  function resolvePersonnelName(email, technicians = []) {
-    const typed = (email || '').trim().toLowerCase();
-    const match = technicians.find((t) => {
-      const normalized = `${t.name.toLowerCase().replace(/\s+/g, '.')}@nvsu.edu.ph`;
-      return normalized === typed;
-    });
-    return match ? match.name : roleNames.Personnel;
+  function displayNameFromEmail(email) {
+    return String(email || '')
+      .split('@')[0]
+      .split(/[._-]+/)
+      .filter(Boolean)
+      .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`)
+      .join(' ');
   }
 
-  async function login(email, password, role, technicians = []) {
+  async function login(email, password, role) {
     clearNotice();
     if (isSupabaseConfigured) {
       authProfileGeneration += 1;
@@ -412,10 +391,7 @@ export function useAuth() {
     }
 
     _currentRole.value = role;
-    _activeUserName.value =
-      role === 'Personnel'
-        ? resolvePersonnelName(email, technicians)
-        : roleNames[role] || 'User';
+    _activeUserName.value = displayNameFromEmail(email) || 'User';
     _activeUserEmail.value = email.trim().toLowerCase();
     _activeUserProfile.value = null;
     _isAuthenticated.value = true;
@@ -521,7 +497,7 @@ export function useAuth() {
     _activeUserEmail.value = '';
     _activeUserProfile.value = null;
     _currentRole.value = 'Admin';
-    _activeUserName.value = 'Admin User';
+    _activeUserName.value = '';
     clearNotice();
     stopProfileSubscription();
   }
@@ -546,11 +522,9 @@ export function useAuth() {
     return {
       ...savedProfile,
       name: userProfile?.name || savedProfile.name || _activeUserName.value,
-      email: _activeUserEmail.value || userProfile?.email || savedProfile.email
-        || roleEmails[_currentRole.value]
-        || `${_activeUserName.value.toLowerCase().replace(/\s+/g, '.')}@nvsu.edu.ph`,
+      email: _activeUserEmail.value || userProfile?.email || savedProfile.email || '',
       phone: userProfile?.phone ?? savedProfile.phone ?? '',
-      dept: userProfile?.department ?? savedProfile.dept ?? roleDepts[_currentRole.value] ?? '',
+      dept: userProfile?.department ?? savedProfile.dept ?? '',
       location: userProfile?.location || savedProfile.location || 'Bambang Campus',
       updatedAt: savedProfile.updatedAt || 'Not yet'
     };

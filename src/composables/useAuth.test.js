@@ -73,6 +73,17 @@ describe('useAuth sign-in handling', () => {
     });
   });
 
+  it('does not expose a hard-coded account identity before sign-in', async () => {
+    const auth = await loadAuth();
+
+    expect(auth.activeUserName.value).toBe('');
+    expect(auth.loadProfile()).toMatchObject({
+      name: '',
+      email: '',
+      dept: ''
+    });
+  });
+
   it('uses the profile role, not the selected login tab', async () => {
     mocks.profileResult = {
       data: {

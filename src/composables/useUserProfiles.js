@@ -4,25 +4,22 @@ import { canTransitionRegistrationStatus } from '../lib/authFlow.js';
 
 const STORAGE_KEY = 'unifix-user-profiles-v1';
 const roles = ['Admin', 'Assistant', 'Employee', 'Personnel'];
-
-const demoProfiles = [
-  { id: 'admin-user', name: 'Admin User', email: 'admin.user@nvsu.edu.ph', role: 'Admin', department: 'CIT', phone: '', location: 'Bambang Campus', isActive: true },
-  { id: 'admin-assistant', name: 'Admin Assistant', email: 'admin.assistant@nvsu.edu.ph', role: 'Assistant', department: 'CAS', phone: '', location: 'Bambang Campus', isActive: true },
-  { id: 'employee-user', name: 'Prof. Reyes', email: 'prof.reyes@nvsu.edu.ph', role: 'Employee', department: 'COE', phone: '', location: 'Bambang Campus', isActive: true },
-  { id: 'personnel-user', name: 'Juan dela Cruz', email: 'juan.delacruz@nvsu.edu.ph', role: 'Personnel', department: 'CTE', phone: '', location: 'Bambang Campus', isActive: true }
-];
+const hardcodedProfileIds = new Set(['admin-user', 'admin-assistant', 'employee-user', 'personnel-user']);
 
 function loadLocalProfiles() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved).filter((profile) => profile.role !== 'Student') : demoProfiles;
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((profile) => profile.role !== 'Student' && !hardcodedProfileIds.has(profile.id))
+      : [];
   } catch (error) {
     console.warn('Failed loading local user profiles', error);
-    return demoProfiles;
+    return [];
   }
 }
 
-const profiles = ref(loadLocalProfiles());
+const profiles = ref(isSupabaseConfigured ? [] : loadLocalProfiles());
 const profilesLoadError = ref('');
 const reapplicationsLoadError = ref('');
 
@@ -63,6 +60,7 @@ async function loadProfiles() {
   if (!isSupabaseConfigured) {
     profilesLoadError.value = '';
     reapplicationsLoadError.value = '';
+    profiles.value = loadLocalProfiles();
     return;
   }
   const { data, error } = await supabase.from('user_profiles').select('*').order('name');

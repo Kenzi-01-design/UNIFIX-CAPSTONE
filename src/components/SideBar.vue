@@ -77,7 +77,7 @@ import { getRoleNavigation } from '../lib/navigation.js';
 
 const props = defineProps({
   currentRole: { type: String, default: 'Admin' },
-  userName: { type: String, default: 'Admin User' },
+  userName: { type: String, default: '' },
   currentView: { type: String, default: 'dashboard' },
   reportsBadgeCount: { type: Number, default: 0 },
   requestsBadgeCount: { type: Number, default: 0 },

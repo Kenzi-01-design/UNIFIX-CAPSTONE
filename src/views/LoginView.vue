@@ -254,10 +254,9 @@
 <script setup>
 import { ref } from 'vue';
 import { useAuth } from '../composables/useAuth.js';
-import { useReports } from '../composables/useReports.js';
 import { useToast } from '../composables/useToast.js';
 import { useNotifications } from '../composables/useNotifications.js';
-import { isDemoMode, isSupabaseConfigured } from '../lib/supabase.js';
+import { isSupabaseConfigured } from '../lib/supabase.js';
 import UiIcon from '../components/UiIcon.vue';
 import BrandMark from '../components/BrandMark.vue';
 
@@ -269,29 +268,20 @@ const {
   requestRegistrationReapplication, completePasswordRecovery, activeUserName, authNotice, authNoticeCode,
   passwordRecoveryMode
 } = useAuth();
-const { technicians } = useReports();
 const { showToast } = useToast();
 const { refreshNotifications } = useNotifications();
 
 const selectedRole = ref('Admin');
-const email = ref(isDemoMode ? 'admin.user@nvsu.edu.ph' : '');
-const password = ref(isDemoMode ? 'password123' : '');
+const email = ref('');
+const password = ref('');
 const signingIn = ref(false);
 const reapplying = ref(false);
 const recoveryPassword = ref('');
 const recoveryConfirmPassword = ref('');
 const recoveryWorking = ref(false);
 
-const roleEmailMap = {
-  Employee: 'prof.reyes@nvsu.edu.ph',
-  Assistant: 'admin.assistant@nvsu.edu.ph',
-  Admin: 'admin.user@nvsu.edu.ph',
-  Personnel: 'juan.delacruz@nvsu.edu.ph'
-};
-
 function setRole(role) {
   selectedRole.value = role;
-  email.value = roleEmailMap[role] || '';
 }
 
 async function handleLogin() {
@@ -306,7 +296,7 @@ async function handleLogin() {
 
   signingIn.value = true;
   try {
-    const authenticatedRole = await login(email.value, password.value, selectedRole.value, technicians);
+    const authenticatedRole = await login(email.value, password.value, selectedRole.value);
     const role = isSupabaseConfigured ? authenticatedRole : selectedRole.value;
     const settings = loadSettings();
     const landing = role === 'Assistant'
