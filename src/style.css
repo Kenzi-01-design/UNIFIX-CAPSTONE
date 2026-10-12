@@ -4822,3 +4822,34 @@ tbody td {
     background: #fff;
   }
 }
+
+.public-back-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 18px;
+  padding: 0 14px;
+  border: 1px solid var(--border-dark);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 12px rgba(30, 53, 38, 0.06);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.public-back-button:hover {
+  transform: translateY(-1px);
+  border-color: var(--primary-light);
+  background: var(--primary-bg);
+  color: var(--primary-dark);
+}
+
+.public-back-button:focus-visible {
+  outline: 3px solid var(--accent-light);
+  outline-offset: 2px;
+}

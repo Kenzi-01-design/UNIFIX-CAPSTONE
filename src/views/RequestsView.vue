@@ -40,7 +40,7 @@
           :class="['report-card', request.risk || 'low']"
           role="button"
           tabindex="0"
-          :aria-label="`View request ${request.id}: ${request.title}`"
+          :aria-label="`View request ${request.trackingCode || request.id}: ${request.title}`"
           @click="$emit('open-request', request.id)"
           @keydown.enter.prevent="$emit('open-request', request.id)"
           @keydown.space.prevent="$emit('open-request', request.id)"

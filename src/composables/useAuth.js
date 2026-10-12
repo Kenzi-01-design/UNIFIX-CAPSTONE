@@ -14,6 +14,10 @@ const LOGIN_EVENTS_KEY = 'unifix-login-events-v1';
 let authProfileGeneration = 0;
 let profileChannel = null;
 let suppressAuthProfileLoad = false;
+let loginEventsChannel = null;
+let loginEventsRetryTimer = null;
+let loginEventsRetryAttempt = 0;
+let loginEventsSubscriptionWanted = false;
 
 function loadLoginEvents() {
   try {
@@ -38,21 +42,93 @@ async function loadLoginEventsFromSupabase() {
     console.warn('Failed loading login events from Supabase', error);
     return;
   }
-  if (data?.length) {
-    loginEvents.value = data.map((event) => ({
-      id: event.id,
-      type: 'LOGIN',
-      title: event.user_name,
-      date: new Date(event.logged_in_at).toLocaleString(),
-      timestamp: new Date(event.logged_in_at).getTime(),
-      statusClass: 'resolved',
-      statusLabel: 'Successful',
-      details: `${event.role} signed in with ${event.email}`
-    }));
+  loginEvents.value = (data || []).map((event) => ({
+    id: event.id,
+    type: 'LOGIN',
+    title: event.user_name,
+    date: new Date(event.logged_in_at).toLocaleString(),
+    timestamp: new Date(event.logged_in_at).getTime(),
+    statusClass: 'resolved',
+    statusLabel: 'Successful',
+    details: `${event.role} signed in with ${event.email}`
+  }));
+}
+
+void loadLoginEventsFromSupabase().catch((error) => {
+  console.error('Could not load login history from Supabase.', error);
+});
+
+function stopLoginEventsSubscription() {
+  loginEventsSubscriptionWanted = false;
+  loginEventsRetryAttempt = 0;
+  if (loginEventsRetryTimer) {
+    clearTimeout(loginEventsRetryTimer);
+    loginEventsRetryTimer = null;
+  }
+  if (loginEventsChannel) {
+    void supabase.removeChannel(loginEventsChannel).catch((error) => {
+      console.error('Could not stop the login events realtime subscription.', error);
+    });
+    loginEventsChannel = null;
   }
 }
 
-void loadLoginEventsFromSupabase();
+function scheduleLoginEventsRetry() {
+  if (!loginEventsSubscriptionWanted || loginEventsRetryTimer) return;
+  const delay = Math.min(1000 * (2 ** loginEventsRetryAttempt), 30_000);
+  loginEventsRetryAttempt += 1;
+  loginEventsRetryTimer = setTimeout(() => {
+    loginEventsRetryTimer = null;
+    subscribeToLoginEvents();
+  }, delay);
+}
+
+function subscribeToLoginEvents() {
+  loginEventsSubscriptionWanted = true;
+  if (!isSupabaseConfigured || _currentRole.value !== 'Admin' || !_isAuthenticated.value || loginEventsChannel) return;
+
+  const channel = supabase
+    .channel('login-events-live-updates')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'login_events' }, () => {
+      void loadLoginEventsFromSupabase().catch((error) => {
+        console.error('Could not refresh login history after a realtime update.', error);
+      });
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        loginEventsRetryAttempt = 0;
+        void loadLoginEventsFromSupabase().catch((error) => {
+          console.error('Could not load login history after subscribing to updates.', error);
+        });
+      }
+      if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) {
+        console.error(`Login events realtime subscription lost: ${status}. Reconnecting.`);
+        if (loginEventsChannel === channel) loginEventsChannel = null;
+        void supabase.removeChannel(channel).catch((error) => {
+          console.error('Could not remove the failed login events realtime channel.', error);
+        });
+        scheduleLoginEventsRetry();
+      }
+    });
+  loginEventsChannel = channel;
+}
+
+async function recordLoginEvent(user, profile) {
+  const event = {
+    id: `LOGIN-${user.id}-${Date.now()}`,
+    user_name: profile.name,
+    role: profile.role,
+    email: (user.email || '').trim().toLowerCase()
+  };
+  const { error } = await supabase.from('login_events').insert(event);
+  if (error) {
+    console.error('Could not record the successful login in the activity log.', error);
+    return;
+  }
+  if (profile.role === 'Admin') {
+    await loadLoginEventsFromSupabase();
+  }
+}
 
 const roleNames = {
   Employee: 'Prof. Reyes',
@@ -132,6 +208,8 @@ async function loadAuthenticatedProfile() {
   _isAuthenticated.value = true;
   clearNotice();
   subscribeToProfile(user);
+  if (_currentRole.value === 'Admin') subscribeToLoginEvents();
+  else stopLoginEventsSubscription();
 }
 
 if (isSupabaseConfigured) {
@@ -143,6 +221,7 @@ if (isSupabaseConfigured) {
       _currentRole.value = 'Admin';
       _activeUserName.value = 'Admin User';
       stopProfileSubscription();
+      stopLoginEventsSubscription();
       _passwordRecoveryMode.value = false;
       return;
     }
@@ -304,6 +383,17 @@ export function useAuth() {
         _isAuthenticated.value = true;
         clearNotice();
         subscribeToProfile(data.user);
+        if (profile.role === 'Admin') {
+          subscribeToLoginEvents();
+          void recordLoginEvent(data.user, profile).catch((error) => {
+            console.error('Could not record the successful login in the activity log.', error);
+          });
+        } else {
+          stopLoginEventsSubscription();
+          void recordLoginEvent(data.user, profile).catch((error) => {
+            console.error('Could not record the successful login in the activity log.', error);
+          });
+        }
         return profile.role;
       } finally {
         suppressAuthProfileLoad = false;

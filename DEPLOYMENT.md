@@ -28,15 +28,27 @@ for authentication, Postgres, Storage, and Edge Functions.
    `202610060002_enforce_university_email_domains.sql`,
    `202610060003_account_audit_log.sql`,
    `202610060004_account_state_transitions.sql`,
-   `202610060005_account_notifications_realtime.sql`, and
-   `202610060006_notification_email_verification.sql`. If migration 017 was
+   `202610060005_account_notifications_realtime.sql`,
+   `202610060006_notification_email_verification.sql`,
+   `202610060007_requested_registration_role.sql`, and
+   `202610060008_realtime_activity_log.sql`,
+   `202610060009_fix_personnel_acceptance.sql`, and
+   `202610060010_allow_personnel_request_acceptance.sql`, and
+   `202610060011_fix_request_submission_rls.sql`, and
+   `202610060012_fix_request_submission_identity.sql`, and
+   `202610060013_fix_request_submission_trigger.sql`, and
+   `202610060014_fix_photo_upload_rls.sql`, and
+   `202610060015_replace_campus_buildings.sql`, and
+   `202610060016_start_tracking_codes_at_100.sql`. Apply migration 016 after
+   clearing reports and requests; the next shared report/request tracking code
+   will be `UNI-<year>-0100`. If migration 017 was
    applied before older Auth users were created, rerun its updated version
    before applying the new migrations; it backfills missing profiles as pending,
    inactive Employees.
    For a new project, run the complete `supabase/schema.sql` script. It notifies
    PostgREST to reload its schema cache after all tables and functions are created.
 3. Review RLS and Storage policies in the Dashboard. Do not enable broad anonymous read access to reports, requests, user profiles, notifications, or photos.
-4. For self-registration, apply the registration and account-flow migrations, including `202610060007_requested_registration_role.sql`, before opening registration. In **Authentication → Providers → Email**, turn **Confirm email** off, then save. Applicants may request Employee, Assistant, or Personnel; all new accounts are still created inactive and pending. An Admin must confirm or change the requested role in User Management before approval activates the account. Admin cannot be requested during public signup. Never trust client-submitted roles.
+4. For self-registration, apply the registration and account-flow migrations before opening registration. In **Authentication → Providers → Email**, turn **Confirm email** off, then save. Applicants may request Employee, Assistant, or Personnel; all new accounts are still created inactive and pending. An Admin must confirm or change the requested role in User Management before approval activates the account. Admin cannot be requested during public signup. Never trust client-submitted roles.
 5. Configure Cloudflare Turnstile with the production host name.
 
 ## 2. Set frontend environment variables

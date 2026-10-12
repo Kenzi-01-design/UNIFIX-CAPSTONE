@@ -1,6 +1,8 @@
 <template>
   <div class="view active" id="view-submit" :class="{ 'public-submit-page': publicMode }">
-    <button v-if="publicMode" class="back-link" @click="$emit('back')">← Back to home</button>
+    <button v-if="publicMode" class="back-link public-back-button" type="button" @click="$emit('back')">
+      <UiIcon name="arrow-left" :size="16" /> Back to home
+    </button>
     <div v-if="publicMode" class="public-report-heading">
       <h2>Submit a Facility Report</h2>
       <p>Describe the issue and complete the verification to send it to UNIFIX.</p>
@@ -656,7 +658,6 @@ async function handleSubmit() {
 
 <style scoped>
 .public-submit-page { max-width: 1240px; margin: 0 auto; padding: 42px clamp(24px, 6vw, 88px) 56px; }
-.back-link { border: 0; background: transparent; color: var(--primary); font: inherit; font-weight: 700; cursor: pointer; margin-bottom: 18px; }
 .public-report-heading { margin-bottom: 20px; }
 .public-report-heading h2 { font-size: 25px; }
 .public-report-heading p { margin-top: 4px; color: var(--text-3); font-size: 13px; }

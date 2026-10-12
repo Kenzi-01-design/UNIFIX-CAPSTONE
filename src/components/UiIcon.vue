@@ -5,7 +5,7 @@
 <script setup>
 import { computed } from 'vue';
 import {
-  Bell, BookOpen, BriefcaseBusiness, Building2, ChartNoAxesCombined, CheckCircle2, CircleAlert, CircleHelp,
+  ArrowLeft, ArrowRight, ArrowUpRight, Bell, BookOpen, BriefcaseBusiness, Building2, ChartNoAxesCombined, CheckCircle2, CircleAlert, CircleHelp,
   ClipboardList, Droplets, FileText, FolderKanban, Hammer, HardHat, House,
   Landmark, Lightbulb, LogOut, MapPin, Menu, Network, Package, Plus, ShieldCheck, Sparkles, X,
   UserRound, UsersRound, Wrench, Zap
@@ -27,7 +27,8 @@ const icons = {
   security: ShieldCheck, sanitation: Sparkles, other: Package, activity: FolderKanban,
   analytics: ChartNoAxesCombined, work: Hammer
   ,success: CheckCircle2, error: CircleAlert, info: CircleHelp, logout: LogOut, zap: Zap,
-  menu: Menu, close: X
+  menu: Menu, close: X, 'arrow-left': ArrowLeft, 'arrow-right': ArrowRight, 'arrow-up-right': ArrowUpRight,
+  sparkles: Sparkles
 };
 
 const icon = computed(() => {

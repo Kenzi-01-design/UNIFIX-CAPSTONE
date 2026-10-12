@@ -14,7 +14,6 @@
       v-else-if="!isAuthenticated && publicPage === 'home'"
       @open-report="publicPage = 'report'"
       @open-login="publicPage = 'login'"
-      @open-register="publicPage = 'register'"
       @open-track="publicPage = 'track'"
       @open-evaluation="publicPage = 'evaluation'"
     />

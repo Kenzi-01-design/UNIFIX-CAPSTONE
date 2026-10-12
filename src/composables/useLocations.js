@@ -2,17 +2,38 @@ import { computed, ref } from 'vue';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 
 const STORAGE_KEY = 'unifix-locations-v1';
-const demoBuildings = [
-  '5 Star CR', 'Academic Classroom Building', 'Administration Building', 'Alumni Building',
-  'Arts and Cultural Office', 'Auto Service Center', "Boy's Shop Building", 'Cafeteria',
-  'Campus Quadrangle', 'CBA Building', 'CIT Office', 'COE office',
-  'College of Arts and Sciences Office', 'College of Arts & Science Building', 'CTE Office',
-  'College of Teacher Education Building', 'Electronics Building', 'Engineering Building',
-  'Engineering Science Lab Building', 'Food Court', 'Graphic Arts Building', 'Gymnasium',
-  'HRM Building', 'IT Lab Building', 'Ladies Dorm',
-  'Mechanical Engineering Laboratory Building', 'Motorpool', 'MRF', 'Oval',
-  "Oval's Bleachers", 'RAC building', 'Rotary', 'ROTC building',
-  'Stalls and Classrooms', 'Technician Institute', 'Technology Lab Building', 'Training Center'
+export const demoBuildings = [
+  'Oval',
+  'Gymnasium',
+  'Boys Dorm',
+  'Ladies Dorm',
+  'Motorpool',
+  '5 Star CR',
+  'Food Court',
+  'Alumni Bldg',
+  'Administration Bldg',
+  'College of Arts & Sciences Bldg',
+  'Campus Quadrangle',
+  'College of Teacher Education Bldg',
+  'Boys Shop Building',
+  'ROTC Building',
+  'Rotary',
+  'ROTC Bldg',
+  'Mechanical Engineering Laboratory Bldg',
+  'Engineering Science Lab Bldg',
+  'Academic Classroom Bldg',
+  'Engineering Bldg',
+  'Stalls',
+  'Graphic Arts & Bldg',
+  'Technology Lab Bldg',
+  'IT Lab Bldg',
+  'RAC Bldg',
+  'Auto Service Center',
+  'Technician Institute',
+  'CBA Bldg',
+  'Cafeteria',
+  'HRM Bldg',
+  'Training Center'
 ];
 
 function initialDemoLocations() {
@@ -28,7 +49,19 @@ function initialDemoLocations() {
 function readDemoLocations() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : initialDemoLocations();
+    if (!saved) return initialDemoLocations();
+
+    const savedLocations = JSON.parse(saved);
+    if (!Array.isArray(savedLocations)) return initialDemoLocations();
+    const allowedBuildings = new Set(demoBuildings.map((building) => building.toLowerCase()));
+    const currentLocations = savedLocations.filter((location) =>
+      allowedBuildings.has(String(location.building || '').toLowerCase())
+    );
+    const existingBuildings = new Set(currentLocations.map((location) => location.building.toLowerCase()));
+    const missingLocations = initialDemoLocations().filter((location) =>
+      !existingBuildings.has(location.building.toLowerCase())
+    );
+    return [...currentLocations, ...missingLocations];
   } catch (error) {
     console.warn('Could not read demo locations from local storage.', error);
     return initialDemoLocations();

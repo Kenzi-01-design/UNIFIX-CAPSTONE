@@ -58,7 +58,7 @@ const activityEntries = computed(() => {
   const userReports = reports.value
     .filter((r) => (r.reporter || '').toLowerCase() === user)
     .map((r) => ({
-      id: r.id,
+      id: r.trackingCode || r.id,
       type: 'REPORT',
       title: r.title,
       date: r.date,
@@ -70,7 +70,7 @@ const activityEntries = computed(() => {
   const userRequests = requests.value
     .filter((req) => (req.requester || '').toLowerCase() === user)
     .map((req) => ({
-      id: req.id,
+      id: req.trackingCode || req.id,
       type: 'REQUEST',
       title: req.title,
       date: req.date,

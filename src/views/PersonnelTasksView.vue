@@ -88,7 +88,7 @@
                     <div>
                       <div class="rc-cat-name">{{ r.cat }}</div>
                       <div style="font-size:10px;color:var(--text-3);font-family:'DM Mono',monospace">
-                        {{ r.id }}
+                        {{ r.trackingCode || r.id }}
                       </div>
                     </div>
                   </div>
@@ -114,6 +114,7 @@
                     :max-photos="Math.max(0, 3 - (r.photoAttachments?.length || 0))"
                     label="After photos (optional)"
                     @update:model-value="completionPhotos[r.id] = $event"
+                    @processing-change="photoProcessing[r.id] = $event"
                   >
                   </PhotoPicker>
                   <button
@@ -131,9 +132,10 @@
                   <button
                     v-if="r.techState === 'started'"
                     class="admin-action-btn resolve"
+                    :disabled="photoProcessing[r.id]"
                     @click="handleComplete(r)"
                   >
-                    Submit for Verification
+                    {{ photoProcessing[r.id] ? 'Preparing photos…' : 'Submit for Verification' }}
                   </button>
                   <span
                     v-if="r.techState === 'completed'"
@@ -202,6 +204,7 @@ const { showToast } = useToast();
 const searchQuery = ref('');
 const filterStatus = ref('all');
 const completionPhotos = reactive({});
+const photoProcessing = reactive({});
 
 const assignedReports = computed(() => {
   return reports.value
@@ -263,7 +266,7 @@ async function handleAccept(task) {
       ? await requestAccept(task.id, activeUserName.value)
       : await techAccept(task.id, activeUserName.value);
     if (accepted) {
-      showToast(`${task.id} accepted. Proceed when ready.`, 'success');
+      showToast(`${task.trackingCode || task.id} accepted. Proceed when ready.`, 'success');
     } else {
       showToast('This work item is no longer assigned to your account. Refresh your task list.', 'error');
     }
@@ -278,13 +281,17 @@ async function handleStart(task) {
     ? await requestStart(task.id, activeUserName.value)
     : await techStart(task.id, activeUserName.value);
   if (started) {
-    showToast(`${task.id} marked In Progress.`, 'info');
+    showToast(`${task.trackingCode || task.id} marked In Progress.`, 'info');
   } else {
     showToast('Unable to save the start status. Check your Supabase access.', 'error');
   }
 }
 
 async function handleComplete(task) {
+  if (photoProcessing[task.id]) {
+    showToast('Wait for photo processing to finish before submitting for verification.', 'info');
+    return;
+  }
   let completed;
   try {
     const photos = completionPhotos[task.id] || [];
@@ -297,7 +304,7 @@ async function handleComplete(task) {
   }
   if (completed) {
     completionPhotos[task.id] = [];
-    showToast(`${task.id} submitted for verification.`, 'success');
+    showToast(`${task.trackingCode || task.id} submitted for verification.`, 'success');
   } else {
     showToast('Unable to save completion. Check your Supabase access.', 'error');
   }

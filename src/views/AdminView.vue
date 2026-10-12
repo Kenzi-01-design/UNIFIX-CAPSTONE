@@ -47,27 +47,18 @@
         v-if="currentRole === 'Admin'"
         type="button"
         class="admin-tab"
-        :class="{ active: activeAdminTab === 'duplicates' }"
-        role="tab"
-        :aria-selected="activeAdminTab === 'duplicates'"
-        @click="activeAdminTab = 'duplicates'"
-      >
-        Merge Duplicates
-      </button>
-      <button
-        v-if="currentRole === 'Admin'"
-        type="button"
-        class="admin-tab"
         :class="{ active: activeAdminTab === 'facilities' }"
         role="tab"
         :aria-selected="activeAdminTab === 'facilities'"
         @click="activeAdminTab = 'facilities'"
       >
-        Locations & Maintenance
+        Facilities
       </button>
     </div>
 
     <div class="admin-grid">
+      <FacilitiesMaintenancePanel v-if="currentRole === 'Admin' && activeAdminTab === 'facilities'" />
+
       <!-- 1. Maintenance Reports Table -->
       <div v-if="activeAdminTab === 'reports'" class="report-table-wrap">
         <div class="panel-header">
@@ -80,27 +71,25 @@
           <table>
             <thead>
               <tr>
-                <th>#ID</th>
+                <th>Tracking Code</th>
                 <th>Title</th>
                 <th>Category</th>
                 <th>Location</th>
-                <th>Rating</th>
                 <th>Risk</th>
-                <th>Status</th>
+                <th v-if="currentRole !== 'Assistant'">Status</th>
                 <th>Assigned To</th>
-                <th v-if="['Admin', 'Assistant'].includes(currentRole)">Actions</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in orderedReports" :key="r.id">
-                <td><span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-3)">{{ r.id }}</span></td>
+              <tr v-for="r in reports" :key="r.id">
+                <td><span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-3)">{{ r.trackingCode || r.id }}</span></td>
                 <td><span style="font-weight:600;font-size:13px">{{ truncate(r.title, 28) }}</span></td>
                 <td><UiIcon :name="r.cat" :size="16" /> {{ r.cat }}</td>
                 <td style="font-size:12px;color:var(--text-3)">{{ r.loc.split('·')[0] }}</td>
-                <td>{{ formatRating(r.id) }}</td>
                 <td>
                   <select
-                    v-if="currentRole === 'Admin'"
+                    v-if="['Admin', 'Assistant'].includes(currentRole)"
                     class="risk-select"
                     :value="normalizeRisk(r.risk)"
                     @change="handleReportRisk(r.id, $event.target.value)"
@@ -111,21 +100,24 @@
                   </select>
                   <span v-else :class="['tag', r.risk]">{{ capitalize(r.risk) }}</span>
                 </td>
-                <td><span :class="['tag', r.status]">{{ formatStatus(r.status) }}</span></td>
+                <td v-if="currentRole !== 'Assistant'"><span :class="['tag', r.status]">{{ formatStatus(r.status) }}</span></td>
                 <td style="font-size:12px">
                   <span v-if="r.assignedTo">{{ r.assignedTo }}</span>
                   <span v-else style="color:var(--red);font-weight:700">Unassigned</span>
                 </td>
-                <td v-if="['Admin', 'Assistant'].includes(currentRole)" class="verification-actions">
+                <td v-if="currentRole === 'Admin'" style="display:flex;gap:6px;flex-wrap:wrap">
                   <button class="admin-action-btn" type="button" @click="$emit('open-report', r.id)">View details & photos</button>
-                  <button v-if="currentRole === 'Admin' && !['closed', 'resolved', 'action-taken', 'for-verification'].includes(r.status)" class="admin-action-btn assign" @click="pickForAssignment(r.id)">
+                  <button class="admin-action-btn assign" @click="pickForAssignment(r.id)">
                     {{ r.assignedTo ? '+ Personnel' : 'Assign' }}
                   </button>
-                  <button v-if="canVerifyReport(r)" class="admin-action-btn resolve" type="button" @click="$emit('open-report', r.id)">Review verification</button>
-                  <template v-if="r.status === 'for-verification'">
-                    <textarea v-model="rejectionReasons[r.id]" rows="2" maxlength="500" placeholder="Reason for rework (required)"></textarea>
-                    <button class="admin-action-btn" :disabled="(rejectionReasons[r.id] || '').trim().length < 5" @click="handleRejectReport(r.id)">Reject for Rework</button>
-                  </template>
+                  <button
+                    v-if="r.status === 'for-verification' && r.techState === 'completed'"
+                    class="admin-action-btn resolve"
+                    type="button"
+                    @click="$emit('open-report', r.id)"
+                  >
+                    Review verification
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -144,8 +136,8 @@
               {{ selectedWorkItemLabel }}
             </div>
             <div class="form-group">
-              <label>Work item ID</label>
-              <input ref="assignmentIdInput" type="text" v-model="assignForm.id" placeholder="#1045 or #REQ-201" @input="syncFormWithWorkItem" />
+              <label>Report / Request ID or tracking code</label>
+              <input ref="assignmentIdInput" type="text" v-model="assignForm.id" placeholder="UNI-2026-0042" @input="syncFormWithWorkItem" />
             </div>
             <div class="form-group">
               <label>Assigned Personnel</label>
@@ -157,9 +149,6 @@
                 </span>
               </div>
               <div class="personnel-list" aria-label="Available personnel">
-                <div v-if="!technicians.length" class="assigned-personnel-empty">
-                  No active Personnel profiles are available.
-                </div>
                 <button
                   v-for="t in technicians"
                   :key="t.name"
@@ -173,11 +162,12 @@
                 </button>
               </div>
             </div>
-            <div v-if="selectedReport" class="form-group">
+            <div class="form-group">
               <label>Update Status</label>
               <select v-model="assignForm.status">
                 <option value="pending">Pending</option>
                 <option value="in-progress">In Progress</option>
+                <option value="resolved">Resolved</option>
                 <option value="urgent">Urgent</option>
               </select>
             </div>
@@ -187,14 +177,14 @@
             </div>
             <div class="form-group">
               <label>Admin Instructions</label>
-              <textarea v-model="assignForm.note" placeholder="Add work instructions..." rows="3"></textarea>
+              <textarea v-model="assignForm.note" placeholder="Add work instructions or priority details..." rows="3"></textarea>
             </div>
             <div class="assign-btns">
-              <button class="btn-secondary" style="flex: 1" @click="handleAutoPick">
+              <button class="btn-secondary" style="flex: 1" :disabled="assigning" @click="handleAutoPick">
                 Auto-Pick Next
               </button>
-              <button class="btn-primary" style="flex: 1; margin-top: 0" :disabled="assigning || !technicians.length" @click="handleAssign">
-                {{ assigning ? 'Saving assignment…' : 'Assign Ticket' }}
+              <button class="btn-primary" style="flex: 1; margin-top: 0" :disabled="assigning" @click="handleAssign">
+                {{ assigning ? 'Assigning…' : 'Assign Ticket' }}
               </button>
             </div>
             <div class="assign-queue-wrap">
@@ -210,7 +200,7 @@
                     class="assign-queue-item"
                     @click="pickForAssignment(q.id)"
                   >
-                    <strong>{{ q.id }}</strong>
+                    <strong>{{ q.trackingCode || q.id }}</strong>
                     <span>{{ q.title }}</span>
                     <em>{{ q.risk.toUpperCase() }} · {{ q.status }}</em>
                   </button>
@@ -227,7 +217,7 @@
       <!-- 3. Faculty Requisitions & Action Taken Panel -->
       <div v-if="activeAdminTab === 'requests'" class="panel admin-requests-panel">
         <div class="panel-header">
-          <span class="panel-title">All Requests</span>
+          <span class="panel-title">Faculty Requisitions & Requests</span>
           <span class="panel-action">{{ requests.length }} total</span>
         </div>
 
@@ -235,7 +225,7 @@
           <table>
             <thead>
               <tr>
-                <th>#ID</th>
+                <th>Tracking Code</th>
                 <th>Faculty</th>
                 <th>Category</th>
                 <th>Title & Details</th>
@@ -243,13 +233,13 @@
                 <th>Status</th>
                 <th>Risk</th>
                 <th v-if="currentRole === 'Admin'">Admin Remark</th>
-                <th v-if="['Admin', 'Assistant'].includes(currentRole)">Actions</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="req in orderedRequests" :key="req.id">
+              <tr v-for="req in requests" :key="req.id">
                 <td>
-                  <span style="font-family:'DM Mono',monospace; font-size:12px; color:var(--text-3)">{{ req.id }}</span>
+                  <span style="font-family:'DM Mono',monospace; font-size:12px; color:var(--text-3)">{{ req.trackingCode || req.id }}</span>
                 </td>
                 <td>
                   <strong>{{ req.requester }}</strong><br />
@@ -259,16 +249,9 @@
                 <td>
                   <strong>{{ req.title }}</strong>
                   <div style="font-size: 12px; color: var(--text-2); margin-top: 4px;">{{ req.details }}</div>
-                  <PhotoGallery :attachments="req.photoAttachments || []" :title="req.title" />
-                  <div v-if="currentRole === 'Admin' && req.feedback" class="request-feedback-note">
-                    <strong>Employee feedback<span v-if="req.feedbackDate"> · {{ req.feedbackDate }}</span></strong>
-                    <div>{{ req.feedback }}</div>
-                  </div>
                 </td>
                 <td style="font-size: 12px; color: var(--text-3)">{{ req.date }}</td>
-                <td>
-                  <span :class="['tag', req.status]">{{ formatStatus(req.status) }}</span>
-                </td>
+                <td><span :class="['tag', req.status]">{{ formatStatus(req.status) }}</span></td>
                 <td>
                   <select
                     v-if="currentRole === 'Admin'"
@@ -286,22 +269,26 @@
                   <textarea v-model="req.adminRemark" rows="2" maxlength="1000" placeholder="Explain delay or resource issue..." style="width:100%;"></textarea>
                   <button class="admin-action-btn assign" @click="handleRequestRemark(req.id, req.adminRemark)">Save Remark</button>
                 </td>
-                <td v-if="['Admin', 'Assistant'].includes(currentRole)" class="verification-actions">
+                <td v-if="currentRole === 'Admin'" style="display:flex;gap:6px;flex-wrap:wrap">
                   <button class="admin-action-btn" type="button" @click="$emit('open-request', req.id)">View details & photos</button>
-                  <button class="admin-action-btn assign" :disabled="!isJobOrderVerified(req)" @click="openRequestJobOrder(req, 'print')">Print Job Order</button>
-                  <button class="admin-action-btn assign" :disabled="!isJobOrderVerified(req)" @click="openRequestJobOrder(req, 'pdf')">Download PDF</button>
-                  <button v-if="currentRole === 'Admin' && !['closed', 'resolved', 'action-taken', 'for-verification'].includes(req.status)" class="admin-action-btn assign" @click="pickRequestForAssignment(req.id)">
+                  <button class="admin-action-btn assign" @click="pickRequestForAssignment(req.id)">
                     {{ req.assignedTo ? 'Reassign' : 'Assign' }}
                   </button>
-                  <button v-if="req.status === 'for-verification' && req.techState === 'completed'" class="admin-action-btn resolve" type="button" @click="$emit('open-request', req.id)">Review verification</button>
-                  <template v-if="req.status === 'for-verification'">
-                    <textarea v-model="rejectionReasons[req.id]" rows="2" maxlength="500" placeholder="Reason for rework (required)"></textarea>
-                    <button class="admin-action-btn" :disabled="(rejectionReasons[req.id] || '').trim().length < 5" @click="handleRejectRequest(req.id)">Reject for Rework</button>
-                  </template>
+                  <button
+                    v-if="req.status === 'for-verification' && req.techState === 'completed'"
+                    class="admin-action-btn resolve"
+                    type="button"
+                    @click="$emit('open-request', req.id)"
+                  >
+                    Review verification
+                  </button>
+                  <span v-else style="font-weight: 700; color: var(--green); font-size: 12px;">
+                    {{ req.status === 'action-taken' || req.status === 'closed' ? 'Verified ✅' : formatStatus(req.status) }}
+                  </span>
                 </td>
               </tr>
               <tr v-if="!requests.length">
-                <td :colspan="currentRole === 'Admin' ? 10 : 9" style="text-align: center; color: var(--text-3); padding: 24px;">
+                <td :colspan="currentRole === 'Admin' ? 9 : 7" style="text-align: center; color: var(--text-3); padding: 24px;">
                   No faculty requests submitted yet.
                 </td>
               </tr>
@@ -309,150 +296,45 @@
           </table>
         </div>
       </div>
-      <section v-if="activeAdminTab === 'duplicates' && currentRole === 'Admin'" class="panel duplicate-merge-panel">
-        <div class="panel-header">
-          <span class="panel-title">Merge duplicate open reports</span>
-          <span class="panel-action">Merged reports follow the primary report's status</span>
-        </div>
-        <p class="duplicate-merge-intro">Choose two open reports with the same category and location. The selected secondary report is marked as a duplicate and future status changes follow the primary report.</p>
-        <div v-if="!mergeableReports.length" class="facility-empty-state">There are no open reports eligible for merging.</div>
-        <form v-else class="duplicate-merge-form" @submit.prevent="mergeReports">
-          <label>Primary report
-            <select v-model="mergeParentId" required @change="mergeChildId = ''">
-              <option value="">Select the report to keep</option>
-              <option v-for="report in mergeableReports" :key="report.id" :value="report.id">
-                {{ report.id }} · {{ report.title }} · {{ report.loc }}
-              </option>
-            </select>
-          </label>
-          <label>Duplicate report
-            <select v-model="mergeChildId" required :disabled="!mergeParentId">
-              <option value="">Select the duplicate</option>
-              <option v-for="report in mergeChildren" :key="report.id" :value="report.id">
-                {{ report.id }} · {{ report.title }}
-              </option>
-            </select>
-          </label>
-          <button class="btn-primary" type="submit" :disabled="!mergeParentId || !mergeChildId || merging">
-            {{ merging ? 'Merging…' : 'Merge selected reports' }}
-          </button>
-        </form>
-        <div v-if="selectedMergeParent" class="duplicate-notes">
-          <h3>Reporter votes / notes for {{ selectedMergeParent.id }}<span v-if="!notesLoading"> · {{ duplicateNotes.length }} vote{{ duplicateNotes.length === 1 ? '' : 's' }}</span></h3>
-          <p v-if="notesLoading" role="status">Loading reporter notes…</p>
-          <p v-else-if="notesError" class="duplicate-merge-error" role="alert">{{ notesError }}</p>
-          <p v-else-if="!duplicateNotes.length">No reporter votes have been added to this report.</p>
-          <ul v-else>
-            <li v-for="(item, index) in duplicateNotes" :key="`${item.created_at}-${index}`">
-              <span>{{ item.note || 'Reporter confirmed this is the same issue.' }}</span><small>{{ formatDate(item.created_at) }}</small>
-            </li>
-          </ul>
-        </div>
-        <p v-if="mergeError" class="duplicate-merge-error" role="alert">{{ mergeError }}</p>
-      </section>
-
-      <FacilitiesMaintenancePanel v-if="activeAdminTab === 'facilities' && currentRole === 'Admin'" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue';
+import { ref, reactive, computed, nextTick } from 'vue';
 import { useReports } from '../composables/useReports.js';
 import { useRequests } from '../composables/useRequests.js';
 import { useToast } from '../composables/useToast.js';
 import UiIcon from '../components/UiIcon.vue';
-import PhotoGallery from '../components/PhotoGallery.vue';
 import FacilitiesMaintenancePanel from '../components/FacilitiesMaintenancePanel.vue';
-import { useReportFeedback } from '../composables/useReportFeedback.js';
-import { isJobOrderVerified, printJobOrder } from '../lib/jobOrder.js';
-import { useDuplicateReports } from '../composables/useDuplicateReports.js';
-import { encodeCsv } from '../lib/csv.js';
 
 const props = defineProps({
   currentRole: {
     type: String,
     default: 'Admin'
-  },
-  initialTab: {
-    type: String,
-    default: 'reports'
   }
 });
+defineEmits(['open-report', 'open-request']);
 
 const {
   reports,
   technicians,
-  loadTechnicians,
   getActiveLoad,
   findRecommendedTech,
   assignReport,
-  resolveReport,
-  rejectReport,
-  mergeDuplicateReports,
   assignNextInQueue,
   setReportRisk,
   setReportRemark
 } = useReports();
-const {
-  requests,
-  acknowledgeRequest,
-  rejectRequest,
-  setRequestRisk,
-  setRequestRemark,
-  assignRequest
-} = useRequests();
-const { feedback, loading: feedbackLoading, loadError: feedbackLoadError, loadReportFeedback } = useReportFeedback();
+const { requests, setRequestRisk, setRequestRemark, assignRequest } = useRequests();
 const { showToast } = useToast();
-const {
-  duplicateNotes,
-  notesLoading,
-  notesError,
-  loadDuplicateNotes
-} = useDuplicateReports();
 
-const activeAdminTab = ref(props.initialTab);
+const activeAdminTab = ref('reports');
+const assigning = ref(false);
 const assignmentPanel = ref(null);
 const assignmentIdInput = ref(null);
-const assigning = ref(false);
-const rejectionReasons = reactive({});
-const mergeParentId = ref('');
-const mergeChildId = ref('');
-const merging = ref(false);
-const mergeError = ref('');
 
 const currentRole = computed(() => props.currentRole);
-const mergeableReports = computed(() => reports.value.filter((report) =>
-  report.duplicateOf == null || report.duplicateOf === ''
-).filter((report) => !['closed', 'resolved', 'action-taken'].includes(report.status)));
-const selectedMergeParent = computed(() => mergeableReports.value.find((report) => report.id === mergeParentId.value));
-const mergeChildren = computed(() => {
-  const parent = selectedMergeParent.value;
-  if (!parent) return [];
-  return mergeableReports.value.filter((report) =>
-    report.id !== parent.id
-    && report.cat.toLowerCase() === parent.cat.toLowerCase()
-    && report.loc.toLowerCase() === parent.loc.toLowerCase()
-  );
-});
-watch(mergeParentId, (reportId) => {
-  void loadDuplicateNotes(reportId).catch(() => {});
-});
-
-onMounted(async () => {
-  void loadReportFeedback().catch((error) => {
-    console.error('Could not load report feedback.', error);
-  });
-  if (currentRole.value === 'Admin') {
-    try {
-      await loadTechnicians();
-    } catch (error) {
-      console.error('Could not load active maintenance personnel.', error);
-      showToast('Available personnel could not be loaded. Check profile permissions and try again.', 'error');
-    }
-  }
-  void feedbackResult;
-});
 
 async function focusAssignmentForm() {
   activeAdminTab.value = 'assignment';
@@ -466,28 +348,16 @@ function normalizeRisk(risk) {
 }
 
 function handleReportRisk(id, risk) {
-  if (currentRole.value !== 'Admin') return;
+  if (!['Admin', 'Assistant'].includes(currentRole.value)) return;
   setReportRisk(id, risk);
   showToast(`${id} risk marked ${capitalize(risk)}.`, 'success');
 }
 
 function handleRequestRisk(id, risk) {
-  if (currentRole.value !== 'Admin') return;
+  if (!['Admin', 'Assistant'].includes(currentRole.value)) return;
   setRequestRisk(id, risk);
   showToast(`${id} risk marked ${capitalize(risk)}.`, 'success');
 }
-
-function formatRating(reportId) {
-  if (feedbackLoadError.value) return 'Unavailable';
-  if (feedbackLoading.value) return 'Loading…';
-  const ratings = feedback.value.filter((item) => item.report_id === reportId);
-  if (!ratings.length) return 'No ratings';
-  const average = ratings.reduce((sum, item) => sum + item.rating, 0) / ratings.length;
-  return `${average.toFixed(1)} / 5 (${ratings.length})`;
-}
-
-const orderedReports = computed(() => reports.value);
-const orderedRequests = computed(() => requests.value);
 
 function handleReportRemark(id, remark) {
   if (currentRole.value !== 'Admin') return;
@@ -497,29 +367,6 @@ function handleReportRemark(id, remark) {
 function handleRequestRemark(id, remark) {
   if (currentRole.value !== 'Admin') return;
   if (setRequestRemark(id, remark)) showToast(`Remark saved for ${id}.`, 'success');
-}
-
-async function mergeReports() {
-  merging.value = true;
-  mergeError.value = '';
-  try {
-    await mergeDuplicateReports(mergeParentId.value, mergeChildId.value);
-    mergeParentId.value = '';
-    mergeChildId.value = '';
-    showToast('Duplicate report merged successfully.', 'success');
-  } catch (error) {
-    mergeError.value = error.message || 'The reports could not be merged.';
-  } finally {
-    merging.value = false;
-  }
-}
-
-function openRequestJobOrder(request, action) {
-  try {
-    printJobOrder(request, action);
-  } catch (error) {
-    showToast(error.message || 'The job order could not be opened.', 'error');
-  }
 }
 
 const assignForm = reactive({
@@ -532,7 +379,7 @@ const assignForm = reactive({
 
 const unassignedQueue = computed(() => {
   return reports.value
-    .filter((r) => !r.assignedTo && !['closed', 'resolved'].includes(r.status))
+    .filter((r) => !r.assignedTo && r.status !== 'resolved')
     .sort((a, b) => {
       const riskWeight = { high: 3, medium: 2, low: 1 };
       return (riskWeight[b.risk] || 1) - (riskWeight[a.risk] || 1);
@@ -540,18 +387,20 @@ const unassignedQueue = computed(() => {
 });
 
 const selectedReport = computed(() => {
-  return reports.value.find((r) => r.id.toLowerCase() === assignForm.id.trim().toLowerCase());
+  const enteredId = assignForm.id.trim().toLowerCase();
+  return reports.value.find((r) => r.id.toLowerCase() === enteredId || r.trackingCode?.toLowerCase() === enteredId);
 });
 
 const selectedRequest = computed(() => {
-  return requests.value.find((request) => request.id.toLowerCase() === assignForm.id.trim().toLowerCase());
+  const enteredId = assignForm.id.trim().toLowerCase();
+  return requests.value.find((request) => request.id.toLowerCase() === enteredId || request.trackingCode?.toLowerCase() === enteredId);
 });
 
 const selectedWorkItem = computed(() => selectedReport.value || selectedRequest.value);
 
 const selectedWorkItemLabel = computed(() => {
   if (!selectedWorkItem.value) return 'Select a report or request from the table or queue to begin.';
-  return `${selectedWorkItem.value.id} · ${selectedWorkItem.value.title} (${selectedWorkItem.value.cat || 'Request'})`;
+  return `${selectedWorkItem.value.trackingCode || selectedWorkItem.value.id} · ${selectedWorkItem.value.title} (${selectedWorkItem.value.cat || 'Request'})`;
 });
 
 function pickForAssignment(reportId) {
@@ -571,7 +420,7 @@ function syncFormWithWorkItem() {
     const recommended = findRecommendedTech(selectedReport.value);
     assignForm.techs = Array.isArray(selectedReport.value.assignedPersonnel)
       ? [...selectedReport.value.assignedPersonnel]
-      : (selectedReport.value.assignedTo ? selectedReport.value.assignedTo.split(',').map((name) => name.trim()) : (recommended ? [recommended.name] : []));
+      : (selectedReport.value.assignedTo ? selectedReport.value.assignedTo.split(',').map((name) => name.trim()) : [recommended.name]);
     assignForm.status = selectedReport.value.status === 'pending' ? 'in-progress' : selectedReport.value.status;
     assignForm.note = selectedReport.value.assignNote || '';
     assignForm.targetDate = selectedReport.value.targetDate || '';
@@ -611,93 +460,48 @@ async function handleAssign() {
     showToast('Add at least one personnel member.', 'error');
     return;
   }
-  if (!selectedWorkItem.value) {
+  const enteredId = assignForm.id.trim().toLowerCase();
+  const personnel = [...assignForm.techs];
+  const report = reports.value.find((item) => item.id.toLowerCase() === enteredId || item.trackingCode?.toLowerCase() === enteredId);
+  const request = requests.value.find((item) => item.id.toLowerCase() === enteredId || item.trackingCode?.toLowerCase() === enteredId);
+  if (!report && !request) {
     showToast('Report or Request ID not found.', 'error');
     return;
   }
+
   assigning.value = true;
   try {
-    const updated = selectedReport.value
-      ? await assignReport(assignForm.id, assignForm.techs, assignForm.status, assignForm.note, assignForm.targetDate)
-      : await assignRequest(assignForm.id, assignForm.techs, assignForm.note, assignForm.targetDate);
-    if (updated) {
-      showToast(`${updated.id} assigned to ${assignForm.techs.join(', ')}.`, 'success');
-    } else {
-      showToast('This item cannot be assigned in its current state.', 'error');
+    const updated = report
+      ? await assignReport(report.id, personnel, assignForm.status, assignForm.note, assignForm.targetDate)
+      : await assignRequest(request.id, personnel, assignForm.note, assignForm.targetDate);
+    if (!updated) {
+      showToast('The work item could not be assigned. Refresh the list and try again.', 'error');
+      return;
     }
+    showToast(`${updated.trackingCode || updated.id} assigned to ${personnel.join(', ')} ✅`, 'success');
   } catch (error) {
-    console.error('Could not save work assignment.', error);
-    showToast(error.message || 'The assignment could not be saved. Please try again.', 'error');
+    console.error('Could not assign work item.', error);
+    showToast(error.message || 'Could not assign the work item. Check your connection and permissions.', 'error');
   } finally {
     assigning.value = false;
   }
 }
 
 async function handleAutoPick() {
+  if (assigning.value) return;
+  assigning.value = true;
   try {
     const result = await assignNextInQueue();
     if (result) {
-      showToast(`${result.report.id} auto-assigned to ${result.tech.name}`, 'success');
+      showToast(`${result.report.trackingCode || result.report.id} auto-assigned to ${result.tech.name}`, 'success');
     } else {
       showToast('No unassigned reports currently in queue.', 'info');
     }
   } catch (error) {
-    console.error('Could not auto-assign the next report.', error);
-    showToast(error.message || 'The report could not be auto-assigned.', 'error');
-  }
-}
-
-async function handleResolve(id) {
-  try {
-    if (await resolveReport(id)) {
-      showToast(`${id} verified and closed.`, 'success');
-    } else {
-      showToast('This report is not awaiting verification.', 'info');
-    }
-  } catch (error) {
-    showToast(error.message || 'Unable to verify this report.', 'error');
-  }
-}
-
-function canVerifyReport(report) {
-  return report?.status === 'for-verification' && report.techState === 'completed';
-}
-
-async function handleAcknowledge(id) {
-  try {
-    const updated = await acknowledgeRequest(id, 'Verified and closed by administration.');
-    if (updated) showToast(`${id} verified and closed.`, 'success');
-    else showToast('This request is not awaiting verification.', 'info');
-  } catch (error) {
-    showToast(error.message || 'Unable to verify this request.', 'error');
-  }
-}
-
-async function handleRejectReport(id) {
-  try {
-    const rejected = await rejectReport(id, rejectionReasons[id]);
-    if (!rejected) {
-      showToast('Provide a rework reason of at least 5 characters.', 'error');
-      return;
-    }
-    rejectionReasons[id] = '';
-    showToast(`${id} returned for rework.`, 'success');
-  } catch (error) {
-    showToast(error.message || 'Unable to reject this report for rework.', 'error');
-  }
-}
-
-async function handleRejectRequest(id) {
-  try {
-    const rejected = await rejectRequest(id, rejectionReasons[id]);
-    if (!rejected) {
-      showToast('Provide a rework reason of at least 5 characters.', 'error');
-      return;
-    }
-    rejectionReasons[id] = '';
-    showToast(`${id} returned for rework.`, 'success');
-  } catch (error) {
-    showToast(error.message || 'Unable to reject this request for rework.', 'error');
+    console.error('Could not automatically assign the next report.', error);
+    showToast(error.message || 'Could not assign the next report. Check your connection and permissions.', 'error');
+  } finally {
+    assigning.value = false;
   }
 }
 
@@ -711,7 +515,7 @@ function generatePrintableReport() {
     .map(
       (r) => `
     <tr>
-      <td>${r.id}</td>
+      <td>${r.trackingCode || r.id}</td>
       <td>${r.title}</td>
       <td>${r.cat}</td>
       <td>${r.loc}</td>
@@ -761,16 +565,18 @@ function exportCSV() {
   const headers = ['ID', 'Title', 'Category', 'Location', 'Risk', 'Status', 'Assigned To', 'Date'];
   const rows = reports.value.map((r) => [
     r.id,
-    r.title,
+    `"${r.title.replace(/"/g, '""')}"`,
     r.cat,
-    r.loc,
+    `"${r.loc.replace(/"/g, '""')}"`,
     r.risk,
     r.status,
     r.assignedTo || 'Unassigned',
     r.date
   ]);
-  const csvContent = encodeCsv([headers, ...rows]);
-  const encodedUri = `data:text/csv;charset=utf-8,${encodeURIComponent(csvContent)}`;
+  const csvContent =
+    'data:text/csv;charset=utf-8,' +
+    [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+  const encodedUri = encodeURI(csvContent);
   const link = document.createElement('a');
   link.setAttribute('href', encodedUri);
   link.setAttribute('download', `unifix_reports_${new Date().toISOString().slice(0, 10)}.csv`);
@@ -786,32 +592,17 @@ function truncate(str, len) {
 
 function formatStatus(status) {
   if (!status) return '';
-  return ({
-    'in-progress': 'In Progress',
-    'for-verification': 'For Verification',
-    closed: 'Closed',
-    resolved: 'Closed',
-    'action-taken': 'Closed'
-  })[status] || capitalize(status);
+  return String(status).replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function capitalize(str) {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
-
-function formatDate(value) {
-  const date = new Date(value || '');
-  return Number.isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleString();
-}
 </script>
 
 <style scoped>
-.request-feedback-note { margin-top: 8px; padding: 9px 11px; border-left: 3px solid var(--primary); border-radius: 5px; background: var(--surface-2); color: var(--text-2); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
-.request-feedback-note strong { display: block; margin-bottom: 3px; color: var(--text); }
 .assigned-personnel-list { display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; margin-bottom: 8px; }
-.admin-panel-tabs { overflow-x:auto; }
-.admin-panel-tabs .admin-tab { min-width:120px; flex:0 0 auto; }
 .assigned-personnel-empty { color: var(--text-3); font-size: 12px; padding: 6px 0; }
 .personnel-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 999px; background: #e8f5e9; color: var(--primary); font-size: 12px; font-weight: 700; }
 .personnel-chip button { border: 0; background: transparent; color: inherit; font: inherit; font-size: 17px; line-height: 1; cursor: pointer; padding: 0; }
@@ -822,21 +613,5 @@ function formatDate(value) {
 .personnel-list-item strong { font-size: 12px; }
 .personnel-list-item small { margin-top: 2px; color: var(--text-3); font-size: 11px; }
 .personnel-list-item b { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 17px; }
-.verification-actions { min-width: 180px; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
-.verification-actions textarea { width: 100%; min-height: 48px; padding: 7px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; font-size: 11px; }
-.duplicate-merge-panel { padding:18px; }
-.duplicate-merge-intro { margin-bottom:14px; color:var(--text-2); font-size:13px; }
-.duplicate-merge-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-.duplicate-merge-form label { display:grid; gap:5px; color:var(--text-2); font-size:12px; font-weight:700; }
-.duplicate-merge-form select { width:100%; min-height:40px; padding:8px; border:1px solid var(--border-dark); border-radius:6px; background:var(--surface); color:var(--text); font:inherit; }
-.duplicate-merge-form button { grid-column:1/-1; justify-self:start; margin-top:0; }
-.duplicate-merge-error { margin-top:10px; color:var(--red); font-size:12px; }
-.duplicate-notes { margin-top:18px; padding:14px; border-radius:8px; background:var(--surface-2); }
-.duplicate-notes h3 { margin-bottom:8px; font-size:13px; }
-.duplicate-notes p,.duplicate-notes small { color:var(--text-3); font-size:12px; }
-.duplicate-notes ul { display:grid; gap:8px; list-style:none; }
-.duplicate-notes li { display:grid; gap:3px; padding:9px; border:1px solid var(--border); border-radius:6px; background:var(--surface); font-size:12px; }
-.facility-empty-state { padding:22px; color:var(--text-3); font-size:13px; text-align:center; }
 @media (max-width: 520px) { .personnel-list { grid-template-columns: 1fr; } }
-@media(max-width:620px){.duplicate-merge-form{grid-template-columns:1fr}.duplicate-merge-form button{grid-column:auto}}
 </style>

@@ -1,6 +1,8 @@
 <template>
   <main class="tracking-page">
-    <button class="back-link" type="button" @click="$emit('back')">← Back to home</button>
+    <button class="back-link public-back-button" type="button" @click="$emit('back')">
+      <UiIcon name="arrow-left" :size="16" /> Back to home
+    </button>
     <section class="tracking-card">
       <span class="eyebrow">PUBLIC STATUS LOOKUP</span>
       <h1>Track a report or request</h1>
@@ -86,6 +88,7 @@ import { lookupPublicReport, isSupabaseConfigured, reopenPublicWorkItem } from '
 import { useReports } from '../composables/useReports.js';
 import { useRequests } from '../composables/useRequests.js';
 import { useReportFeedback } from '../composables/useReportFeedback.js';
+import UiIcon from '../components/UiIcon.vue';
 
 defineEmits(['back']);
 
@@ -231,7 +234,6 @@ function formatDate(value) {
 
 <style scoped>
 .tracking-page { min-height: 100vh; padding: 26px clamp(18px, 6vw, 80px) 54px; background: var(--surface-2); }
-.back-link { margin: 0 0 18px; border: 0; background: transparent; color: var(--primary); font: inherit; font-weight: 700; cursor: pointer; }
 .tracking-card { max-width: 760px; margin: 0 auto; padding: clamp(20px, 5vw, 40px); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); }
 .eyebrow { color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: .14em; }
 h1 { margin-top: 7px; font-size: clamp(28px, 5vw, 38px); letter-spacing: -1px; }
@@ -265,7 +267,7 @@ h1 { margin-top: 7px; font-size: clamp(28px, 5vw, 38px); letter-spacing: -1px; }
 .feedback-thanks { margin-top: 7px; color: var(--primary); font-size: 12px; }
 @media(max-width: 767px) {
   .tracking-page { min-height: 100dvh; padding: 16px 14px 32px; }
-  .back-link { min-height: 44px; margin-bottom: 12px; }
+  .back-link { margin-bottom: 12px; }
   .tracking-card { padding: 18px; border-radius: 18px; }
   .tracking-card h1 { margin-top: 5px; font-size: clamp(25px, 7vw, 32px); line-height: 1.2; }
   .tracking-intro { margin-top: 8px; line-height: 1.55; }

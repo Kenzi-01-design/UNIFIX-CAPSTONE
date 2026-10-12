@@ -31,7 +31,7 @@
           </select>
           <small>An administrator reviews your requested role before activating your account.</small>
         </div>
-        <div class="form-group">
+        <div v-if="form.requestedRole === 'Employee'" class="form-group">
           <label for="registration-department">Department / office</label>
           <select id="registration-department" v-model="form.department" autocomplete="organization">
             <option value="">Select a department</option>
@@ -68,7 +68,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { REQUESTABLE_REGISTRATION_ROLES } from '../lib/registrationRoles.js';
 
@@ -83,6 +83,9 @@ const form = reactive({
   location: 'Bambang Campus',
   password: '',
   confirmPassword: ''
+});
+watch(() => form.requestedRole, (role) => {
+  if (role !== 'Employee') form.department = '';
 });
 const submitting = ref(false);
 const submitted = ref(false);

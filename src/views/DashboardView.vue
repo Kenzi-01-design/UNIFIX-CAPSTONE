@@ -155,7 +155,7 @@
             </div>
             <div class="report-info">
               <div class="title">{{ request.title }}</div>
-              <div class="meta">{{ request.id }} · {{ request.dept }}</div>
+              <div class="meta">{{ request.trackingCode || request.id }} · {{ request.dept }}</div>
             </div>
             <span :class="['tag', request.status]">{{ formatStatus(request.status) }}</span>
           </div>

@@ -136,6 +136,7 @@
     alter table public.requests add column if not exists completion_photo text;
     alter table public.reports replica identity full;
     alter table public.requests replica identity full;
+    alter table public.login_events replica identity full;
 
         do $$
         begin
@@ -162,6 +163,18 @@
                     and c.relname = 'requests'
             ) then
                 execute 'alter publication supabase_realtime add table public.requests';
+            end if;
+            if not exists (
+                select 1
+                from pg_publication_rel pr
+                join pg_class c on c.oid = pr.prrelid
+                join pg_namespace n on n.oid = c.relnamespace
+                join pg_publication p on p.oid = pr.prpubid
+                where p.pubname = 'supabase_realtime'
+                    and n.nspname = 'public'
+                    and c.relname = 'login_events'
+            ) then
+                execute 'alter publication supabase_realtime add table public.login_events';
             end if;
         end $$;
     update public.reports
@@ -251,6 +264,7 @@
         drop policy if exists "Admins can manage requests" on public.requests;
         drop policy if exists "Assistants can update request risk" on public.requests;
         drop policy if exists "Admins can read login events" on public.login_events;
+        drop policy if exists "Users can record own login events" on public.login_events;
         drop policy if exists "Users can read own profile" on public.user_profiles;
         drop policy if exists "Users can update own profile" on public.user_profiles;
         drop policy if exists "Admins can manage profiles" on public.user_profiles;
@@ -398,8 +412,8 @@
                   or new.assigned_to is distinct from old.assigned_to
                   or new.assigned_personnel is distinct from old.assigned_personnel
                   or (new.technician_state = 'completed' and old.technician_state <> 'started')
-                        or to_jsonb(new) - array['technician_state', 'assignment_note', 'completion_photo']
-                            <> to_jsonb(old) - array['technician_state', 'assignment_note', 'completion_photo'] then
+                        or to_jsonb(new) - array['status', 'technician_state', 'assignment_note', 'completion_photo']
+                            <> to_jsonb(old) - array['status', 'technician_state', 'assignment_note', 'completion_photo'] then
                     raise exception 'Personnel may update only the state of requests assigned to them';
                 end if;
             elsif public.current_user_role() is distinct from 'Admin' then
@@ -424,6 +438,16 @@
         create policy "Admins can read login events" on public.login_events
             for select to authenticated
             using (public.current_user_role() = 'Admin');
+
+        grant insert on public.login_events to authenticated;
+        create policy "Users can record own login events" on public.login_events
+            for insert to authenticated
+            with check (
+              user_name = public.current_user_profile_name()
+              and role = public.current_user_role()
+              and lower(btrim(email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', '')))
+              and logged_in_at between now() - interval '1 minute' and now() + interval '1 minute'
+            );
 
         create policy "Users can read own profile" on public.user_profiles
             for select to authenticated
@@ -788,6 +812,43 @@ create trigger set_phase1_report_metadata
   before insert or update on public.reports
   for each row execute function public.set_phase1_work_item_metadata();
 
+create or replace function public.prepare_request_submission()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  profile_name text;
+begin
+  if auth.uid() is null or public.current_user_role() not in ('Admin', 'Employee') then
+    return new;
+  end if;
+
+  profile_name := public.current_user_profile_name();
+  if profile_name is null or btrim(profile_name) = '' then
+    return new;
+  end if;
+
+  new.requester := profile_name;
+  new.requester_email := auth.jwt() ->> 'email';
+  new.status := 'submitted';
+  new.risk := 'low';
+  new.technician_state := 'unassigned';
+  new.assigned_to := null;
+  new.assigned_personnel := '[]'::jsonb;
+  new.admin_response := null;
+  new.admin_remark := null;
+
+  return new;
+end;
+$$;
+revoke all on function public.prepare_request_submission() from public, anon, authenticated;
+drop trigger if exists prepare_request_submission on public.requests;
+create trigger prepare_request_submission
+  before insert on public.requests
+  for each row execute function public.prepare_request_submission();
+
 drop trigger if exists set_phase1_request_metadata on public.requests;
 create trigger set_phase1_request_metadata
   before insert or update on public.requests
@@ -853,8 +914,8 @@ begin
     or new.assigned_to is distinct from old.assigned_to
     or new.assigned_personnel is distinct from old.assigned_personnel
     or (new.technician_state = 'completed' and old.technician_state <> 'started')
-    or to_jsonb(new) - array['technician_state', 'assignment_note', 'completion_photo', 'photo_attachments']
-       <> to_jsonb(old) - array['technician_state', 'assignment_note', 'completion_photo', 'photo_attachments'] then
+    or to_jsonb(new) - array['status', 'technician_state', 'assignment_note', 'completion_photo', 'photo_attachments']
+       <> to_jsonb(old) - array['status', 'technician_state', 'assignment_note', 'completion_photo', 'photo_attachments'] then
       raise exception 'Personnel may update only the state and completion photos of requests assigned to them';
     end if;
   elsif public.current_user_role() <> 'Admin' then
@@ -974,8 +1035,6 @@ create policy "Authenticated users can upload their own report photos" on storag
     bucket_id = 'report-photos'
     and (storage.foldername(name))[1] = auth.uid()::text
     and lower(storage.extension(name)) in ('jpg', 'jpeg', 'png', 'webp')
-    and coalesce((metadata ->> 'size')::bigint, 0) between 1 and 5242880
-    and coalesce(metadata ->> 'mimetype', '') in ('image/jpeg', 'image/png', 'image/webp')
   );
 
 drop policy if exists "Users can delete their own report photos" on storage.objects;
@@ -1667,11 +1726,37 @@ create policy "Admins can delete locations" on public.locations
 
 insert into public.locations (building)
 values
-  ('Administration Building'),
-  ('Academic Classroom Building'),
-  ('Engineering Building'),
+  ('Oval'),
   ('Gymnasium'),
-  ('Library')
+  ('Boys Dorm'),
+  ('Ladies Dorm'),
+  ('Motorpool'),
+  ('5 Star CR'),
+  ('Food Court'),
+  ('Alumni Bldg'),
+  ('Administration Bldg'),
+  ('College of Arts & Sciences Bldg'),
+  ('Campus Quadrangle'),
+  ('College of Teacher Education Bldg'),
+  ('Boys Shop Building'),
+  ('ROTC Building'),
+  ('Rotary'),
+  ('ROTC Bldg'),
+  ('Mechanical Engineering Laboratory Bldg'),
+  ('Engineering Science Lab Bldg'),
+  ('Academic Classroom Bldg'),
+  ('Engineering Bldg'),
+  ('Stalls'),
+  ('Graphic Arts & Bldg'),
+  ('Technology Lab Bldg'),
+  ('IT Lab Bldg'),
+  ('RAC Bldg'),
+  ('Auto Service Center'),
+  ('Technician Institute'),
+  ('CBA Bldg'),
+  ('Cafeteria'),
+  ('HRM Bldg'),
+  ('Training Center')
 on conflict do nothing;
 
 create or replace function public.get_public_facility_issues(
@@ -1778,6 +1863,7 @@ $$;
 
 revoke all on function public.get_public_facility_issues(uuid, integer, integer, integer) from public;
 grant execute on function public.get_public_facility_issues(uuid, integer, integer, integer) to anon, authenticated;
+
 create table if not exists public.report_duplicate_votes (
   id uuid primary key default gen_random_uuid(),
   report_id text not null references public.reports(id) on delete cascade,
@@ -2234,12 +2320,10 @@ create policy "Users can create own requests" on public.requests
   for insert to authenticated
   with check (
     public.current_user_role() in ('Admin', 'Employee')
-    and lower(requester) = lower((
-      select name from public.user_profiles
-      where auth_user_id = auth.uid()
-         or (auth_user_id is null and lower(btrim(email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', ''))))
-      limit 1
-    ))
+    and nullif(btrim(requester), '') is not null
+    and lower(btrim(coalesce(requester_email, ''))) =
+      lower(btrim(coalesce(auth.jwt() ->> 'email', '')))
+    and nullif(btrim(auth.jwt() ->> 'email'), '') is not null
     and status = 'submitted'
     and risk = 'low'
     and technician_state = 'unassigned'
@@ -2267,12 +2351,20 @@ create policy "Staff can read report photos" on storage.objects
               case when jsonb_typeof(report.assigned_personnel) = 'array'
                 then report.assigned_personnel else '[]'::jsonb end
             ) assigned(personnel_name)
-            where report.id = case
-              when (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
-              when (storage.foldername(name))[1] = 'public'
-                and (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
-              else null
-            end
+            where report.id in (
+              case
+                when (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end,
+              '#' || case
+                when (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end
+            )
             and lower(assigned.personnel_name) = lower((
               select profile.name from public.user_profiles profile
               where profile.auth_user_id = auth.uid()
@@ -2287,12 +2379,20 @@ create policy "Staff can read report photos" on storage.objects
               case when jsonb_typeof(request.assigned_personnel) = 'array'
                 then request.assigned_personnel else '[]'::jsonb end
             ) assigned(personnel_name)
-            where request.id = case
-              when (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
-              when (storage.foldername(name))[1] = 'public'
-                and (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
-              else null
-            end
+            where request.id in (
+              case
+                when (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end,
+              '#' || case
+                when (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end
+            )
             and lower(assigned.personnel_name) = lower((
               select profile.name from public.user_profiles profile
               where profile.auth_user_id = auth.uid()
@@ -2618,6 +2718,58 @@ create policy "Authenticated users can read requests" on public.requests
     )
   );
 
+drop policy if exists "Personnel can update assigned reports" on public.reports;
+create policy "Personnel can update assigned reports" on public.reports
+  for update to authenticated
+  using (
+    public.current_user_role() = 'Personnel'
+    and exists (
+      select 1
+      from jsonb_array_elements_text(
+        case when jsonb_typeof(assigned_personnel) = 'array'
+          then assigned_personnel else '[]'::jsonb end
+      ) assigned(name)
+      where public.is_current_assigned_personnel(assigned.name)
+    )
+  )
+  with check (
+    public.current_user_role() = 'Personnel'
+    and exists (
+      select 1
+      from jsonb_array_elements_text(
+        case when jsonb_typeof(assigned_personnel) = 'array'
+          then assigned_personnel else '[]'::jsonb end
+      ) assigned(name)
+      where public.is_current_assigned_personnel(assigned.name)
+    )
+  );
+
+drop policy if exists "Personnel can update assigned requests" on public.requests;
+create policy "Personnel can update assigned requests" on public.requests
+  for update to authenticated
+  using (
+    public.current_user_role() = 'Personnel'
+    and exists (
+      select 1
+      from jsonb_array_elements_text(
+        case when jsonb_typeof(assigned_personnel) = 'array'
+          then assigned_personnel else '[]'::jsonb end
+      ) assigned(name)
+      where public.is_current_assigned_personnel(assigned.name)
+    )
+  )
+  with check (
+    public.current_user_role() = 'Personnel'
+    and exists (
+      select 1
+      from jsonb_array_elements_text(
+        case when jsonb_typeof(assigned_personnel) = 'array'
+          then assigned_personnel else '[]'::jsonb end
+      ) assigned(name)
+      where public.is_current_assigned_personnel(assigned.name)
+    )
+  );
+
 drop policy if exists "Staff can read report photos" on storage.objects;
 create policy "Staff can read report photos" on storage.objects
   for select to authenticated
@@ -2635,12 +2787,20 @@ create policy "Staff can read report photos" on storage.objects
               case when jsonb_typeof(report.assigned_personnel) = 'array'
                 then report.assigned_personnel else '[]'::jsonb end
             ) assigned(personnel_name)
-            where report.id = case
-              when (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
-              when (storage.foldername(name))[1] = 'public'
-                and (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
-              else null
-            end
+            where report.id in (
+              case
+                when (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end,
+              '#' || case
+                when (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end
+            )
             and public.is_current_assigned_personnel(assigned.personnel_name)
           )
           or exists (
@@ -2650,12 +2810,20 @@ create policy "Staff can read report photos" on storage.objects
               case when jsonb_typeof(request.assigned_personnel) = 'array'
                 then request.assigned_personnel else '[]'::jsonb end
             ) assigned(personnel_name)
-            where request.id = case
-              when (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
-              when (storage.foldername(name))[1] = 'public'
-                and (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
-              else null
-            end
+            where request.id in (
+              case
+                when (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end,
+              '#' || case
+                when (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end
+            )
             and public.is_current_assigned_personnel(assigned.personnel_name)
           )
         )
@@ -2765,9 +2933,13 @@ begin
     raise exception 'QA workflow trigger admin assignment guard was not applied';
   end if;
 
-  old_text := $old$where lower(assigned.name) = lower(($old$;
-  new_text := $new$where public.is_current_assigned_personnel(assigned.name)
-      and lower(assigned.name) = lower(($new$;
+  old_text := $old$where lower(assigned.name) = lower((
+        select profile.name from public.user_profiles profile
+        where profile.auth_user_id = auth.uid()
+           or (profile.auth_user_id is null and lower(btrim(profile.email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', ''))))
+        limit 1
+      ))$old$;
+  new_text := $new$where public.is_current_assigned_personnel(assigned.name)$new$;
   if length(revised_definition) - length(replace(revised_definition, old_text, '')) <> length(old_text) then
     raise exception 'QA workflow trigger did not contain exactly one personnel identity guard target';
   end if;

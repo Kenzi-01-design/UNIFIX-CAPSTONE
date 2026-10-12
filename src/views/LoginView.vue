@@ -123,8 +123,8 @@
     </div>
 
     <div class="login-form-wrap">
-      <button v-if="showBack" class="login-back" type="button" @click="$emit('back')" aria-label="Back to home">
-        <span>←</span> Back to home
+      <button v-if="showBack" class="login-back public-back-button" type="button" @click="$emit('back')" aria-label="Back to home">
+        <UiIcon name="arrow-left" :size="16" /> Back to home
       </button>
       <form v-if="passwordRecoveryMode" class="recovery-form" @submit.prevent="submitRecovery">
         <h2>Set a new password</h2>
@@ -372,8 +372,7 @@ async function submitRecovery() {
 </script>
 
 <style scoped>
-.login-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; margin-bottom: 24px; padding: 0; border: 0; background: transparent; color: var(--primary); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
-.login-back span { display: grid; place-items: center; width: 24px; height: 24px; padding-bottom: 1px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface); font-size: 16px; line-height: 1; transition: var(--transition); }.login-back:hover span { transform: translateX(-3px); background: var(--primary-bg); }
+.login-back { align-self: flex-start; margin-bottom: 24px; }
 .login-register-link { margin:16px 0 0; color:var(--text-2); text-align:center; font-size:13px; }
 .login-register-link button { padding:0; border:0; background:none; color:var(--primary); font:inherit; font-weight:700; cursor:pointer; }
 .login-auth-notice { margin:0 0 18px; padding:12px 14px; border-radius:var(--radius); background:var(--amber-bg); color:var(--amber); line-height:1.5; }

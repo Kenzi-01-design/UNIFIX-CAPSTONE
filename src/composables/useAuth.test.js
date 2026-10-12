@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     subscribe: vi.fn()
   },
   removeChannel: vi.fn(),
+  insert: vi.fn(),
   profileResult: { data: null, error: null }
 }));
 
@@ -62,7 +63,11 @@ describe('useAuth sign-in handling', () => {
         eq: vi.fn(() => query),
         is: vi.fn(() => query),
         maybeSingle: vi.fn(() => Promise.resolve(mocks.profileResult)),
-        upsert: vi.fn(() => Promise.resolve({ error: null }))
+        upsert: vi.fn(() => Promise.resolve({ error: null })),
+        insert: vi.fn((value) => {
+          mocks.insert(value);
+          return Promise.resolve({ error: null });
+        })
       };
       return query;
     });
@@ -84,6 +89,33 @@ describe('useAuth sign-in handling', () => {
     await expect(auth.login('employee@nvsu.edu.ph', 'password', 'Admin')).resolves.toBe('Employee');
     expect(auth.currentRole.value).toBe('Employee');
     expect(auth.isAuthenticated.value).toBe(true);
+    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+      user_name: 'Employee User',
+      role: 'Employee',
+      email: 'employee@nvsu.edu.ph'
+    }));
+  });
+
+  it('subscribes Admin sessions to realtime login history', async () => {
+    mocks.profileResult = {
+      data: {
+        auth_user_id: 'auth-user-1',
+        name: 'Admin User',
+        role: 'Admin',
+        is_active: true,
+        registration_status: 'approved'
+      },
+      error: null
+    };
+    const auth = await loadAuth();
+
+    await auth.login('employee@nvsu.edu.ph', 'password', 'Employee');
+
+    expect(mocks.channel.on).toHaveBeenCalledWith(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'login_events' },
+      expect.any(Function)
+    );
   });
 
   it('signs out a pending account and reports its review state', async () => {

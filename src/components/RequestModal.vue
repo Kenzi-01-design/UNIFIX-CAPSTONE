@@ -4,10 +4,9 @@
     <section v-if="request" class="modal-content" role="dialog" aria-modal="true" :aria-label="`Request details: ${request.title}`">
       <header class="modal-header">
         <div>
-          <div class="modal-id">{{ request.id }}</div>
+          <div class="modal-id">{{ request.trackingCode || request.id }}</div>
           <h3>{{ request.title }}</h3>
           <div class="modal-meta">{{ request.cat || 'General' }} · {{ request.dept || 'Department not specified' }}</div>
-          <div v-if="request.trackingCode" class="modal-tracking-code">Tracking: {{ request.trackingCode }}</div>
         </div>
         <button class="modal-close" type="button" aria-label="Close request details" @click="$emit('close')">✖</button>
       </header>

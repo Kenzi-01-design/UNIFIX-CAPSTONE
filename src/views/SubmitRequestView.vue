@@ -31,7 +31,11 @@
       <p v-else-if="locationsError" class="location-options-error" role="alert">{{ locationsError }} Built-in building options are available.</p>
     </div>
 
-    <PhotoPicker v-model="selectedPhotos" label="Attach photos to this request (optional)" />
+    <PhotoPicker
+      v-model="selectedPhotos"
+      label="Attach photos to this request (optional)"
+      @processing-change="photosProcessing = $event"
+    />
 
     <div class="grid-2">
       <!-- LEFT COLUMN: FORM CARD -->
@@ -111,7 +115,7 @@
           </div>
 
           <div class="form-actions">
-            <button class="btn-accent" :disabled="isSubmitting" @click="submitRWSS">Submit Water & Sewerage Request</button>
+            <button class="btn-accent" :disabled="isSubmitting || photosProcessing" @click="submitRWSS">Submit Water & Sewerage Request</button>
           </div>
           <div class="form-doc-footer">
             <span class="doc-code">NVSU-FR-PPS-10-00 (020822)</span>
@@ -225,8 +229,8 @@
           </div>
 
           <div class="form-actions">
-            <button class="btn-secondary" @click="clearREAS">Clear</button>
-            <button class="btn-accent" :disabled="isSubmitting" @click="submitREAS">Submit Electrical / AC Request</button>
+            <button class="btn-secondary" :disabled="isSubmitting || photosProcessing" @click="clearREAS">Clear</button>
+            <button class="btn-accent" :disabled="isSubmitting || photosProcessing" @click="submitREAS">Submit Electrical / AC Request</button>
           </div>
 
           <div class="form-doc-footer">
@@ -319,8 +323,8 @@
           </div>
 
           <div class="form-actions">
-            <button class="btn-secondary" @click="clearCarpentry">Clear</button>
-            <button class="btn-accent" :disabled="isSubmitting" @click="submitCarpentry">Submit Carpentry Request</button>
+            <button class="btn-secondary" :disabled="isSubmitting || photosProcessing" @click="clearCarpentry">Clear</button>
+            <button class="btn-accent" :disabled="isSubmitting || photosProcessing" @click="submitCarpentry">Submit Carpentry Request</button>
           </div>
 
           <div class="form-doc-footer">
@@ -357,6 +361,7 @@ const locationsError = ref('');
 
 const activeTab = ref('rwss');
 const selectedPhotos = ref([]);
+const photosProcessing = ref(false);
 const submissionCode = ref('');
 const isSubmitting = ref(false);
 
@@ -510,6 +515,10 @@ async function submitCarpentry() {
 }
 
 async function submitRequest(requestData, clearForm, successMessage) {
+  if (photosProcessing.value) {
+    showToast('Wait for photo processing to finish before submitting.', 'info');
+    return;
+  }
   isSubmitting.value = true;
   try {
     const created = await addRequest(requestData, selectedPhotos.value);

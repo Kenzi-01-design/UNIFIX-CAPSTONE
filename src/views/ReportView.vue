@@ -61,7 +61,7 @@
               <div>
                 <div class="rc-cat-name">{{ r.cat }}</div>
                 <div style="font-size:10px;color:var(--text-3);font-family:'DM Mono',monospace">
-                  {{ r.id }}
+                  {{ r.trackingCode || r.id }}
                 </div>
               </div>
             </div>
@@ -177,7 +177,7 @@ const filteredReports = computed(() => {
     }
 
     if (q) {
-      const haystack = `${r.id} ${r.title} ${r.loc} ${r.cat} ${r.reporter} ${r.assignedTo || ''}`.toLowerCase();
+      const haystack = `${r.id} ${r.trackingCode || ''} ${r.title} ${r.loc} ${r.cat} ${r.reporter} ${r.assignedTo || ''}`.toLowerCase();
       if (!haystack.includes(q)) return false;
     }
 

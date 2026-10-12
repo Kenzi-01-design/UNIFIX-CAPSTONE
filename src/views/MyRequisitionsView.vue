@@ -10,7 +10,7 @@
         <template v-if="myRequests.length">
           <div v-for="req in myRequests" :key="req.id" class="report-card requisition-card">
             <div class="rc-top">
-              <span class="request-id">{{ req.id }}</span>
+              <span class="request-id">{{ req.trackingCode || req.id }}</span>
               <span :class="['tag', req.status]">{{ formatStatus(req.status) }}</span>
             </div>
             <div class="job-order-actions">

@@ -1424,11 +1424,37 @@ create policy "Admins can delete locations" on public.locations
 
 insert into public.locations (building)
 values
-  ('Administration Building'),
-  ('Academic Classroom Building'),
-  ('Engineering Building'),
+  ('Oval'),
   ('Gymnasium'),
-  ('Library')
+  ('Boys Dorm'),
+  ('Ladies Dorm'),
+  ('Motorpool'),
+  ('5 Star CR'),
+  ('Food Court'),
+  ('Alumni Bldg'),
+  ('Administration Bldg'),
+  ('College of Arts & Sciences Bldg'),
+  ('Campus Quadrangle'),
+  ('College of Teacher Education Bldg'),
+  ('Boys Shop Building'),
+  ('ROTC Building'),
+  ('Rotary'),
+  ('ROTC Bldg'),
+  ('Mechanical Engineering Laboratory Bldg'),
+  ('Engineering Science Lab Bldg'),
+  ('Academic Classroom Bldg'),
+  ('Engineering Bldg'),
+  ('Stalls'),
+  ('Graphic Arts & Bldg'),
+  ('Technology Lab Bldg'),
+  ('IT Lab Bldg'),
+  ('RAC Bldg'),
+  ('Auto Service Center'),
+  ('Technician Institute'),
+  ('CBA Bldg'),
+  ('Cafeteria'),
+  ('HRM Bldg'),
+  ('Training Center')
 on conflict do nothing;
 
 create or replace function public.get_public_facility_issues(
@@ -1535,6 +1561,7 @@ $$;
 
 revoke all on function public.get_public_facility_issues(uuid, integer, integer, integer) from public;
 grant execute on function public.get_public_facility_issues(uuid, integer, integer, integer) to anon, authenticated;
+
 create table if not exists public.report_duplicate_votes (
   id uuid primary key default gen_random_uuid(),
   report_id text not null references public.reports(id) on delete cascade,
@@ -2022,12 +2049,20 @@ create policy "Staff can read report photos" on storage.objects
               case when jsonb_typeof(report.assigned_personnel) = 'array'
                 then report.assigned_personnel else '[]'::jsonb end
             ) assigned(personnel_name)
-            where report.id = case
-              when (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
-              when (storage.foldername(name))[1] = 'public'
-                and (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
-              else null
-            end
+            where report.id in (
+              case
+                when (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end,
+              '#' || case
+                when (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end
+            )
             and lower(assigned.personnel_name) = lower((
               select profile.name from public.user_profiles profile
               where lower(profile.email) = lower(auth.jwt() ->> 'email')
@@ -2041,12 +2076,20 @@ create policy "Staff can read report photos" on storage.objects
               case when jsonb_typeof(request.assigned_personnel) = 'array'
                 then request.assigned_personnel else '[]'::jsonb end
             ) assigned(personnel_name)
-            where request.id = case
-              when (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
-              when (storage.foldername(name))[1] = 'public'
-                and (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
-              else null
-            end
+            where request.id in (
+              case
+                when (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end,
+              '#' || case
+                when (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end
+            )
             and lower(assigned.personnel_name) = lower((
               select profile.name from public.user_profiles profile
               where lower(profile.email) = lower(auth.jwt() ->> 'email')
@@ -2378,12 +2421,20 @@ create policy "Staff can read report photos" on storage.objects
               case when jsonb_typeof(report.assigned_personnel) = 'array'
                 then report.assigned_personnel else '[]'::jsonb end
             ) assigned(personnel_name)
-            where report.id = case
-              when (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
-              when (storage.foldername(name))[1] = 'public'
-                and (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
-              else null
-            end
+            where report.id in (
+              case
+                when (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end,
+              '#' || case
+                when (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'reports' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end
+            )
             and public.is_current_assigned_personnel(assigned.personnel_name)
           )
           or exists (
@@ -2393,12 +2444,20 @@ create policy "Staff can read report photos" on storage.objects
               case when jsonb_typeof(request.assigned_personnel) = 'array'
                 then request.assigned_personnel else '[]'::jsonb end
             ) assigned(personnel_name)
-            where request.id = case
-              when (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
-              when (storage.foldername(name))[1] = 'public'
-                and (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
-              else null
-            end
+            where request.id in (
+              case
+                when (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end,
+              '#' || case
+                when (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                when (storage.foldername(name))[1] = 'public'
+                  and (storage.foldername(name))[2] = 'requests' then replace((storage.foldername(name))[3], '%23', '#')
+                else null
+              end
+            )
             and public.is_current_assigned_personnel(assigned.personnel_name)
           )
         )

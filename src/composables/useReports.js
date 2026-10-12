@@ -2,6 +2,7 @@ import { reactive, ref } from 'vue';
 import { useNotifications } from './useNotifications.js';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { createDemoTrackingCode } from '../lib/tracking.js';
+import { createReportId } from '../lib/requestId.js';
 import { removeUploadedPhotos, uploadPhotoFiles } from '../lib/photos.js';
 import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork, isAssignedToPersonnel } from '../lib/workflow.js';
 import { validateReportInput } from '../lib/validation.js';
@@ -441,11 +442,10 @@ export function useReports() {
 
   async function addReport(newReportData, photoFiles = []) {
     validateReportInput(newReportData);
-    const nextNumericId = 1040 + reports.value.length + 1;
     const report = {
-      id: `#${nextNumericId}`,
-      trackingCode: createDemoTrackingCode(),
       ...newReportData,
+      id: createReportId(),
+      trackingCode: createDemoTrackingCode(),
       risk: newReportData.risk || 'low',
       status: 'pending',
       assignedTo: '',
