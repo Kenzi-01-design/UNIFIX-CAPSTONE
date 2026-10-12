@@ -439,7 +439,7 @@
             for select to authenticated
             using (public.current_user_role() = 'Admin');
 
-        grant insert on public.login_events to authenticated;
+        grant select, insert on public.login_events to authenticated;
         create policy "Users can record own login events" on public.login_events
             for insert to authenticated
             with check (

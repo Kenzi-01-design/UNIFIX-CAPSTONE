@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   },
   removeChannel: vi.fn(),
   insert: vi.fn(),
+  loginEventsResult: [],
   profileResult: { data: null, error: null }
 }));
 
@@ -47,6 +48,7 @@ describe('useAuth sign-in handling', () => {
       removeItem: vi.fn()
     });
     mocks.profileResult = { data: null, error: null };
+    mocks.loginEventsResult = [];
     mocks.auth.signInWithPassword.mockResolvedValue({
       data: { user: { id: 'auth-user-1', email: 'employee@nvsu.edu.ph' } },
       error: null
@@ -59,7 +61,10 @@ describe('useAuth sign-in handling', () => {
       const query = {
         select: vi.fn(() => query),
         order: vi.fn(() => query),
-        limit: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        limit: vi.fn(() => Promise.resolve({
+          data: table === 'login_events' ? mocks.loginEventsResult : [],
+          error: null
+        })),
         eq: vi.fn(() => query),
         is: vi.fn(() => query),
         maybeSingle: vi.fn(() => Promise.resolve(mocks.profileResult)),
@@ -146,6 +151,41 @@ describe('useAuth sign-in handling', () => {
       { event: '*', schema: 'public', table: 'login_events' },
       expect.any(Function)
     );
+  });
+
+  it('refreshes the Admin login history when any staff member signs in', async () => {
+    mocks.profileResult = {
+      data: {
+        auth_user_id: 'auth-admin',
+        name: 'Admin User',
+        email: 'admin@nvsu.edu.ph',
+        role: 'Admin',
+        is_active: true,
+        registration_status: 'approved'
+      },
+      error: null
+    };
+    const auth = await loadAuth();
+    await auth.login('admin@nvsu.edu.ph', 'password', 'Admin');
+
+    const loginEventsQuery = mocks.channel.on.mock.calls.find(([, filter]) => filter.table === 'login_events');
+    expect(loginEventsQuery).toBeDefined();
+
+    mocks.loginEventsResult = [{
+      id: 'LOGIN-personnel-1',
+      user_name: 'Personnel User',
+      role: 'Personnel',
+      email: 'personnel@nvsu.edu.ph',
+      logged_in_at: '2026-10-12T09:00:00.000Z'
+    }];
+    loginEventsQuery[2]();
+
+    await vi.waitFor(() => {
+      expect(auth.loginEvents.value).toContainEqual(expect.objectContaining({
+        title: 'Personnel User',
+        details: 'Personnel signed in with personnel@nvsu.edu.ph'
+      }));
+    });
   });
 
   it('signs out a pending account and reports its review state', async () => {
