@@ -1,7 +1,10 @@
 <template>
   <div id="register-page" class="page active">
     <div class="register-card">
-      <button type="button" class="register-back" @click="$emit('back')">← Back</button>
+      <button type="button" class="register-back public-back-button" @click="$emit('back')" aria-label="Back to home">
+        <UiIcon name="arrow-left" :size="16" />
+        <span>Back to home</span>
+      </button>
       <span class="eyebrow">NUEVA VIZCAYA STATE UNIVERSITY</span>
       <h1>Create your UNIFIX account</h1>
       <p class="register-intro">Choose the role you are requesting. An administrator will verify your details and assign the approved role before activating your account.</p>
@@ -83,6 +86,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { REQUESTABLE_REGISTRATION_ROLES } from '../lib/registrationRoles.js';
 import { isValidRegistrationPhone, normalizeRegistrationPhone } from '../lib/registrationPhone.js';
+import UiIcon from '../components/UiIcon.vue';
 
 defineEmits(['back', 'open-login']);
 
@@ -180,7 +184,7 @@ async function submitRegistration() {
 <style scoped>
 #register-page { min-height:100vh; min-height:100dvh; display:grid; place-items:center; padding:28px 16px; background:var(--bg); }
 .register-card { width:min(100%,560px); padding:32px; border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface); box-shadow:var(--shadow); }
-.register-back { display:block; margin:0 0 22px; padding:0; border:0; background:none; color:var(--primary); font:inherit; font-weight:700; cursor:pointer; }
+.register-back { margin-bottom:22px; }
 .register-card h1 { margin:8px 0; color:var(--text); font-size:clamp(24px,4vw,32px); }
 .register-intro,.register-success p { color:var(--text-2); line-height:1.6; }
 .register-form { display:grid; gap:14px; margin-top:22px; }
