@@ -123,9 +123,19 @@
     </div>
 
     <div class="login-form-wrap">
-      <button v-if="showBack" class="login-back public-back-button" type="button" @click="$emit('back')" aria-label="Back to home">
-        <UiIcon name="arrow-left" :size="16" /> Back to home
-      </button>
+      <header class="login-form-header">
+        <button v-if="showBack" class="login-back public-back-button" type="button" @click="$emit('back')" aria-label="Back to home">
+          <UiIcon name="arrow-left" :size="16" />
+          <span class="login-back-label">Back to home</span>
+        </button>
+        <div class="login-form-brand" aria-label="UNIFIX, NVSU Campus Maintenance">
+          <span class="login-form-brand-icon"><BrandMark :size="27" /></span>
+          <span>
+            <strong>UNIFIX</strong>
+            <small>NVSU Campus Maintenance</small>
+          </span>
+        </div>
+      </header>
       <form v-if="passwordRecoveryMode" class="recovery-form" @submit.prevent="submitRecovery">
         <h2>Set a new password</h2>
         <p class="sub">Choose a new password for your UNIFIX account.</p>
@@ -142,13 +152,6 @@
         </button>
       </form>
       <template v-else>
-      <div class="login-form-brand" aria-label="UNIFIX, NVSU Campus Maintenance">
-        <span class="login-form-brand-icon"><BrandMark :size="27" /></span>
-        <span>
-          <strong>UNIFIX</strong>
-          <small>NVSU Campus Maintenance</small>
-        </span>
-      </div>
       <h2>Welcome</h2>
       <p class="sub">Sign in with your NVSU institutional account.</p>
       <p v-if="authNotice" class="login-auth-notice" role="alert">{{ authNotice }}</p>
@@ -372,8 +375,13 @@ async function submitRecovery() {
 </script>
 
 <style scoped>
-.login-back { align-self: flex-start; margin-bottom: 16px; }
-.login-form-brand { margin-bottom: 12px; }
+.login-form-header { position: relative; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 22px; }
+.login-back { grid-column: 1; justify-self: start; margin: 0; min-height: 40px; padding-inline: 10px; gap: 6px; font-size: 12px; }
+.login-form-brand { display: flex; grid-column: 2; justify-self: center; margin: 0; gap: 8px; }
+.login-form-brand-icon { width: 40px; height: 40px; border-radius: 12px; }
+.login-form-brand-icon .brand-mark { width: 24px; height: 24px; }
+.login-form-brand strong { font-size: 13px; }
+.login-form-brand small { font-size: 10px; }
 .login-form-wrap h2 { margin: 0 0 6px; }
 .login-form-wrap p.sub { margin: 0 0 20px; }
 .login-role-selection { margin: 0 0 16px; }
@@ -402,13 +410,17 @@ async function submitRecovery() {
 .recovery-form .btn-primary { width:100%; }
 
 @media (min-width: 768px) and (max-height: 760px) {
-  .login-back { margin-bottom: 12px; }
-  .login-form-brand { margin-bottom: 8px; }
+  .login-form-header { margin-bottom: 14px; }
   .login-form-wrap p.sub { margin-bottom: 14px; }
   .login-role-selection { margin-bottom: 12px; }
   .login-role-selection .role-tab { min-height: 52px; padding-block: 6px; }
   .login-form-wrap > .form-group { margin-bottom: 10px; }
   .login-form-wrap .login-password-help { margin-bottom: 12px; }
   .login-support { margin-top: 10px; }
+}
+
+@media (max-width: 900px) {
+  .login-back { width: 40px; min-width: 40px; padding: 0; justify-content: center; }
+  .login-back-label { display: none; }
 }
 </style>
