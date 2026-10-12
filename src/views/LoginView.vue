@@ -59,8 +59,9 @@
           <path fill="#BFCDB6" d="M300 598h95v160h-95zm745 0h95v160h-95z" />
         </g>
 
-        <path fill="url(#morning-path)" d="M0 1000v-71c225-60 398-91 544-111 77-11 127-53 177-115 47 62 96 104 174 115 147 20 320 51 545 111v71H0Z" />
-        <path fill="none" stroke="#F8EED8" stroke-opacity=".66" stroke-width="5" d="M721 706c-22 86-72 136-141 181M719 706c22 86 72 136 141 181" />
+        <path fill="url(#morning-path)" d="M0 1000v-58c250-73 451-94 602-124 54-11 94-46 118-112 24 66 64 101 118 112 151 30 352 51 602 124v58H0Z" />
+        <path fill="none" stroke="#F8EED8" stroke-opacity=".42" stroke-width="5" d="M720 707c-24 66-64 101-118 112-151 30-352 51-602 124m720-236c24 66 64 101 118 112 151 30 352 51 602 124" />
+        <path fill="none" stroke="#FFF7E3" stroke-opacity=".72" stroke-width="5" stroke-dasharray="20 28" d="M720 735v265" />
 
         <g class="campus-trees" fill="#1C5139">
           <path d="M77 764c-13-44 5-87 29-112-2-42 15-78 40-96 31 24 42 61 37 97 26 29 37 68 24 111l35 236H45l32-236Zm1110-15c-14-40 3-80 27-104-2-38 13-72 37-91 29 22 40 57 35 91 24 27 35 63 22 104l33 251h-183l29-251Z" />
@@ -253,12 +254,12 @@
 
 <script setup>
 import { ref } from 'vue';
+import BrandMark from '../components/BrandMark.vue';
 import { useAuth } from '../composables/useAuth.js';
 import { useToast } from '../composables/useToast.js';
 import { useNotifications } from '../composables/useNotifications.js';
 import { isSupabaseConfigured } from '../lib/supabase.js';
 import UiIcon from '../components/UiIcon.vue';
-import BrandMark from '../components/BrandMark.vue';
 
 defineProps({ showBack: Boolean });
 const emit = defineEmits(['logged-in', 'back', 'register']);
