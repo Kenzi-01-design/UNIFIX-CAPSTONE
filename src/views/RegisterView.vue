@@ -40,7 +40,18 @@
         </div>
         <div class="form-group">
           <label for="registration-phone">Phone</label>
-          <input id="registration-phone" v-model.trim="form.phone" type="tel" maxlength="40" autocomplete="tel" />
+          <input
+            id="registration-phone"
+            :value="form.phone"
+            type="tel"
+            inputmode="numeric"
+            maxlength="11"
+            pattern="([0-9]{11})?"
+            autocomplete="tel"
+            aria-describedby="registration-phone-hint"
+            @input="handlePhoneInput"
+          />
+          <small id="registration-phone-hint">Enter exactly 11 digits, without spaces or symbols.</small>
         </div>
         <div class="form-group">
           <label for="registration-location">Campus / location</label>
@@ -71,6 +82,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { REQUESTABLE_REGISTRATION_ROLES } from '../lib/registrationRoles.js';
+import { isValidRegistrationPhone, normalizeRegistrationPhone } from '../lib/registrationPhone.js';
 
 defineEmits(['back', 'open-login']);
 
@@ -105,6 +117,10 @@ const emailDomainError = computed(() => {
   return `Use an email address from ${allowedEmailDomains.map((item) => `@${item}`).join(', ')}.`;
 });
 
+function handlePhoneInput(event) {
+  form.phone = normalizeRegistrationPhone(event.target.value);
+}
+
 async function submitRegistration() {
   error.value = '';
   if (!isSupabaseConfigured || isDemoMode || !supabase) {
@@ -121,6 +137,10 @@ async function submitRegistration() {
   }
   if (emailDomainError.value) {
     error.value = emailDomainError.value;
+    return;
+  }
+  if (!isValidRegistrationPhone(form.phone)) {
+    error.value = 'Enter a phone number with exactly 11 digits.';
     return;
   }
 
