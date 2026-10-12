@@ -2,6 +2,7 @@
   <div class="photo-picker">
     <label class="photo-picker-label" :for="inputId">
       {{ label }}
+      <span v-if="required" aria-hidden="true"> *</span>
       <span class="photo-picker-hint">JPG, PNG, or WebP · up to {{ maxPhotos }} photos · originals up to 25 MB, compressed to 5 MB each</span>
     </label>
     <input
@@ -9,9 +10,11 @@
       type="file"
       accept="image/jpeg,image/png,image/webp"
       multiple
+      :aria-required="required ? 'true' : undefined"
       :disabled="files.length >= maxPhotos || processing"
       @change="handleSelection"
     />
+    <p v-if="required && !files.length" class="photo-picker-required" aria-live="polite">Attach at least one photo before submitting.</p>
     <p v-if="processing" class="photo-picker-status" aria-live="polite">Compressing photos…</p>
     <p v-if="error" class="photo-picker-error" role="alert">{{ error }}</p>
     <div v-if="files.length" class="photo-picker-previews">
@@ -31,7 +34,8 @@ import { compressPhoto, MAX_PHOTO_COUNT } from '../lib/photos.js';
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   label: { type: String, default: 'Photos (optional)' },
-  maxPhotos: { type: Number, default: MAX_PHOTO_COUNT }
+  maxPhotos: { type: Number, default: MAX_PHOTO_COUNT },
+  required: { type: Boolean, default: false }
 });
 const emit = defineEmits(['update:modelValue', 'processing-change']);
 const inputId = useId();
@@ -94,8 +98,9 @@ onBeforeUnmount(() => {
 .photo-picker-label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .photo-picker-hint { display: block; color: var(--text-3); font-size: 11px; font-weight: 400; }
 .photo-picker input { max-width: 100%; font: inherit; font-size: 12px; }
-.photo-picker-status, .photo-picker-error { margin-top: 7px; font-size: 12px; }
+.photo-picker-status, .photo-picker-error, .photo-picker-required { margin-top: 7px; font-size: 12px; }
 .photo-picker-error { color: var(--red); }
+.photo-picker-required { color: var(--text-3); }
 .photo-picker-previews { display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 10px; margin-top: 12px; }
 .photo-picker figure { min-width: 0; padding: 7px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .photo-picker img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 5px; }

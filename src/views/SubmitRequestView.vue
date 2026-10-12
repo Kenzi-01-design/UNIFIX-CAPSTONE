@@ -33,7 +33,8 @@
 
     <PhotoPicker
       v-model="selectedPhotos"
-      label="Attach photos to this request (optional)"
+      label="Attach photos to this request"
+      required
       @processing-change="photosProcessing = $event"
     />
 
@@ -517,6 +518,10 @@ async function submitCarpentry() {
 async function submitRequest(requestData, clearForm, successMessage) {
   if (photosProcessing.value) {
     showToast('Wait for photo processing to finish before submitting.', 'info');
+    return;
+  }
+  if (!selectedPhotos.value.length) {
+    showToast('Attach at least one photo before submitting the request.', 'error');
     return;
   }
   isSubmitting.value = true;

@@ -138,7 +138,8 @@
 
         <PhotoPicker
           v-model="selectedPhotos"
-          label="Attach photos of the issue (optional)"
+          label="Attach photos of the issue"
+          required
           @processing-change="photosProcessing = $event"
         />
 
@@ -554,6 +555,10 @@ async function handleSubmit() {
   }
   if (photosProcessing.value) {
     showToast('Wait for photo processing to finish before submitting.', 'info');
+    return;
+  }
+  if (!selectedPhotos.value.length) {
+    showToast('Attach at least one photo before submitting the report.', 'error');
     return;
   }
   if (props.publicMode && !isSupabaseConfigured && !isDemoMode) {
