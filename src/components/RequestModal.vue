@@ -52,6 +52,14 @@
 
       <footer class="modal-actions">
         <button
+          v-if="currentRole === 'Admin'"
+          class="btn-primary"
+          type="button"
+          @click="$emit('assign', request.id)"
+        >
+          {{ request.assignedTo ? 'Reassign' : 'Assign' }}
+        </button>
+        <button
           v-if="currentRole === 'Admin' && canReviewRequest"
           class="btn-secondary request-reject"
           type="button"
@@ -83,7 +91,7 @@ const props = defineProps({
   request: { type: Object, default: null },
   currentRole: { type: String, default: 'Admin' }
 });
-const emit = defineEmits(['close', 'verify', 'reject']);
+defineEmits(['close', 'assign', 'verify', 'reject']);
 const rejectionReason = ref('');
 const canReviewRequest = computed(() => (
   props.request?.status === 'for-verification'

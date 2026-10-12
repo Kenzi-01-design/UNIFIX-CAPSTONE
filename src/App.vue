@@ -145,6 +145,8 @@
           <AdminView
             v-else-if="currentView === 'admin' && ['Admin', 'Assistant'].includes(currentRole)"
             :current-role="currentRole"
+            :assignment-intent="assignmentIntent"
+            @assignment-intent-handled="clearAssignmentIntent"
             @open-report="openReportModalById"
             @open-request="openRequestModalById"
           />
@@ -197,6 +199,7 @@
         :request="selectedRequest"
         :current-role="currentRole"
         @close="closeRequestModal"
+        @assign="handleModalRequestAssign"
         @verify="handleModalVerifyRequest"
         @reject="handleModalRejectRequest"
       />
@@ -299,6 +302,8 @@ const isModalOpen = ref(false);
 const selectedReportId = ref(null);
 const isRequestModalOpen = ref(false);
 const selectedRequestId = ref(null);
+const assignmentIntent = ref(null);
+let assignmentIntentToken = 0;
 
 let inactivityTimer = null;
 
@@ -680,7 +685,18 @@ function closeRequestModal() {
 
 function handleModalAssign(reportId) {
   closeReportModal();
+  assignmentIntent.value = { id: reportId, type: 'report', token: ++assignmentIntentToken };
   navigateTo('admin');
+}
+
+function handleModalRequestAssign(requestId) {
+  closeRequestModal();
+  assignmentIntent.value = { id: requestId, type: 'request', token: ++assignmentIntentToken };
+  navigateTo('admin');
+}
+
+function clearAssignmentIntent(token) {
+  if (assignmentIntent.value?.token === token) assignmentIntent.value = null;
 }
 
 async function handleModalResolve(id) {

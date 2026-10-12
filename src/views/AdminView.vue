@@ -304,7 +304,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, nextTick } from 'vue';
+import { ref, reactive, computed, nextTick, watch } from 'vue';
 import { useReports } from '../composables/useReports.js';
 import { useRequests } from '../composables/useRequests.js';
 import { useToast } from '../composables/useToast.js';
@@ -315,9 +315,13 @@ const props = defineProps({
   currentRole: {
     type: String,
     default: 'Admin'
+  },
+  assignmentIntent: {
+    type: Object,
+    default: null
   }
 });
-defineEmits(['open-report', 'open-request']);
+const emit = defineEmits(['open-report', 'open-request', 'assignment-intent-handled']);
 
 const {
   reports,
@@ -417,6 +421,16 @@ function pickRequestForAssignment(requestId) {
   assignForm.id = requestId;
   syncFormWithWorkItem();
 }
+
+watch(() => props.assignmentIntent, (intent) => {
+  if (!intent) return;
+  if (intent.type === 'request') {
+    pickRequestForAssignment(intent.id);
+  } else {
+    pickForAssignment(intent.id);
+  }
+  emit('assignment-intent-handled', intent.token);
+}, { immediate: true });
 
 function syncFormWithWorkItem() {
   if (selectedReport.value) {
