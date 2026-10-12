@@ -419,6 +419,19 @@ async function submitRecovery() {
   .login-support { margin-top: 10px; }
 }
 
+@media (max-width: 600px) {
+  .login-form-header { margin-bottom: 16px; }
+  .login-form-wrap p.sub { margin-bottom: 16px; }
+  .login-form-wrap { justify-content: flex-start; }
+  .login-role-selection { margin-bottom: 12px; }
+  .login-role-selection .role-tabs { gap: 6px; }
+  .login-role-selection .role-tab { flex-direction: row; gap: 6px; min-height: 48px; padding: 6px 4px; }
+  .login-form-wrap > .form-group { margin-bottom: 12px; }
+  .login-form-wrap .login-password-help { margin-bottom: 12px; }
+  .login-form-wrap .login-register-link { margin-top: 12px; }
+  .login-form-wrap .login-support { margin-top: 10px; }
+}
+
 @media (max-width: 900px) {
   .login-back { width: 40px; min-width: 40px; padding: 0; justify-content: center; }
   .login-back-label { display: none; }
