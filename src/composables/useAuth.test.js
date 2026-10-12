@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     invoke: vi.fn()
   },
   from: vi.fn(),
+  rpc: vi.fn(),
   channel: {
     on: vi.fn(),
     subscribe: vi.fn()
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   removeChannel: vi.fn(),
   insert: vi.fn(),
   loginEventsResult: [],
+  loginRecordResult: null,
   profileResult: { data: null, error: null }
 }));
 
@@ -28,6 +30,7 @@ vi.mock('../lib/supabase.js', () => ({
     auth: mocks.auth,
     functions: mocks.functions,
     from: mocks.from,
+    rpc: mocks.rpc,
     channel: vi.fn(() => mocks.channel),
     removeChannel: mocks.removeChannel
   }
@@ -54,6 +57,13 @@ describe('useAuth sign-in handling', () => {
     });
     mocks.profileResult = { data: null, error: null };
     mocks.loginEventsResult = [];
+    mocks.loginRecordResult = null;
+    mocks.rpc.mockImplementation((functionName) => Promise.resolve({
+      data: functionName === 'get_admin_login_history'
+        ? mocks.loginEventsResult
+        : mocks.loginRecordResult,
+      error: null
+    }));
     mocks.auth.signInWithPassword.mockResolvedValue({
       data: { user: { id: 'auth-user-1', email: 'employee@nvsu.edu.ph' } },
       error: null
@@ -129,11 +139,7 @@ describe('useAuth sign-in handling', () => {
       phone: '09171234567',
       location: 'Bambang Campus'
     });
-    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
-      user_name: 'Employee User',
-      role: 'Employee',
-      email: 'employee@nvsu.edu.ph'
-    }));
+    expect(mocks.rpc).toHaveBeenCalledWith('record_login_event');
   });
 
   it('subscribes Admin sessions to realtime login history', async () => {
@@ -159,6 +165,13 @@ describe('useAuth sign-in handling', () => {
   });
 
   it('adds staff sign-ins from realtime payloads immediately to Admin login history', async () => {
+    mocks.loginRecordResult = [{
+      id: 'LOGIN-auth-admin-1',
+      user_name: 'Admin User',
+      role: 'Admin',
+      email: 'admin@nvsu.edu.ph',
+      logged_in_at: '2026-10-12T09:00:00.000Z'
+    }];
     mocks.auth.signInWithPassword.mockResolvedValue({
       data: { user: { id: 'auth-admin', email: 'admin@nvsu.edu.ph' } },
       error: null
@@ -207,6 +220,13 @@ describe('useAuth sign-in handling', () => {
   });
 
   it('shows an Admin sign-in immediately and preserves it while history reloads', async () => {
+    mocks.loginRecordResult = [{
+      id: 'LOGIN-auth-admin-1',
+      user_name: 'Admin User',
+      role: 'Admin',
+      email: 'admin@nvsu.edu.ph',
+      logged_in_at: '2026-10-12T09:00:00.000Z'
+    }];
     mocks.auth.signInWithPassword.mockResolvedValue({
       data: { user: { id: 'auth-admin', email: 'admin@nvsu.edu.ph' } },
       error: null
@@ -255,10 +275,10 @@ describe('useAuth sign-in handling', () => {
     await auth.login('admin@nvsu.edu.ph', 'password', 'Admin');
     for (let turn = 0; turn < 5; turn += 1) await Promise.resolve();
 
-    const initialReads = mocks.from.mock.calls.filter(([table]) => table === 'login_events').length;
+    const initialReads = mocks.rpc.mock.calls.filter(([name]) => name === 'get_admin_login_history').length;
     await vi.advanceTimersByTimeAsync(10_000);
 
-    expect(mocks.from.mock.calls.filter(([table]) => table === 'login_events').length)
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === 'get_admin_login_history').length)
       .toBeGreaterThan(initialReads);
     await auth.logout();
   });

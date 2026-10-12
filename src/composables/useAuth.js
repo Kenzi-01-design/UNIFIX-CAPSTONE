@@ -85,11 +85,7 @@ async function loadLoginEventsFromSupabase() {
   if (!isSupabaseConfigured) return;
   const generation = ++loginEventsLoadGeneration;
   const requestGeneration = ++loginEventsRequestGeneration;
-  const { data, error } = await supabase
-    .from('login_events')
-    .select('*')
-    .order('logged_in_at', { ascending: false })
-    .limit(500);
+  const { data, error } = await supabase.rpc('get_admin_login_history');
   if (error) {
     if (generation === loginEventsLoadGeneration && requestGeneration === loginEventsRequestGeneration) {
       loginHistoryError.value = 'Login history could not be loaded. Please retry.';
@@ -184,21 +180,16 @@ function subscribeToLoginEvents() {
   loginEventsChannel = channel;
 }
 
-async function recordLoginEvent(user, profile) {
-  const event = {
-    id: `LOGIN-${user.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    user_name: profile.name,
-    role: profile.role,
-    email: (user.email || '').trim().toLowerCase()
-  };
-  const { error } = await supabase.from('login_events').insert(event);
+async function recordLoginEvent(profile) {
+  const { data, error } = await supabase.rpc('record_login_event');
   if (error) {
     loginHistoryError.value = 'This sign-in could not be added to login history.';
     console.error('Could not record the successful login in the activity log.', error);
     throw error;
   }
   if (profile.role === 'Admin') {
-    upsertLoginEvent({ ...event, logged_in_at: new Date().toISOString() });
+    const event = Array.isArray(data) ? data[0] : data;
+    if (event) upsertLoginEvent(event);
     void loadLoginEventsFromSupabase().catch((loadError) => {
       console.error('Could not refresh login history after recording the Admin sign-in.', loadError);
     });
@@ -444,12 +435,12 @@ export function useAuth() {
         subscribeToProfile(data.user);
         if (profile.role === 'Admin') {
           subscribeToLoginEvents();
-          void recordLoginEvent(data.user, profile).catch((error) => {
+          void recordLoginEvent(profile).catch((error) => {
             console.error('Could not record the successful login in the activity log.', error);
           });
         } else {
           stopLoginEventsSubscription();
-          void recordLoginEvent(data.user, profile).catch((error) => {
+          void recordLoginEvent(profile).catch((error) => {
             console.error('Could not record the successful login in the activity log.', error);
           });
         }
