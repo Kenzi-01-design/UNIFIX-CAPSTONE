@@ -6,6 +6,18 @@
         <span class="panel-action">{{ activityEntries.length }} items</span>
       </div>
 
+      <p v-if="activityError" class="activity-log-notice" role="alert">
+        {{ activityError }}
+        <button type="button" class="btn btn-secondary btn-sm" @click="refreshActivity">Retry</button>
+      </p>
+      <p v-else-if="activityLoading && !activityEntries.length" class="activity-log-notice" aria-live="polite">
+        Loading activity history…
+      </p>
+      <p v-if="currentRole === 'Admin' && loginHistoryError" class="activity-log-notice" role="alert">
+        {{ loginHistoryError }}
+        <button type="button" class="btn btn-secondary btn-sm" @click="refreshLoginEvents">Retry login history</button>
+      </p>
+
       <div class="responsive-table-scroll responsive-table-scroll--activity" style="overflow-x: auto">
         <table>
           <thead>
@@ -24,7 +36,7 @@
                 <span style="font-weight: 700; font-size: 11px;">{{ item.type }}</span>
               </td>
               <td>
-                <span style="font-family:'DM Mono',monospace; font-size:12px; color:var(--text-3)">{{ item.id }}</span>
+                <span style="font-family:'DM Mono',monospace; font-size:12px; color:var(--text-3)">{{ item.referenceId }}</span>
               </td>
               <td style="font-weight: 600; font-size: 13px;">{{ item.title }}</td>
               <td style="font-size: 12px; color: var(--text-3)">{{ item.date }}</td>
@@ -35,6 +47,9 @@
                 {{ item.details }}
               </td>
             </tr>
+            <tr v-if="!activityLoading && !activityEntries.length">
+              <td colspan="6" class="activity-log-empty">No activity history is available yet.</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -44,50 +59,43 @@
 
 <script setup>
 import { computed } from 'vue';
-import { useReports } from '../composables/useReports.js';
-import { useRequests } from '../composables/useRequests.js';
+import { onBeforeUnmount, onMounted } from 'vue';
 import { useAuth } from '../composables/useAuth.js';
+import { useWorkItemActivity } from '../composables/useWorkItemActivity.js';
+import { mergeActivityEntries } from '../lib/activityLog.js';
 
-const { reports } = useReports();
-const { requests } = useRequests();
-const { activeUserName, currentRole, loginEvents } = useAuth();
+const { currentRole, loginEvents, loginHistoryError, refreshLoginEvents } = useAuth();
+const { events, isLoading: activityLoading, error: activityError, reload, start, stop } = useWorkItemActivity();
 
-const activityEntries = computed(() => {
-  const user = activeUserName.value.toLowerCase();
+const activityEntries = computed(() => mergeActivityEntries(
+  events.value,
+  currentRole.value === 'Admin' ? loginEvents.value : []
+));
 
-  const userReports = reports.value
-    .filter((r) => (r.reporter || '').toLowerCase() === user)
-    .map((r) => ({
-      id: r.trackingCode || r.id,
-      type: 'REPORT',
-      title: r.title,
-      date: r.date,
-      statusClass: r.status,
-      statusLabel: r.status === 'in-progress' ? 'In Progress' : r.status,
-      details: [r.desc || r.loc, r.adminRemark ? `Administrator remark: ${r.adminRemark}` : ''].filter(Boolean).join(' · ')
-    }));
+function refreshActivity() {
+  void reload();
+}
 
-  const userRequests = requests.value
-    .filter((req) => (req.requester || '').toLowerCase() === user)
-    .map((req) => ({
-      id: req.trackingCode || req.id,
-      type: 'REQUEST',
-      title: req.title,
-      date: req.date,
-      statusClass: req.status === 'action-taken' ? 'resolved' : 'pending',
-      statusLabel: req.status === 'action-taken' ? 'Action Taken' : 'Submitted',
-      details: [req.details, req.adminRemark ? `Administrator remark: ${req.adminRemark}` : '', req.adminResponse ? `Action taken: ${req.adminResponse}` : ''].filter(Boolean).join(' · ')
-    }));
-
-  const loginHistory = currentRole.value === 'Admin'
-    ? loginEvents.value.map((event) => ({
-        ...event,
-        details: event.details || 'Successful sign in'
-      }))
-    : [];
-
-  return [...userReports, ...userRequests, ...loginHistory].sort(
-    (a, b) => (b.timestamp || 0) - (a.timestamp || 0)
-  );
+onMounted(() => {
+  start();
+  if (currentRole.value === 'Admin') void refreshLoginEvents();
 });
+onBeforeUnmount(stop);
 </script>
+
+<style scoped>
+.activity-log-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 16px;
+  color: var(--text-2);
+}
+
+.activity-log-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-3);
+}
+</style>

@@ -16,7 +16,7 @@ Supabase is prepared as the database layer for reports, requests, and login even
 1. Create a Supabase project.
 2. Copy `.env.example` to `.env.local`.
 3. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the project API settings.
-4. Run the complete `supabase/schema.sql` script in the Supabase SQL Editor for a new project. For an existing project, apply the additive scripts in `supabase/migrations/` in filename order. Both paths request a PostgREST schema-cache reload after the database objects are installed.
+4. Run the complete `supabase/schema.sql` script in the Supabase SQL Editor for a new project. For an existing project, apply the additive scripts in `supabase/migrations/` in filename order. The schema and migration sequence include durable, realtime activity history. Both paths request a PostgREST schema-cache reload after the database objects are installed.
 5. Users can submit registrations from the public **Create account** page. Apply `202610050017_user_registration_approval.sql`; each new Auth account then gets a pending, inactive Employee profile, which an Admin must approve and assign a role to before sign-in is enabled.
 6. Deploy the public and notification Edge Functions after setting the CAPTCHA, allowed-origin, and notification values below.
 
@@ -89,6 +89,11 @@ matched. Public report status emails are optional and sent only when the reporte
 provides an email address. Public tracking remains limited to milestone dates,
 the generic maintenance-team label, and the last update; it never returns names,
 contact details, or internal remarks.
+
+The activity-history migration records new report and request submissions and
+meaningful updates with their database event time and actor. It creates a
+submission baseline for older work items, but changes made before the migration
+cannot be reconstructed.
 
 ### Phase 3 analytics and smart operations
 

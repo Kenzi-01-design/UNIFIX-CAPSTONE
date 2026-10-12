@@ -11,6 +11,7 @@ const _isAuthenticated = ref(false);
 const _authNotice = ref('');
 const _authNoticeCode = ref('');
 const _passwordRecoveryMode = ref(false);
+const loginHistoryError = ref('');
 const LOGIN_EVENTS_KEY = 'unifix-login-events-v1';
 let authProfileGeneration = 0;
 let profileChannel = null;
@@ -19,6 +20,8 @@ let loginEventsChannel = null;
 let loginEventsRetryTimer = null;
 let loginEventsRetryAttempt = 0;
 let loginEventsSubscriptionWanted = false;
+let loginEventsLoadGeneration = 0;
+let loginEventsRequestGeneration = 0;
 
 function loadLoginEvents() {
   try {
@@ -30,19 +33,25 @@ function loadLoginEvents() {
   }
 }
 
-const loginEvents = ref(loadLoginEvents());
+const loginEvents = ref(isSupabaseConfigured ? [] : loadLoginEvents());
 
 async function loadLoginEventsFromSupabase() {
   if (!isSupabaseConfigured) return;
+  const generation = ++loginEventsLoadGeneration;
+  const requestGeneration = ++loginEventsRequestGeneration;
   const { data, error } = await supabase
     .from('login_events')
     .select('*')
     .order('logged_in_at', { ascending: false })
-    .limit(100);
+    .limit(500);
   if (error) {
-    console.warn('Failed loading login events from Supabase', error);
-    return;
+    if (generation === loginEventsLoadGeneration && requestGeneration === loginEventsRequestGeneration) {
+      loginHistoryError.value = 'Login history could not be loaded. Please retry.';
+    }
+    throw error;
   }
+  if (generation !== loginEventsLoadGeneration || requestGeneration !== loginEventsRequestGeneration) return;
+  loginHistoryError.value = '';
   loginEvents.value = (data || []).map((event) => ({
     id: event.id,
     type: 'LOGIN',
@@ -54,10 +63,6 @@ async function loadLoginEventsFromSupabase() {
     details: `${event.role} signed in with ${event.email}`
   }));
 }
-
-void loadLoginEventsFromSupabase().catch((error) => {
-  console.error('Could not load login history from Supabase.', error);
-});
 
 function stopLoginEventsSubscription() {
   loginEventsSubscriptionWanted = false;
@@ -71,6 +76,14 @@ function stopLoginEventsSubscription() {
       console.error('Could not stop the login events realtime subscription.', error);
     });
     loginEventsChannel = null;
+  }
+}
+
+async function refreshLoginEvents() {
+  try {
+    await loadLoginEventsFromSupabase();
+  } catch (error) {
+    console.error('Could not refresh login history.', error);
   }
 }
 
@@ -116,15 +129,16 @@ function subscribeToLoginEvents() {
 
 async function recordLoginEvent(user, profile) {
   const event = {
-    id: `LOGIN-${user.id}-${Date.now()}`,
+    id: `LOGIN-${user.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     user_name: profile.name,
     role: profile.role,
     email: (user.email || '').trim().toLowerCase()
   };
   const { error } = await supabase.from('login_events').insert(event);
   if (error) {
+    loginHistoryError.value = 'This sign-in could not be added to login history.';
     console.error('Could not record the successful login in the activity log.', error);
-    return;
+    throw error;
   }
   if (profile.role === 'Admin') {
     await loadLoginEventsFromSupabase();
@@ -715,5 +729,7 @@ export function useAuth() {
     saveSettings,
     resetSettings,
     loginEvents,
+    loginHistoryError,
+    refreshLoginEvents,
   };
 }
