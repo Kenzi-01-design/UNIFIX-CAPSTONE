@@ -207,8 +207,9 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.facility-public-page { width:min(1080px,100%); margin:0 auto; padding:24px 0 48px; color:var(--text); }
+.facility-public-page { width:min(1128px,100%); margin:0 auto; padding:24px 24px 48px; color:var(--text); }
 .facility-public-header { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:24px; }
+.facility-public-header .public-back-button { margin-bottom:0; }
 .facility-public-brand { color:var(--text-3); font-size:13px; font-weight:700; }
 .facility-public-hero { padding:28px; border:1px solid var(--border); border-radius:16px; background:var(--surface); box-shadow:var(--shadow-sm); }
 .facility-public-hero h1 { margin:8px 0; font-size:clamp(26px,4vw,38px); }
