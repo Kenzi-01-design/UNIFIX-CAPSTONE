@@ -153,7 +153,7 @@
       <p class="sub">Sign in with your NVSU institutional account.</p>
       <p v-if="authNotice" class="login-auth-notice" role="alert">{{ authNotice }}</p>
       
-      <div style="margin-bottom: 24px">
+      <div class="login-role-selection">
         <label style="font-size: 13px; font-weight: 700; color: var(--text-2); display: block; margin-bottom: 8px;">
           Select Portal Role
         </label>
@@ -239,7 +239,7 @@
         <button type="button" @click="$emit('register')">Create account</button>
       </p>
 
-      <p style="margin-top: 20px; font-size: 12px; color: var(--text-3); text-align: center;">
+      <p class="login-support">
         Need technical assistance? Contact
         <strong style="color: var(--text-2)">ict@nvsu.edu.ph</strong>
       </p>
@@ -372,9 +372,22 @@ async function submitRecovery() {
 </script>
 
 <style scoped>
-.login-back { align-self: flex-start; margin-bottom: 24px; }
+.login-back { align-self: flex-start; margin-bottom: 16px; }
+.login-form-brand { margin-bottom: 12px; }
+.login-form-wrap h2 { margin: 0 0 6px; }
+.login-form-wrap p.sub { margin: 0 0 20px; }
+.login-role-selection { margin: 0 0 16px; }
+.login-role-selection > label { margin-bottom: 8px; }
+.login-role-selection .role-tabs { gap: 8px; margin: 0; }
+.login-role-selection .role-tab { min-height: 58px; padding: 8px 6px; }
+.login-form-wrap > .form-group { margin-bottom: 14px; }
+.login-form-wrap .form-group label { margin-bottom: 5px; }
+.login-form-wrap .form-group input { padding-block: 10px; }
+.login-form-wrap .login-password-help { margin-bottom: 16px; }
+.login-form-wrap > .btn-primary { width: 100%; min-height: 48px; }
 .login-register-link { margin:16px 0 0; color:var(--text-2); text-align:center; font-size:13px; }
 .login-register-link button { padding:0; border:0; background:none; color:var(--primary); font:inherit; font-weight:700; cursor:pointer; }
+.login-support { margin:14px 0 0; color:var(--text-3); font-size:12px; line-height:1.5; text-align:center; }
 .login-auth-notice { margin:0 0 18px; padding:12px 14px; border-radius:var(--radius); background:var(--amber-bg); color:var(--amber); line-height:1.5; }
 .role-hint { display:block; margin-top:8px; color:var(--text-3); }
 .login-password-help { display:grid; justify-items:end; gap:6px; margin:0 0 24px; }
@@ -387,4 +400,15 @@ async function submitRecovery() {
 .recovery-form h2 { margin:0; }
 .recovery-form .form-group { margin:0; }
 .recovery-form .btn-primary { width:100%; }
+
+@media (min-width: 768px) and (max-height: 760px) {
+  .login-back { margin-bottom: 12px; }
+  .login-form-brand { margin-bottom: 8px; }
+  .login-form-wrap p.sub { margin-bottom: 14px; }
+  .login-role-selection { margin-bottom: 12px; }
+  .login-role-selection .role-tab { min-height: 52px; padding-block: 6px; }
+  .login-form-wrap > .form-group { margin-bottom: 10px; }
+  .login-form-wrap .login-password-help { margin-bottom: 12px; }
+  .login-support { margin-top: 10px; }
+}
 </style>
