@@ -228,7 +228,7 @@ import MobileNavigation from './components/MobileNavigation.vue';
 import LoginView from './views/LoginView.vue';
 import RegisterView from './views/RegisterView.vue';
 import HomeView from './views/HomeView.vue';
-const TrackReportView = defineAsyncComponent(() => import('./views/TrackReportView.vue'));
+import TrackReportView from './views/TrackReportView.vue';
 const DashboardView = defineAsyncComponent(() => import('./views/DashboardView.vue'));
 const SubmitReportView = defineAsyncComponent(() => import('./views/SubmitReportView.vue'));
 const SubmitRequestView = defineAsyncComponent(() => import('./views/SubmitRequestView.vue'));
