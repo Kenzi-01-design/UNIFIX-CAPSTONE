@@ -270,6 +270,7 @@ export function useRequests() {
 
   async function addRequest(reqData, photoFiles = []) {
     validateRequestInput(reqData);
+    if (!photoFiles.length) throw new Error('Attach at least one photo before submitting the request.');
     const newReq = {
       ...reqData,
       id: createRequestId(),
@@ -536,20 +537,19 @@ export function useRequests() {
   async function requestComplete(requestId, currentPersonnel, completionPhotos = []) {
     const request = requests.value.find((item) => item.id === requestId);
     if (!request || !canSubmitWorkForVerification(request, currentPersonnel)) return false;
+    if (!completionPhotos.length) throw new Error('Attach at least one after photo before submitting the request for verification.');
     const previousState = request.techState;
     const previousStatus = request.status;
     const previousAttachments = request.photoAttachments || [];
     request.techState = 'completed';
     request.status = 'for-verification';
     try {
-      if (completionPhotos.length) {
-        request.photoAttachments = await uploadPhotoFiles(completionPhotos, {
-          entityType: 'requests',
-          entityId: request.id,
-          phase: 'after',
-          previous: previousAttachments
-        });
-      }
+      request.photoAttachments = await uploadPhotoFiles(completionPhotos, {
+        entityType: 'requests',
+        entityId: request.id,
+        phase: 'after',
+        previous: previousAttachments
+      });
     } catch (error) {
       request.techState = previousState;
       request.status = previousStatus;

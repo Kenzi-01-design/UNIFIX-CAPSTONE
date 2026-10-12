@@ -1,6 +1,7 @@
 import { isSupabaseConfigured, supabase } from './supabase.js';
 
 export const MAX_PHOTO_COUNT = 3;
+export const MAX_TOTAL_PHOTO_COUNT = MAX_PHOTO_COUNT * 2;
 export const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_SOURCE_PHOTO_SIZE = 25 * 1024 * 1024;
@@ -42,30 +43,67 @@ export async function compressPhoto(file) {
   if (file.size > MAX_SOURCE_PHOTO_SIZE) {
     throw new Error('Each original photo must be 25 MB or smaller.');
   }
-  if (typeof createImageBitmap !== 'function') {
-    throw new Error('This browser cannot process image attachments. Try a current browser.');
+
+  let bitmap;
+  let imageUrl;
+  let image;
+  try {
+    if (typeof createImageBitmap === 'function') {
+      bitmap = await createImageBitmap(file);
+    }
+  } catch {
+    // Fall back to the browser image decoder below.
   }
 
-  const bitmap = await createImageBitmap(file);
+  if (!bitmap) {
+    imageUrl = URL.createObjectURL(file);
+    image = new Image();
+    try {
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = reject;
+        image.src = imageUrl;
+      });
+    } catch {
+      URL.revokeObjectURL(imageUrl);
+      throw new Error('The selected image could not be decoded. Save it as a JPG, PNG, or WebP image and try again.');
+    }
+  }
+
+  const source = bitmap || image;
+  const width = source.width || source.naturalWidth;
+  const height = source.height || source.naturalHeight;
+  if (!width || !height) {
+    bitmap?.close();
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+    throw new Error('The selected image could not be decoded. Save it as a JPG, PNG, or WebP image and try again.');
+  }
+
   try {
-    let scale = Math.min(1, 1920 / Math.max(bitmap.width, bitmap.height));
+    let scale = Math.min(1, 1920 / Math.max(width, height));
     const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Unable to process the selected photo.');
+    let context;
 
     let blob;
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      context = canvas.getContext('2d');
+      if (!context) throw new Error('Unable to process the selected photo.');
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(source, 0, 0, canvas.width, canvas.height);
       const quality = Math.max(0.5, 0.82 - attempt * 0.08);
       blob = await new Promise((resolve, reject) => {
         canvas.toBlob(
           (result) => result ? resolve(result) : reject(new Error('Unable to compress the selected photo.')),
-          'image/webp',
+          'image/jpeg',
           quality
         );
       });
+      if (blob.type !== 'image/jpeg') {
+        throw new Error('This browser could not prepare the selected image. Try a current browser.');
+      }
       if (blob.size <= MAX_PHOTO_SIZE) break;
       scale *= 0.8;
     }
@@ -74,9 +112,10 @@ export async function compressPhoto(file) {
     }
 
     const baseName = file.name.replace(/\.[^.]+$/, '') || 'photo';
-    return new File([blob], `${baseName}.webp`, { type: 'image/webp', lastModified: Date.now() });
+    return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
   } finally {
-    bitmap.close();
+    bitmap?.close();
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
   }
 }
 
@@ -98,8 +137,8 @@ export function photoToDataUrl(file) {
 export async function uploadPhotoFiles(files, { entityType, entityId, phase = 'before', previous = [] }) {
   const selected = Array.from(files || []);
   if (!selected.length) return previous;
-  if (selected.length + previous.length > MAX_PHOTO_COUNT) {
-    throw new Error(`Attach no more than ${MAX_PHOTO_COUNT} photos.`);
+  if (selected.length > MAX_PHOTO_COUNT || selected.length + previous.length > MAX_TOTAL_PHOTO_COUNT) {
+    throw new Error(`Attach no more than ${MAX_PHOTO_COUNT} photos for each submission.`);
   }
   selected.forEach(validatePhotoFile);
 

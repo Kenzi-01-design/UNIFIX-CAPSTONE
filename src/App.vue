@@ -745,10 +745,18 @@ async function handleModalTechStart(id) {
   showToast(started ? `${id} marked In Progress.` : 'Unable to save the start status. Check your Supabase access.', started ? 'info' : 'error');
 }
 
-async function handleModalTechComplete(id) {
-  const completed = await techComplete(id, activeUserName.value);
-  closeReportModal();
-  showToast(completed ? `${id} marked resolved ✅` : 'Unable to save completion. Check your Supabase access.', completed ? 'success' : 'error');
+async function handleModalTechComplete(id, completionPhotos) {
+  try {
+    const completed = await techComplete(id, activeUserName.value, completionPhotos);
+    if (!completed) {
+      showToast('Unable to save completion. Check your Supabase access.', 'error');
+      return;
+    }
+    closeReportModal();
+    showToast(`${id} submitted for verification.`, 'success');
+  } catch (error) {
+    showToast(error.message || 'Unable to save completion. Check your Supabase access.', 'error');
+  }
 }
 </script>
 

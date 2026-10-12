@@ -33,7 +33,7 @@ import { compressPhoto, MAX_PHOTO_COUNT } from '../lib/photos.js';
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
-  label: { type: String, default: 'Photos (optional)' },
+  label: { type: String, default: 'Attach photos' },
   maxPhotos: { type: Number, default: MAX_PHOTO_COUNT },
   required: { type: Boolean, default: false }
 });

@@ -109,14 +109,14 @@
 
                 <div style="padding:12px 18px 0; display:flex; gap:10px; flex-wrap:wrap">
                   <PhotoPicker
-                    v-if="['accepted', 'started'].includes(r.techState) && (r.photoAttachments?.length || 0) < 3"
+                    v-if="['accepted', 'started'].includes(r.techState)"
                     :model-value="completionPhotos[r.id] || []"
-                    :max-photos="Math.max(0, 3 - (r.photoAttachments?.length || 0))"
-                    label="After photos (optional)"
+                    :max-photos="3"
+                    label="Required after photos"
+                    required
                     @update:model-value="completionPhotos[r.id] = $event"
                     @processing-change="photoProcessing[r.id] = $event"
-                  >
-                  </PhotoPicker>
+                  />
                   <button
                     v-if="r.techState === 'assigned'"
                     class="btn-primary"
@@ -132,7 +132,7 @@
                   <button
                     v-if="r.techState === 'started'"
                     class="admin-action-btn resolve"
-                    :disabled="photoProcessing[r.id]"
+                    :disabled="photoProcessing[r.id] || !(completionPhotos[r.id]?.length)"
                     @click="handleComplete(r)"
                   >
                     {{ photoProcessing[r.id] ? 'Preparing photos…' : 'Submit for Verification' }}
@@ -292,9 +292,13 @@ async function handleComplete(task) {
     showToast('Wait for photo processing to finish before submitting for verification.', 'info');
     return;
   }
+  const photos = completionPhotos[task.id] || [];
+  if (!photos.length) {
+    showToast('Attach at least one after photo before submitting for verification.', 'error');
+    return;
+  }
   let completed;
   try {
-    const photos = completionPhotos[task.id] || [];
     completed = task.kind === 'request'
       ? await requestComplete(task.id, activeUserName.value, photos)
       : await techComplete(task.id, activeUserName.value, photos);

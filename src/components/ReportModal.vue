@@ -61,6 +61,14 @@
             :title="report.title"
           />
         </div>
+        <PhotoPicker
+          v-if="currentRole === 'Personnel' && isAssignedToCurrentUser && report.techState === 'started'"
+          v-model="completionPhotos"
+          :max-photos="3"
+          label="Required after photos"
+          required
+          @processing-change="completionPhotosProcessing = $event"
+        />
 
         <section v-if="isOwnCompletedReport" class="report-feedback">
           <strong>Rate this completed work</strong>
@@ -145,9 +153,10 @@
           <button
             v-if="report.techState === 'started'"
             class="admin-action-btn resolve"
-            @click="$emit('tech-complete', report.id)"
+            :disabled="completionPhotosProcessing || !completionPhotos.length"
+            @click="emit('tech-complete', report.id, completionPhotos)"
           >
-            Mark Completed
+            {{ completionPhotosProcessing ? 'Preparing photos…' : 'Submit for Verification' }}
           </button>
           <span
             v-if="report.techState === 'completed'"
@@ -163,6 +172,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
+import PhotoPicker from './PhotoPicker.vue';
 import PhotoGallery from './PhotoGallery.vue';
 import { useReportFeedback } from '../composables/useReportFeedback.js';
 import { useReports } from '../composables/useReports.js';
@@ -198,9 +208,22 @@ const reopenReason = ref('');
 const reopenError = ref('');
 const reopenSucceeded = ref(false);
 const reopening = ref(false);
+const completionPhotos = ref([]);
+const completionPhotosProcessing = ref(false);
+const emit = defineEmits([
+  'close',
+  'assign',
+  'resolve',
+  'reject',
+  'tech-accept',
+  'tech-start',
+  'tech-complete'
+]);
 
 watch(() => [props.report?.id, props.isOpen], () => {
   rejectionReason.value = '';
+  completionPhotos.value = [];
+  completionPhotosProcessing.value = false;
 });
 
 const isOwnCompletedReport = computed(() => Boolean(
@@ -280,16 +303,6 @@ const canAdminResolve = computed(() => {
     : Boolean(props.report.assignedTo);
   return hasPersonnel && props.report.status === 'for-verification' && props.report.techState === 'completed';
 });
-
-defineEmits([
-  'close',
-  'assign',
-  'resolve',
-  'reject',
-  'tech-accept',
-  'tech-start',
-  'tech-complete'
-]);
 
 function formatStatus(status) {
   if (!status) return '';

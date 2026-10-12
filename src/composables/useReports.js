@@ -442,6 +442,7 @@ export function useReports() {
 
   async function addReport(newReportData, photoFiles = []) {
     validateReportInput(newReportData);
+    if (!photoFiles.length) throw new Error('Attach at least one photo before submitting the report.');
     const report = {
       ...newReportData,
       id: createReportId(),
@@ -716,6 +717,7 @@ export function useReports() {
   async function techComplete(reportId, currentTechName, completionPhotos = []) {
     const report = reports.value.find((r) => r.id === reportId);
     if (!report || !canSubmitWorkForVerification(report, currentTechName)) return false;
+    if (!completionPhotos.length) throw new Error('Attach at least one after photo before submitting the report for verification.');
 
     const previousState = report.techState;
     const previousStatus = report.status;
@@ -723,14 +725,12 @@ export function useReports() {
     report.techState = 'completed';
     report.status = 'for-verification';
     try {
-      if (completionPhotos.length) {
-        report.photoAttachments = await uploadPhotoFiles(completionPhotos, {
-          entityType: 'reports',
-          entityId: report.id,
-          phase: 'after',
-          previous: previousAttachments
-        });
-      }
+      report.photoAttachments = await uploadPhotoFiles(completionPhotos, {
+        entityType: 'reports',
+        entityId: report.id,
+        phase: 'after',
+        previous: previousAttachments
+      });
     } catch (error) {
       report.techState = previousState;
       report.status = previousStatus;
