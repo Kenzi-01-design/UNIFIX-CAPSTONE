@@ -12,22 +12,22 @@
     <!-- Public entry point -->
     <HomeView
       v-else-if="!isAuthenticated && publicPage === 'home'"
-      @open-report="publicPage = 'report'"
-      @open-login="publicPage = 'login'"
-      @open-track="publicPage = 'track'"
-      @open-evaluation="publicPage = 'evaluation'"
+      @open-report="navigatePublicPage('report')"
+      @open-login="navigatePublicPage('login')"
+      @open-track="navigatePublicPage('track')"
+      @open-evaluation="navigatePublicPage('evaluation')"
     />
 
     <EvaluationView
       v-else-if="!isAuthenticated && publicPage === 'evaluation'"
       public-mode
       respondent-role="Public"
-      @back="publicPage = 'home'"
+      @back="navigatePublicPage('home')"
     />
 
     <TrackReportView
       v-else-if="!isAuthenticated && publicPage === 'track'"
-      @back="publicPage = 'home'"
+      @back="navigatePublicPage('home')"
     />
 
     <SubmitReportView
@@ -35,22 +35,22 @@
       public-mode
       :captcha-required="isSupabaseConfigured"
       :prefill-location-id="locationPrefillId"
-      @back="publicPage = 'home'"
+      @back="navigatePublicPage('home')"
       @view-reports="navigateTo('reports')"
       @report-submitted="handlePublicReportSubmitted"
     />
 
     <RegisterView
       v-else-if="!isAuthenticated && publicPage === 'register'"
-      @back="publicPage = 'home'"
-      @open-login="publicPage = 'login'"
+      @back="navigatePublicPage('home')"
+      @open-login="navigatePublicPage('login')"
     />
 
     <LoginView
       v-else-if="!isAuthenticated"
       show-back
-      @back="publicPage = 'home'"
-      @register="publicPage = 'register'"
+      @back="navigatePublicPage('home')"
+      @register="navigatePublicPage('register')"
       @logged-in="handleLoginSuccess"
     />
 
@@ -291,6 +291,7 @@ const routePath = window.location.pathname.replace(/\/+$/, '');
 const isFacilityStatusRoute = routePath === '/facility'
   || (routePath === '/report' && Boolean(locationPrefillId) && initialUrl.searchParams.get('new') !== '1');
 const publicPage = ref(isFacilityStatusRoute ? 'facility' : routePath === '/report' ? 'report' : 'home');
+const publicPageNames = new Set(['home', 'evaluation', 'track', 'report', 'register', 'login', 'facility']);
 const activeReportFilter = ref({});
 const activeRequestStatus = ref('');
 const isModalOpen = ref(false);
@@ -357,10 +358,10 @@ async function refreshAuthenticatedData() {
 
 let activeIdentity = '';
 watch(authNotice, (message) => {
-  if (message) publicPage.value = 'login';
+  if (message) navigatePublicPage('login');
 });
 watch(passwordRecoveryMode, (recovering) => {
-  if (recovering) publicPage.value = 'login';
+  if (recovering) navigatePublicPage('login');
 });
 watch([isAuthenticated, currentRole, activeUserEmail], ([authenticated, role, email]) => {
   const nextIdentity = authenticated ? `${email.toLowerCase()}|${role}` : '';
@@ -381,6 +382,7 @@ watch([isAuthenticated, currentRole, activeUserEmail], ([authenticated, role, em
   }
   if (!canAccessView(role, currentView.value)) {
     currentView.value = 'dashboard';
+    replaceNavigationHistory();
     activeReportFilter.value = {};
     isModalOpen.value = false;
     selectedReportId.value = null;
@@ -408,6 +410,8 @@ function resetInactivityTimer() {
 const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
 
 onMounted(() => {
+  replaceNavigationHistory();
+  window.addEventListener('popstate', restoreNavigationFromHistory);
   activityEvents.forEach((event) => window.addEventListener(event, resetInactivityTimer, { passive: true }));
   document.addEventListener('keydown', handleNavigationKeydown);
   window.addEventListener('resize', closeDrawerOnDesktop);
@@ -415,6 +419,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('popstate', restoreNavigationFromHistory);
   activityEvents.forEach((event) => window.removeEventListener(event, resetInactivityTimer));
   document.removeEventListener('keydown', handleNavigationKeydown);
   window.removeEventListener('resize', closeDrawerOnDesktop);
@@ -430,7 +435,11 @@ async function completeNotificationEmailVerification() {
   const token = url.searchParams.get('verify-notification-email');
   if (!token) return;
   url.searchParams.delete('verify-notification-email');
-  window.history.replaceState({}, '', url);
+  window.history.replaceState(
+    window.history.state && typeof window.history.state === 'object' ? window.history.state : {},
+    '',
+    url
+  );
   try {
     const email = await verifyNotificationEmail(token);
     window.dispatchEvent(new CustomEvent('notification-email-verified', { detail: { email } }));
@@ -441,12 +450,58 @@ async function completeNotificationEmailVerification() {
   }
 }
 
+function replaceNavigationHistory() {
+  const state = {
+    ...(window.history.state && typeof window.history.state === 'object' ? window.history.state : {}),
+    unifixPublicPage: isAuthenticated.value ? null : publicPage.value,
+    unifixView: isAuthenticated.value ? currentView.value : null
+  };
+  window.history.replaceState(state, '', window.location.href);
+}
+
+function pushNavigationHistory() {
+  const state = {
+    ...(window.history.state && typeof window.history.state === 'object' ? window.history.state : {}),
+    unifixPublicPage: isAuthenticated.value ? null : publicPage.value,
+    unifixView: isAuthenticated.value ? currentView.value : null
+  };
+  window.history.pushState(state, '', window.location.href);
+}
+
+function navigatePublicPage(page, { replace = false } = {}) {
+  if (!publicPageNames.has(page)) {
+    throw new Error(`Unknown public page: ${page}`);
+  }
+  if (publicPage.value === page) return;
+  publicPage.value = page;
+  if (replace) replaceNavigationHistory();
+  else pushNavigationHistory();
+}
+
+function restoreNavigationFromHistory(event) {
+  closeNavigationDrawer(false);
+  const state = event.state && typeof event.state === 'object' ? event.state : {};
+  if (isAuthenticated.value) {
+    if (typeof state.unifixView === 'string' && canAccessView(currentRole.value, state.unifixView)) {
+      currentView.value = state.unifixView;
+    } else {
+      currentView.value = 'dashboard';
+    }
+    resetInactivityTimer();
+    return;
+  }
+  publicPage.value = publicPageNames.has(state.unifixPublicPage)
+    ? state.unifixPublicPage
+    : isFacilityStatusRoute ? 'facility' : routePath === '/report' ? 'report' : 'home';
+}
+
 function navigateTo(view) {
   if (!canAccessView(currentRole.value, view)) {
     showToast('This page is not available for your account role.', 'info');
     return;
   }
   currentView.value = view;
+  pushNavigationHistory();
   if (view !== 'reports') {
     activeReportFilter.value = {};
   }
@@ -535,8 +590,7 @@ function openRequestsWithFilter(status = '') {
     return;
   }
   activeRequestStatus.value = status;
-  currentView.value = 'requests';
-  resetInactivityTimer();
+  navigateTo('requests');
 }
 
 function openReportsWithFilter(filters = {}) {
@@ -545,17 +599,17 @@ function openReportsWithFilter(filters = {}) {
     return;
   }
   activeReportFilter.value = { ...filters };
-  currentView.value = 'reports';
-  resetInactivityTimer();
+  navigateTo('reports');
 }
 
 function handleLoginSuccess(landingView) {
   currentView.value = canAccessView(currentRole.value, landingView) ? landingView : 'dashboard';
+  replaceNavigationHistory();
   resetInactivityTimer();
 }
 
 function returnFromFacilityPage() {
-  window.history.pushState({}, '', '/');
+  window.history.pushState({ unifixPublicPage: 'home', unifixView: null }, '', '/');
   publicPage.value = 'home';
 }
 
@@ -566,6 +620,7 @@ async function handleLogout() {
     await logout();
     currentView.value = 'dashboard';
     publicPage.value = 'home';
+    replaceNavigationHistory();
     showToast('Signed out successfully.', 'info');
   } catch (error) {
     showToast(error.message || 'Unable to sign out. Please try again.', 'error');
