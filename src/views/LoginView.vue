@@ -26,6 +26,7 @@
           <filter id="foliage-soften" x="-10%" y="-20%" width="120%" height="140%">
             <feGaussianBlur stdDeviation="8" />
           </filter>
+          <path id="philippine-flag-star" d="M0-6 1.4-1.9 5.7-1.9 2.2.7 3.5 5 0 2.4-3.5 5-2.2.7-5.7-1.9-1.4-1.9Z" />
         </defs>
         <path fill="url(#morning-sky)" d="M0 0h1440v1000H0z" />
         <path fill="url(#morning-sun)" d="M0 0h1440v600H0z" />
@@ -65,7 +66,9 @@
           <path fill="#FFFDF7" d="m724 306 65 53-65 53V306Z" />
           <circle cx="747" cy="359" r="9" fill="#F6C744" />
           <path fill="#F6C744" d="m747 345 2.2 8.4 7.7-4-5.9 6.5 8 3.2-8.6.7 3.3 8-6.7-5.6-2.8 8.1-.9-8.6-8 3.3 5.7-6.7-8.2-2.7 8.7-.9-3.3-8 6.8 5.7 2.6-8.4Z" />
-          <path fill="#F6C744" d="m728 313 1.9 4 4.4.6-3.2 3.1.8 4.4-3.9-2.1-3.9 2.1.7-4.4-3.2-3.1 4.4-.6 2-4Zm0 73 1.9 4 4.4.6-3.2 3.1.8 4.4-3.9-2.1-3.9 2.1.7-4.4-3.2-3.1 4.4-.6 2-4Zm54-27 1.9 4 4.4.6-3.2 3.1.8 4.4-3.9-2.1-3.9 2.1.7-4.4-3.2-3.1 4.4-.6 2-4Z" />
+          <use href="#philippine-flag-star" fill="#F6C744" transform="translate(732 326)" />
+          <use href="#philippine-flag-star" fill="#F6C744" transform="translate(732 392)" />
+          <use href="#philippine-flag-star" fill="#F6C744" transform="translate(778 359)" />
         </g>
 
         <path fill="url(#morning-path)" d="M0 1000v-58c250-73 451-94 602-124 54-11 94-46 118-112 24 66 64 101 118 112 151 30 352 51 602 124v58H0Z" />
