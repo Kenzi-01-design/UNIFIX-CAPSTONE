@@ -154,6 +154,10 @@ describe('useAuth sign-in handling', () => {
   });
 
   it('adds staff sign-ins from realtime payloads immediately to Admin login history', async () => {
+    mocks.auth.signInWithPassword.mockResolvedValue({
+      data: { user: { id: 'auth-admin', email: 'admin@nvsu.edu.ph' } },
+      error: null
+    });
     mocks.profileResult = {
       data: {
         auth_user_id: 'auth-admin',
@@ -188,11 +192,41 @@ describe('useAuth sign-in handling', () => {
         details: `${row.role} signed in with ${row.email}`
       }));
     }
+    expect(auth.loginEvents.value[0].date).toContain('GMT+8');
+    expect(auth.loginEvents.value).toHaveLength(staffRoles.length + 1);
 
     mocks.loginEventsResult = realtimeRows;
     await vi.waitFor(() => {
-      expect(auth.loginEvents.value).toHaveLength(staffRoles.length);
+      expect(auth.loginEvents.value).toHaveLength(staffRoles.length + 1);
     });
+  });
+
+  it('shows an Admin sign-in immediately and preserves it while history reloads', async () => {
+    mocks.auth.signInWithPassword.mockResolvedValue({
+      data: { user: { id: 'auth-admin', email: 'admin@nvsu.edu.ph' } },
+      error: null
+    });
+    mocks.profileResult = {
+      data: {
+        auth_user_id: 'auth-admin',
+        name: 'Admin User',
+        email: 'admin@nvsu.edu.ph',
+        role: 'Admin',
+        is_active: true,
+        registration_status: 'approved'
+      },
+      error: null
+    };
+    const auth = await loadAuth();
+    await auth.login('admin@nvsu.edu.ph', 'password', 'Admin');
+
+    await vi.waitFor(() => {
+      expect(auth.loginEvents.value).toContainEqual(expect.objectContaining({
+        title: 'Admin User',
+        details: 'Admin signed in with admin@nvsu.edu.ph'
+      }));
+    });
+    expect(auth.loginEvents.value[0].date).toContain('GMT+8');
   });
 
   it('signs out a pending account and reports its review state', async () => {

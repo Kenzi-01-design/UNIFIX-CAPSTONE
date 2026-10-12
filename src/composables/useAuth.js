@@ -22,6 +22,7 @@ let loginEventsRetryAttempt = 0;
 let loginEventsSubscriptionWanted = false;
 let loginEventsLoadGeneration = 0;
 let loginEventsRequestGeneration = 0;
+const LOGIN_HISTORY_TIME_ZONE = 'Asia/Manila';
 
 function loadLoginEvents() {
   try {
@@ -37,11 +38,23 @@ const loginEvents = ref(isSupabaseConfigured ? [] : loadLoginEvents());
 
 function mapLoginEvent(event) {
   const timestamp = new Date(event.logged_in_at).getTime();
+  const date = Number.isNaN(timestamp)
+    ? 'Unknown date'
+    : new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZone: LOGIN_HISTORY_TIME_ZONE,
+        timeZoneName: 'short'
+      }).format(timestamp);
   return {
     id: event.id,
     type: 'LOGIN',
     title: event.user_name,
-    date: Number.isNaN(timestamp) ? 'Unknown date' : new Date(timestamp).toLocaleString(),
+    date,
     timestamp: Number.isNaN(timestamp) ? 0 : timestamp,
     statusClass: 'resolved',
     statusLabel: 'Successful',
@@ -49,13 +62,18 @@ function mapLoginEvent(event) {
   };
 }
 
-function applyRealtimeLoginEvent(event) {
+function upsertLoginEvent(event) {
   if (!event?.id || !event.logged_in_at) return;
   loginEventsRequestGeneration += 1;
   const mappedEvent = mapLoginEvent(event);
   loginEvents.value = [mappedEvent, ...loginEvents.value.filter((item) => item.id !== mappedEvent.id)]
     .sort((left, right) => right.timestamp - left.timestamp)
     .slice(0, 500);
+}
+
+function applyRealtimeLoginEvent(event) {
+  upsertLoginEvent(event);
+  if (!event?.id || !event.logged_in_at) return;
   void loadLoginEventsFromSupabase().catch((error) => {
     console.error('Could not refresh login history after a realtime update.', error);
   });
@@ -78,7 +96,14 @@ async function loadLoginEventsFromSupabase() {
   }
   if (generation !== loginEventsLoadGeneration || requestGeneration !== loginEventsRequestGeneration) return;
   loginHistoryError.value = '';
-  loginEvents.value = (data || []).map(mapLoginEvent);
+  const history = new Map(loginEvents.value.map((event) => [event.id, event]));
+  for (const event of data || []) {
+    const mappedEvent = mapLoginEvent(event);
+    history.set(mappedEvent.id, mappedEvent);
+  }
+  loginEvents.value = [...history.values()]
+    .sort((left, right) => right.timestamp - left.timestamp)
+    .slice(0, 500);
 }
 
 function stopLoginEventsSubscription() {
@@ -156,7 +181,10 @@ async function recordLoginEvent(user, profile) {
     throw error;
   }
   if (profile.role === 'Admin') {
-    await loadLoginEventsFromSupabase();
+    upsertLoginEvent({ ...event, logged_in_at: new Date().toISOString() });
+    void loadLoginEventsFromSupabase().catch((loadError) => {
+      console.error('Could not refresh login history after recording the Admin sign-in.', loadError);
+    });
   }
 }
 

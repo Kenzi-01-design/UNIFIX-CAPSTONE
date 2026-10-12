@@ -27,7 +27,7 @@ begin
       and relation.relname = 'login_events'
   ) then
     alter publication supabase_realtime add table public.login_events;
-  end if;
+  end if; 
 end
 $$;
 
