@@ -34,6 +34,11 @@
 
         <path fill="#718D8A" fill-opacity=".68" d="m0 494 116-88 86 49 149-151 118 126 119-103 124 103 126-166 139 145 114-77 154 115v250H0V494Z" />
         <path fill="#536F68" fill-opacity=".72" d="m0 556 137-81 126 49 153-107 123 91 135-73 122 78 147-116 136 87 127-75 134 70v210H0V556Z" />
+        <g class="campus-signal-tower" transform="translate(-388 168)" stroke="#355B54" stroke-linecap="round" stroke-linejoin="round">
+          <path stroke-width="4" d="m831 270 7-54 7 54m-10-22h6m-8 10h10m-11 10h12" />
+          <path stroke-width="3" d="M830 222h16m-14-7h12" />
+          <path fill="none" stroke="#EAF0D8" stroke-width="2.5" d="M827 214c-7 5-10 11-11 18m34-18c7 5 10 11 11 18m-38-25c-10 7-15 16-16 27m48-27c10 7 15 16 16 27" />
+        </g>
         <path fill="#9EB293" fill-opacity=".76" d="M0 662c181-40 293-36 446-7 167 32 268-8 426-23 208-20 361 37 568 4v364H0V662Z" />
         <path fill="#6D9273" fill-opacity=".88" d="M0 733c190-35 347-11 494 27 178 46 335-8 508-23 157-13 293 21 438-10v273H0V733Z" />
 
@@ -55,6 +60,10 @@
           <path fill="none" stroke="#F3E8CE" stroke-width="9" d="M721 299v459M373 452h696" />
           <path fill="none" stroke="#B9B194" stroke-width="4" d="M438 528v230m566-230v230M507 570v188m428-188v188M583 623v135m276-135v135" />
           <path fill="#E2C27C" d="M708 700a13 13 0 0 1 26 0v58h-26z" />
+          <g fill="#174B37" font-family="Georgia, serif" font-size="17" font-weight="700" letter-spacing="1.2" text-anchor="middle">
+            <text x="675" y="693">NVSU</text>
+            <text x="767" y="693">1916</text>
+          </g>
           <path fill="#D5C8A8" d="M277 570h141v188H277zM1022 570h141v188h-141z" />
           <path fill="#456B53" d="M260 561h177v22H260zm745 0h177v22h-177z" />
           <path fill="#BFCDB6" d="M300 598h95v160h-95zm745 0h95v160h-95z" />
