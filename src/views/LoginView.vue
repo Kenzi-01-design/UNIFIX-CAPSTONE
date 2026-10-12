@@ -31,9 +31,16 @@
         <path fill="url(#morning-sky)" d="M0 0h1440v1000H0z" />
         <path fill="url(#morning-sun)" d="M0 0h1440v600H0z" />
         <circle cx="1110" cy="207" r="61" fill="#F8E4B8" fill-opacity=".62" />
+        <g fill="#FFF9E9" fill-opacity=".42">
+          <path d="M212 215c0-12 10-21 22-21 9 0 16 5 20 13 4-4 9-6 15-6 12 0 21 9 21 20H212v-6Z" />
+          <path d="M1000 326c0-9 7-16 16-16 7 0 12 4 15 10 3-3 7-5 12-5 9 0 16 7 16 16h-59v-5Z" />
+        </g>
 
         <path fill="#718D8A" fill-opacity=".68" d="m0 494 116-88 86 49 149-151 118 126 119-103 124 103 126-166 139 145 114-77 154 115v250H0V494Z" />
         <path fill="#536F68" fill-opacity=".72" d="m0 556 137-81 126 49 153-107 123 91 135-73 122 78 147-116 136 87 127-75 134 70v210H0V556Z" />
+        <g fill="none" stroke="#F6EBD0" stroke-linecap="round" stroke-width="3" stroke-opacity=".6">
+          <path d="m466 286 10-7 10 7m7-15 8-6 8 6m431 42 9-6 9 6m7-13 7-5 7 5" />
+        </g>
         <g class="campus-signal-tower" transform="translate(-388 168)" stroke="#355B54" stroke-linecap="round" stroke-linejoin="round">
           <path stroke-width="4" d="m831 270 7-54 7 54m-10-22h6m-8 10h10m-11 10h12" />
           <path stroke-width="3" d="M830 222h16m-14-7h12" />
@@ -59,6 +66,15 @@
           <path fill="#BCD0C0" fill-opacity=".68" d="M583 623h276v135H583z" />
           <path fill="none" stroke="#F3E8CE" stroke-width="9" d="M721 299v459M373 452h696" />
           <path fill="none" stroke="#B9B194" stroke-width="4" d="M438 528v230m566-230v230M507 570v188m428-188v188M583 623v135m276-135v135" />
+          <g fill="#9BBBA7" stroke="#E9DDC1" stroke-width="4">
+            <rect x="430" y="428" width="34" height="18" rx="3" />
+            <rect x="495" y="428" width="34" height="18" rx="3" />
+            <rect x="560" y="428" width="34" height="18" rx="3" />
+            <rect x="846" y="428" width="34" height="18" rx="3" />
+            <rect x="911" y="428" width="34" height="18" rx="3" />
+            <rect x="976" y="428" width="34" height="18" rx="3" />
+          </g>
+          <path fill="none" stroke="#F3E8CE" stroke-width="5" d="M390 420h663M351 480h740" />
           <path fill="#E2C27C" d="M708 700a13 13 0 0 1 26 0v58h-26z" />
           <g fill="#174B37" font-family="Georgia, serif" font-size="17" font-weight="700" letter-spacing="1.2" text-anchor="middle">
             <text x="675" y="693">NVSU</text>
@@ -67,6 +83,18 @@
           <path fill="#D5C8A8" d="M277 570h141v188H277zM1022 570h141v188h-141z" />
           <path fill="#456B53" d="M260 561h177v22H260zm745 0h177v22h-177z" />
           <path fill="#BFCDB6" d="M300 598h95v160h-95zm745 0h95v160h-95z" />
+        </g>
+
+        <g class="campus-garden">
+          <path fill="#315D43" d="M426 766h154v17H426zm434 0h154v17H860z" />
+          <g fill="#4D7955">
+            <circle cx="448" cy="758" r="18" /><circle cx="475" cy="752" r="22" /><circle cx="505" cy="758" r="18" /><circle cx="535" cy="753" r="22" /><circle cx="562" cy="759" r="17" />
+            <circle cx="878" cy="759" r="17" /><circle cx="905" cy="753" r="22" /><circle cx="935" cy="758" r="18" /><circle cx="965" cy="752" r="22" /><circle cx="992" cy="758" r="18" />
+          </g>
+          <g fill="#D8B36A">
+            <circle cx="463" cy="751" r="3" /><circle cx="520" cy="746" r="3" /><circle cx="550" cy="755" r="3" />
+            <circle cx="893" cy="755" r="3" /><circle cx="950" cy="746" r="3" /><circle cx="979" cy="751" r="3" />
+          </g>
         </g>
 
         <g class="login-philippine-flag">
