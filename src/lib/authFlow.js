@@ -32,8 +32,6 @@ export function authStateMessage(state, profile = null) {
       return 'UNIFIX could not check your university profile. Check your connection and try again.';
     case 'reapplication-requested':
       return 'Your request for a new application review was sent. An administrator must reopen the application.';
-    case 'student-public':
-      return 'Student accounts submit reports from the UNIFIX home page.';
     default:
       return 'Unable to sign in right now. Please try again later.';
   }

@@ -197,6 +197,7 @@ async function recordLoginEvent(profile) {
 }
 
 const roleInitials = {
+  Student: 'S',
   Employee: 'E',
   Assistant: 'A',
   Admin: 'A',
@@ -242,10 +243,6 @@ async function loadAuthenticatedProfile() {
   if (state !== 'active') {
     endNotice(state, profile);
     await endLocalSession();
-    return;
-  }
-  if (profile.role === 'Student') {
-    await endSessionWithNotice('student-public');
     return;
   }
   _currentRole.value = profile.role;
@@ -421,11 +418,6 @@ export function useAuth() {
           await endSessionWithNotice(state, profile);
           throw new Error(authStateMessage(state, profile));
         }
-        if (profile.role === 'Student') {
-          await endSessionWithNotice('student-public');
-          throw new Error(authStateMessage('student-public'));
-        }
-
         _currentRole.value = profile.role;
         _activeUserName.value = profile.name;
         _activeUserEmail.value = data.user.email || '';

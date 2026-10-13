@@ -208,11 +208,22 @@
       
       <div class="login-role-selection">
         <label style="font-size: 13px; font-weight: 700; color: var(--text-2); display: block; margin-bottom: 8px;">
-          Select Portal Role
+          Select Your Account Type
         </label>
         <div class="role-tabs">
           <button
             class="role-tab"
+            type="button"
+            :aria-pressed="selectedRole === 'Student'"
+            :class="{ active: selectedRole === 'Student' }"
+            @click="setRole('Student')"
+          >
+            <UiIcon name="reporter" :size="20" /><span>Student</span>
+          </button>
+          <button
+            class="role-tab"
+            type="button"
+            :aria-pressed="selectedRole === 'Employee'"
             :class="{ active: selectedRole === 'Employee' }"
             @click="setRole('Employee')"
           >
@@ -220,6 +231,8 @@
           </button>
           <button
             class="role-tab"
+            type="button"
+            :aria-pressed="selectedRole === 'Admin'"
             :class="{ active: selectedRole === 'Admin' }"
             @click="setRole('Admin')"
           >
@@ -227,6 +240,8 @@
           </button>
           <button
             class="role-tab"
+            type="button"
+            :aria-pressed="selectedRole === 'Assistant'"
             :class="{ active: selectedRole === 'Assistant' }"
             @click="setRole('Assistant')"
           >
@@ -234,12 +249,15 @@
           </button>
           <button
             class="role-tab"
+            type="button"
+            :aria-pressed="selectedRole === 'Personnel'"
             :class="{ active: selectedRole === 'Personnel' }"
             @click="setRole('Personnel')"
           >
             <UiIcon name="tasks" :size="20" /><span>Personnel</span>
           </button>
         </div>
+        <small class="login-role-hint">Your access is determined by the role assigned to your verified university account.</small>
       </div>
 
       <div class="form-group">
@@ -428,6 +446,7 @@ async function submitRecovery() {
 .login-role-selection > label { margin-bottom: 8px; }
 .login-role-selection .role-tabs { gap: 8px; margin: 0; }
 .login-role-selection .role-tab { min-height: 58px; padding: 8px 6px; }
+.login-role-hint { display: block; margin-top: 8px; color: var(--text-3); line-height: 1.4; }
 .login-form-wrap > .form-group { margin-bottom: 14px; }
 .login-form-wrap .form-group label { margin-bottom: 5px; }
 .login-form-wrap .form-group input { padding-block: 10px; }
