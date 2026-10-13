@@ -64,6 +64,7 @@ variables. Run the script against staging only.
 | `deliver-notification` | Platform `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; `NOTIFICATION_WEBHOOK_SECRET`. Configure `RESEND_API_KEY` and `NOTIFICATION_FROM_EMAIL` for email; configure both Semaphore values only if SMS is used. |
 | `admin-create-user` | Platform `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; `ADMIN_APP_ORIGINS`. |
 | `notification-email-verification` | Platform `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`; `RESEND_API_KEY`, `NOTIFICATION_FROM_EMAIL`, and `NOTIFICATION_APP_ORIGINS` (or `ADMIN_APP_ORIGINS`). |
+| `submit-evaluation` | The client and documentation refer to this function, but its source directory is empty in this repository. Required settings and behavior cannot be verified or reproduced from this checkout; restore reviewed source or verify the separately deployed function before go-live. |
 
 ## Deployment note
 

@@ -115,8 +115,9 @@ select cron.schedule(
 The daily job creates at most one work order per schedule per due date and advances overdue schedules to their next future occurrence. The Admin panel also provides a manual generation action. Keep the QR route available through the deployment's SPA fallback so `/report?location=<id>` serves the Vue application.
 
 For an existing project, apply all migrations in ascending filename order
-through the current latest migration, `202610120004_login_history_rpcs.sql`.
-See [DEPLOYMENT.md](DEPLOYMENT.md) for the tracking-counter migration caution.
+through the current latest migration,
+`202610130001_preserve_tracking_code_counter.sql`. See [DEPLOYMENT.md](DEPLOYMENT.md)
+for the tracking-counter migration caution.
 For a new project, use the complete `supabase/schema.sql` instead of replaying
 the migration history.
 
@@ -170,7 +171,8 @@ requires the Supabase CLI and a disposable local or staging database. Apply
 Phase 1–3 migrations, or use the complete `supabase/schema.sql` for a new
 project. Deploy `swift-worker` as described in [DEPLOYMENT.md](DEPLOYMENT.md).
 For existing projects, apply every migration in ascending filename order
-through the current latest migration, `202610120004_login_history_rpcs.sql`.
+through the current latest migration,
+`202610130001_preserve_tracking_code_counter.sql`.
 Review [DEPLOYMENT.md](DEPLOYMENT.md) before applying migrations to a live
 project.
 

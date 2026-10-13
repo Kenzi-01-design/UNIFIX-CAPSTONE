@@ -16,13 +16,16 @@ for authentication, Postgres, Storage, and Edge Functions.
    separate optional Settings flow.
 2. For an existing project, apply every migration in
    `supabase/migrations/` in ascending filename order. The current repository
-   sequence ends at `202610120004_login_history_rpcs.sql`; do not stop at an
+   sequence ends at `202610130001_preserve_tracking_code_counter.sql`; do not stop at an
    older migration cutoff. Confirm the applied migration list against the
    project before applying anything. Migration
-   `202610060016_start_tracking_codes_at_100.sql` changes the tracking-code
-   counter; do not clear reports or requests to apply it. Review its effect on
-   the existing counter and codes in staging first, and stop for a
-   non-destructive reconciliation plan if there could be a collision.
+   `202610060016_start_tracking_codes_at_100.sql` sets the current-year
+   counter to 99 and can lower an existing counter. Never clear reports or
+   requests to apply it. After the earlier migrations, apply
+   `202610130001_preserve_tracking_code_counter.sql`; it only raises the
+   counter to at least 99 and preserves higher current-year values found in
+   either the counter table or existing report/request tracking codes. Review
+   the resulting counter and codes in staging before production.
    For a new project, run the complete `supabase/schema.sql` script instead of
    replaying the migration history. It requests a PostgREST schema-cache reload
    after creating database objects.
@@ -88,6 +91,14 @@ supabase functions deploy deliver-notification
 supabase functions deploy admin-create-user
 supabase functions deploy notification-email-verification
 ```
+
+The frontend and survey documentation refer to `submit-evaluation`, but
+`supabase/functions/submit-evaluation/` contains no checked-in source in this
+repository. Its implementation and required settings cannot be validated or
+reproduced from this checkout, and it is not included in the deploy commands
+above. Before go-live, either restore and review its source or verify the
+separately deployed implementation and test it against staging. Do not assume
+that the function is deployed or secure merely because the UI references it.
 
 The complete per-function environment-variable matrix is in
 [ENV_REFERENCE.md](ENV_REFERENCE.md). Supabase supplies `SUPABASE_URL` and
