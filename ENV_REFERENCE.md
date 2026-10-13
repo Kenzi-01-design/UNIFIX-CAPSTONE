@@ -16,19 +16,54 @@ This file documents the expected environment variables for the project and which
 
 ## Server-side variables (never expose to the client)
 
+Supabase Edge Functions also receive `SUPABASE_URL` and `SUPABASE_ANON_KEY`
+from the Supabase platform. These are project configuration values, not
+`VITE_` variables; the anon key is public by design and remains subject to RLS.
+
 | Variable | Required | Secret | Notes |
 | --- | --- | --- | --- |
-| `SUPABASE_SERVICE_ROLE_KEY` | Only in server code | Yes | Never in the frontend or public config. |
-| `TURNSTILE_SECRET_KEY` | Yes for public validation | Yes | Used by the captcha verification flow. |
-| `TURNSTILE_ALLOWED_HOSTNAME` | Yes | No | Public host allowed by captcha validation. |
-| `PUBLIC_APP_ORIGIN` | Yes for public functions | No | Production origin used to validate request behavior. |
-| `NOTIFICATION_WEBHOOK_SECRET` | Yes for notifications | Yes | Shared secret for notification webhooks. |
-| `RESEND_API_KEY` | Optional | Yes | Email delivery provider key. |
-| `NOTIFICATION_FROM_EMAIL` | Optional | No | Sender identity for outbound email. |
-| `NOTIFICATION_APP_ORIGINS` | For notification verification | No | Comma-separated exact frontend origins permitted by the notification-email verification Edge Function. Falls back to `ADMIN_APP_ORIGINS`. |
-| `ADMIN_APP_ORIGINS` | For Admin invite function | No | Comma-separated exact frontend origins permitted by the Admin invite Edge Function. |
-| `SEMAPHORE_API_KEY` | Optional | Yes | SMS provider key. |
-| `SEMAPHORE_SENDER_NAME` | Optional | No | SMS sender name. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Platform-provided; required by functions that perform privileged database operations | Yes | Never expose in frontend code, browser variables, or logs. |
+| `TURNSTILE_SECRET_KEY` | `submit-public-report` | Yes | Verifies public report CAPTCHA tokens. |
+| `TURNSTILE_ALLOWED_HOSTNAME` | `submit-public-report` | No | Allowed production hostname for CAPTCHA validation. |
+| `PUBLIC_APP_ORIGINS` | Public functions | No | Comma-separated exact origins accepted by public functions. `PUBLIC_APP_ORIGIN` is a legacy singular fallback. Do not use `*`. |
+| `PUBLIC_APP_ORIGIN` | Legacy fallback for public functions | No | Use `PUBLIC_APP_ORIGINS` for new deployments. |
+| `NOTIFICATION_WEBHOOK_SECRET` | `deliver-notification` | Yes | Shared secret expected in the notification webhook header. |
+| `RESEND_API_KEY` | Email delivery/verification | Yes | Resend provider key. |
+| `NOTIFICATION_FROM_EMAIL` | Email delivery/verification | No | Verified sender identity used for outgoing mail. |
+| `NOTIFICATION_APP_ORIGINS` | `notification-email-verification` | No | Comma-separated exact frontend origins. Falls back to `ADMIN_APP_ORIGINS`. |
+| `ADMIN_APP_ORIGINS` | `admin-create-user` | No | Comma-separated exact frontend origins. Also the fallback for notification verification. |
+| `SEMAPHORE_API_KEY` | Optional SMS delivery | Yes | Semaphore provider key; required only if SMS sending is enabled. |
+| `SEMAPHORE_SENDER_NAME` | Optional SMS delivery | No | Sender name configured with Semaphore. |
+
+## Post-deployment smoke-test variables
+
+These are local operator environment variables for `pnpm smoke:post-deploy`;
+they are not Vite settings and must not be configured as public frontend
+variables. Run the script against staging only.
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `SMOKE_BASE_URL` | Yes | Deployed staging frontend origin. |
+| `VITE_SUPABASE_URL` | Yes | Staging Supabase URL supplied to the test script. |
+| `VITE_SUPABASE_ANON_KEY` | Yes | Staging public anon key supplied to the test script. |
+| `SMOKE_EMPLOYEE_EMAIL`, `SMOKE_EMPLOYEE_PASSWORD` | Optional | Dedicated staging Employee test account. |
+| `SMOKE_ASSISTANT_EMAIL`, `SMOKE_ASSISTANT_PASSWORD` | Optional | Dedicated staging Assistant test account. |
+| `SMOKE_PERSONNEL_EMAIL`, `SMOKE_PERSONNEL_PASSWORD` | Optional | Dedicated staging Personnel test account. |
+| `SMOKE_ADMIN_EMAIL`, `SMOKE_ADMIN_PASSWORD` | Optional | Dedicated staging Admin test account. |
+| `SMOKE_TEST_WRITES` | Optional | Set to `true` only when approved to create test rows and upload/delete a temporary Storage object in staging. Do not set for production. |
+| `SMOKE_TEST_CAPTCHA_TOKEN` | Required for write-enabled public report test | Fresh Turnstile token for the staging hostname. |
+| `SMOKE_TEST_REPORTER_EMAIL` | Optional | Email attached to the generated staging test report. |
+
+## Edge Function inventory
+
+| Function | Required project settings/secrets |
+| --- | --- |
+| `submit-public-report` | Platform `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; `PUBLIC_APP_ORIGINS` (or legacy `PUBLIC_APP_ORIGIN`); `TURNSTILE_ALLOWED_HOSTNAME`; `TURNSTILE_SECRET_KEY`. |
+| `track-report` | Platform `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; `PUBLIC_APP_ORIGINS` (or legacy `PUBLIC_APP_ORIGIN`). |
+| `swift-worker` | Platform `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`; `PUBLIC_APP_ORIGINS` (or legacy `PUBLIC_APP_ORIGIN`). |
+| `deliver-notification` | Platform `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; `NOTIFICATION_WEBHOOK_SECRET`. Configure `RESEND_API_KEY` and `NOTIFICATION_FROM_EMAIL` for email; configure both Semaphore values only if SMS is used. |
+| `admin-create-user` | Platform `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; `ADMIN_APP_ORIGINS`. |
+| `notification-email-verification` | Platform `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`; `RESEND_API_KEY`, `NOTIFICATION_FROM_EMAIL`, and `NOTIFICATION_APP_ORIGINS` (or `ADMIN_APP_ORIGINS`). |
 
 ## Deployment note
 

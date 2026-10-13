@@ -5,48 +5,27 @@ for authentication, Postgres, Storage, and Edge Functions.
 
 ## 1. Prepare Supabase
 
-1. Create a production Supabase project and enable email/password authentication. Add the production site URL and local development URL to the Auth redirect allowlist. Sign-up email confirmation must be disabled as described below; notification email verification is a separate optional Settings flow.
-2. In the SQL Editor, apply the migrations in order:
-   `202610050001_phase1_tracking_photos_sla_feedback.sql`,
-   `202610050002_phase2_notifications_audit_verification.sql`,
-   `202610050003_phase3_analytics_duplicates_locations_maintenance.sql`, and
-   `202610050004_phase4_evaluation_security.sql`,
-   `202610050005_qa_authorization_workflow.sql`,
-   `202610050006_fix_tracking_year_ambiguity.sql`,
-   `202610050007_fix_analytics_date_alias.sql`, and
-   `202610050008_reload_postgrest_schema_cache.sql`,
-   `202610050009_deactivate_schema_demo_profiles.sql`, and
-   `202610050010_add_work_item_query_indexes.sql`, and
-   `202610050011_enable_work_item_realtime.sql`, and
-   `202610050012_fix_work_item_email_trigger.sql`, and
-   `202610050013_fix_shared_work_item_triggers.sql`,
-   `202610050014_fix_pg_trgm_setting_permission.sql`,
-   `202610050015_fix_duplicate_field_shared_trigger.sql`,
-   `202610050016_remove_sla_and_audit_features.sql`,
-   `202610050017_user_registration_approval.sql`, then
-   `202610060001_link_profiles_to_auth_users.sql`,
-   `202610060002_enforce_university_email_domains.sql`,
-   `202610060003_account_audit_log.sql`,
-   `202610060004_account_state_transitions.sql`,
-   `202610060005_account_notifications_realtime.sql`,
-   `202610060006_notification_email_verification.sql`,
-   `202610060007_requested_registration_role.sql`, and
-   `202610060008_realtime_activity_log.sql`,
-   `202610060009_fix_personnel_acceptance.sql`, and
-   `202610060010_allow_personnel_request_acceptance.sql`, and
-   `202610060011_fix_request_submission_rls.sql`, and
-   `202610060012_fix_request_submission_identity.sql`, and
-   `202610060013_fix_request_submission_trigger.sql`, and
-   `202610060014_fix_photo_upload_rls.sql`, and
-   `202610060015_replace_campus_buildings.sql`, and
-   `202610060016_start_tracking_codes_at_100.sql`. Apply migration 016 after
-   clearing reports and requests; the next shared report/request tracking code
-   will be `UNI-<year>-0100`. If migration 017 was
-   applied before older Auth users were created, rerun its updated version
-   before applying the new migrations; it backfills missing profiles as pending,
-   inactive Employees.
-   For a new project, run the complete `supabase/schema.sql` script. It notifies
-   PostgREST to reload its schema cache after all tables and functions are created.
+1. Create a production Supabase project and enable email/password authentication.
+   In **Authentication → URL Configuration**, set **Site URL** to the canonical
+   production frontend origin (for example, `https://unifix.example.edu`). Add
+   that origin and only the exact callback URLs used by the app to **Redirect
+   URLs**. Add the local development origin only to a non-production project.
+   Password recovery and account registration callbacks must return to the
+   frontend origin; never use a wildcard redirect. Sign-up email confirmation
+   must be disabled as described below; notification email verification is a
+   separate optional Settings flow.
+2. For an existing project, apply every migration in
+   `supabase/migrations/` in ascending filename order. The current repository
+   sequence ends at `202610120004_login_history_rpcs.sql`; do not stop at an
+   older migration cutoff. Confirm the applied migration list against the
+   project before applying anything. Migration
+   `202610060016_start_tracking_codes_at_100.sql` changes the tracking-code
+   counter; do not clear reports or requests to apply it. Review its effect on
+   the existing counter and codes in staging first, and stop for a
+   non-destructive reconciliation plan if there could be a collision.
+   For a new project, run the complete `supabase/schema.sql` script instead of
+   replaying the migration history. It requests a PostgREST schema-cache reload
+   after creating database objects.
 3. Review RLS and Storage policies in the Dashboard. Do not enable broad anonymous read access to reports, requests, user profiles, notifications, or photos.
 4. For self-registration, apply the registration and account-flow migrations before opening registration. In **Authentication → Providers → Email**, turn **Confirm email** off, then save. Applicants may request Employee, Assistant, or Personnel; all new accounts are still created inactive and pending. An Admin must confirm or change the requested role in User Management before approval activates the account. Admin cannot be requested during public signup. Never trust client-submitted roles.
 5. Configure Cloudflare Turnstile with the production host name.
@@ -110,6 +89,24 @@ supabase functions deploy admin-create-user
 supabase functions deploy notification-email-verification
 ```
 
+The complete per-function environment-variable matrix is in
+[ENV_REFERENCE.md](ENV_REFERENCE.md). Supabase supplies `SUPABASE_URL` and
+`SUPABASE_ANON_KEY` to Edge Functions; keep `SUPABASE_SERVICE_ROLE_KEY` in the
+server-side Supabase environment only. Never copy it into a frontend host
+variable or a `VITE_` variable.
+The public functions use `PUBLIC_APP_ORIGINS`; the singular
+`PUBLIC_APP_ORIGIN` is supported only as a legacy fallback. Function-specific
+requirements are:
+
+| Function | Required configuration |
+| --- | --- |
+| `submit-public-report` | Supabase URL/service-role key, `PUBLIC_APP_ORIGINS`, `TURNSTILE_ALLOWED_HOSTNAME`, `TURNSTILE_SECRET_KEY` |
+| `track-report` | Supabase URL/service-role key, `PUBLIC_APP_ORIGINS` |
+| `swift-worker` | Supabase URL/anon/service-role keys, `PUBLIC_APP_ORIGINS` |
+| `deliver-notification` | Supabase URL/service-role key, `NOTIFICATION_WEBHOOK_SECRET`; Resend settings for email and Semaphore settings for optional SMS |
+| `admin-create-user` | Supabase URL/service-role key, `ADMIN_APP_ORIGINS` |
+| `notification-email-verification` | Supabase URL/anon/service-role keys, Resend settings, `NOTIFICATION_APP_ORIGINS` (or its `ADMIN_APP_ORIGINS` fallback) |
+
 Turn off sign-up confirmation in **Authentication → Providers → Email → Confirm email**.
 New registrations then use email as their login ID without requiring an Auth
 confirmation message. Users who opt into work-update emails must separately
@@ -164,23 +161,28 @@ and the client-secret scan on pushes and pull requests. To run the optional loca
 Supabase/RLS suite, manually dispatch the workflow with **run_rls** enabled.
 
 For a safe staging smoke test, set `SMOKE_BASE_URL`, `VITE_SUPABASE_URL`, and
-`VITE_SUPABASE_ANON_KEY`, then optionally provide each test account's
-`SMOKE_EMPLOYEE_*`, `SMOKE_ASSISTANT_*`, `SMOKE_PERSONNEL_*`, and
-`SMOKE_ADMIN_*` email/password values. Run:
+`VITE_SUPABASE_ANON_KEY`, then optionally provide dedicated staging account
+pairs `SMOKE_EMPLOYEE_EMAIL`/`SMOKE_EMPLOYEE_PASSWORD`,
+`SMOKE_ASSISTANT_EMAIL`/`SMOKE_ASSISTANT_PASSWORD`,
+`SMOKE_PERSONNEL_EMAIL`/`SMOKE_PERSONNEL_PASSWORD`, and
+`SMOKE_ADMIN_EMAIL`/`SMOKE_ADMIN_PASSWORD`. Run:
 
 ```bash
 pnpm smoke:post-deploy
 ```
 
 To create a test report and photo, set `SMOKE_TEST_WRITES=true`; report
-submission additionally requires a fresh `SMOKE_TEST_CAPTCHA_TOKEN`. The report
-is a real database record and must be closed/removed through the approved
-staging workflow. Eligible public/employee evaluation smoke tests also create
+submission additionally requires a fresh `SMOKE_TEST_CAPTCHA_TOKEN`. Optionally
+set `SMOKE_TEST_REPORTER_EMAIL` for the generated report. The report is a real
+database record and must be closed/removed through the approved staging
+workflow. Eligible public/employee evaluation smoke tests also create
 anonymized response rows. The script checks tracking, photo upload/cleanup,
 role sign-in/profile, evaluation API eligibility, report notification creation
 when an Admin test account is configured, and a read-only due-schedule query.
 Browser route visibility and actual cron execution still require the manual
 checks in the final section. Do not run write-enabled smoke tests on production.
+The complete smoke-test variable list, including which values are test-only,
+is in [ENV_REFERENCE.md](ENV_REFERENCE.md).
 
 ## 6. Post-deployment checklist
 

@@ -37,7 +37,7 @@ in Supabase (never in `.env.local` or the frontend):
 ```bash
 supabase secrets set TURNSTILE_SECRET_KEY=your-turnstile-secret-key
 supabase secrets set TURNSTILE_ALLOWED_HOSTNAME=unifix.nvsu.edu.ph
-supabase secrets set PUBLIC_APP_ORIGIN=https://your-production-hostname
+supabase secrets set PUBLIC_APP_ORIGINS=https://your-production-hostname
 supabase functions deploy submit-public-report
 supabase functions deploy track-report
 ```
@@ -59,7 +59,6 @@ projects before enabling role selection.
 
 - Reports and requests now move from **In progress** to **For verification** when personnel submit completed work. Admins or assistants can verify and close the item, or reject it with a reason to return it for rework. The submitter can reopen a closed item within seven days using its tracking code; authenticated callers can also use an owner-checked reopen RPC.
 - In-app notification feeds are private to each signed-in email and update through Supabase Realtime. Notification settings separately control in-app, email, and SMS delivery.
-- Notification feeds are private to each signed-in email and update through Supabase Realtime. Notification settings separately control in-app, email, and SMS delivery.
 - Email uses Resend. SMS uses the optional Semaphore adapter and stays disabled in the UI unless `VITE_SMS_NOTIFICATIONS_ENABLED=true` is set in the deployed frontend and the matching provider credentials are configured in Supabase.
 
 Apply `supabase/migrations/202610050002_phase2_notifications_audit_verification.sql` to an existing project, or use the updated `supabase/schema.sql` for a fresh project. Set the server-only provider credentials (never put these in a `VITE_` variable):
@@ -115,6 +114,12 @@ select cron.schedule(
 
 The daily job creates at most one work order per schedule per due date and advances overdue schedules to their next future occurrence. The Admin panel also provides a manual generation action. Keep the QR route available through the deployment's SPA fallback so `/report?location=<id>` serves the Vue application.
 
+For an existing project, apply all migrations in ascending filename order
+through the current latest migration, `202610120004_login_history_rpcs.sql`.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the tracking-counter migration caution.
+For a new project, use the complete `supabase/schema.sql` instead of replaying
+the migration history.
+
 Production builds refuse to start if demo mode is enabled or required Supabase
 and Turnstile configuration is missing. In local development, the app uses demo
 data whenever `VITE_DEMO_MODE=true`, even if local Supabase values are present.
@@ -138,7 +143,7 @@ Create the matching Supabase Auth users before signing in. Profile records use t
 
 ## Security note
 
-The database policies require Supabase Auth and match authenticated email addresses to `user_profiles`. Roles are loaded from the database after sign-in; the role picker is shown only in explicitly enabled local demo mode. The open demo policies have been removed from the schema.
+The database policies require Supabase Auth and match authenticated email addresses to `user_profiles`. Roles are loaded from the database after sign-in. The account-type picker is a convenience selector; in Supabase mode, the selected role must match the authenticated profile and cannot grant privileges. The open demo policies have been removed from the schema.
 
 ### Phase 4 quality, security, and evaluation
 
@@ -164,7 +169,9 @@ requires the Supabase CLI and a disposable local or staging database. Apply
 `supabase/migrations/202610050004_phase4_evaluation_security.sql` after the
 Phase 1–3 migrations, or use the complete `supabase/schema.sql` for a new
 project. Deploy `swift-worker` as described in [DEPLOYMENT.md](DEPLOYMENT.md).
-Apply all numbered migrations through `202610050010` in sequence on an existing
+For existing projects, apply every migration in ascending filename order
+through the current latest migration, `202610120004_login_history_rpcs.sql`.
+Review [DEPLOYMENT.md](DEPLOYMENT.md) before applying migrations to a live
 project.
 
 ### Frontend environment variables
