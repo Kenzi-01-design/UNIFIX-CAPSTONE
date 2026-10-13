@@ -60,11 +60,10 @@ variables. Run the script against staging only.
 | --- | --- |
 | `submit-public-report` | Platform `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; `PUBLIC_APP_ORIGINS` (or legacy `PUBLIC_APP_ORIGIN`); `TURNSTILE_ALLOWED_HOSTNAME`; `TURNSTILE_SECRET_KEY`. |
 | `track-report` | Platform `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; `PUBLIC_APP_ORIGINS` (or legacy `PUBLIC_APP_ORIGIN`). |
-| `swift-worker` | Platform `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`; `PUBLIC_APP_ORIGINS` (or legacy `PUBLIC_APP_ORIGIN`). |
+| `swift-worker` | Platform `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`; `PUBLIC_APP_ORIGINS` (or legacy `PUBLIC_APP_ORIGIN`). Also handles public and Employee evaluation submissions with role and payload validation. |
 | `deliver-notification` | Platform `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; `NOTIFICATION_WEBHOOK_SECRET`. Configure `RESEND_API_KEY` and `NOTIFICATION_FROM_EMAIL` for email; configure both Semaphore values only if SMS is used. |
 | `admin-create-user` | Platform `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; `ADMIN_APP_ORIGINS`. |
 | `notification-email-verification` | Platform `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`; `RESEND_API_KEY`, `NOTIFICATION_FROM_EMAIL`, and `NOTIFICATION_APP_ORIGINS` (or `ADMIN_APP_ORIGINS`). |
-| `submit-evaluation` | The client and documentation refer to this function, but its source directory is empty in this repository. Required settings and behavior cannot be verified or reproduced from this checkout; restore reviewed source or verify the separately deployed function before go-live. |
 
 ## Deployment note
 

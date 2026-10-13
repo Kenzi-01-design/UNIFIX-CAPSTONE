@@ -100,7 +100,7 @@ for (const role of ['assistant', 'personnel', 'admin']) {
   const identity = identities[role]
   if (!identity) continue
   await check(`${role} cannot submit an evaluation directly`, async () => {
-    const { response } = await callFunction('submit-evaluation', {}, identity.accessToken)
+    const { response } = await callFunction('swift-worker', {}, identity.accessToken)
     if (response.status !== 403) {
       throw new Error(`Expected HTTP 403, received ${response.status}.`)
     }
@@ -124,13 +124,13 @@ if (process.env.SMOKE_TEST_WRITES === 'true') {
     }
   }
   await check('public evaluation submission', async () => {
-    const { response } = await callFunction('submit-evaluation', evaluation)
+    const { response } = await callFunction('swift-worker', evaluation)
     if (!response.ok) throw new Error(`Public evaluation returned HTTP ${response.status}.`)
   })
 
   if (identities.employee) {
     await check('employee evaluation submission', async () => {
-      const { response } = await callFunction('submit-evaluation', {
+      const { response } = await callFunction('swift-worker', {
         ...evaluation,
         respondentRole: 'Employee',
         submissionKey: crypto.randomUUID()

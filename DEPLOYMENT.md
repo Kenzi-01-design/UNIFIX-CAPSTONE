@@ -92,14 +92,6 @@ supabase functions deploy admin-create-user
 supabase functions deploy notification-email-verification
 ```
 
-The frontend and survey documentation refer to `submit-evaluation`, but
-`supabase/functions/submit-evaluation/` contains no checked-in source in this
-repository. Its implementation and required settings cannot be validated or
-reproduced from this checkout, and it is not included in the deploy commands
-above. Before go-live, either restore and review its source or verify the
-separately deployed implementation and test it against staging. Do not assume
-that the function is deployed or secure merely because the UI references it.
-
 The complete per-function environment-variable matrix is in
 [ENV_REFERENCE.md](ENV_REFERENCE.md). Supabase supplies `SUPABASE_URL` and
 `SUPABASE_ANON_KEY` to Edge Functions; keep `SUPABASE_SERVICE_ROLE_KEY` in the
@@ -117,6 +109,9 @@ requirements are:
 | `deliver-notification` | Supabase URL/service-role key, `NOTIFICATION_WEBHOOK_SECRET`; Resend settings for email and Semaphore settings for optional SMS |
 | `admin-create-user` | Supabase URL/service-role key, `ADMIN_APP_ORIGINS` |
 | `notification-email-verification` | Supabase URL/anon/service-role keys, Resend settings, `NOTIFICATION_APP_ORIGINS` (or its `ADMIN_APP_ORIGINS` fallback) |
+
+`swift-worker` also handles public and Employee evaluation submissions; its
+checked-in handler validates the evaluation payload and respondent role.
 
 Turn off sign-up confirmation in **Authentication → Providers → Email → Confirm email**.
 New registrations then use email as their login ID without requiring an Auth
