@@ -39,7 +39,9 @@ from the Supabase platform. These are project configuration values, not
 
 These are local operator environment variables for `pnpm smoke:post-deploy`;
 they are not Vite settings and must not be configured as public frontend
-variables. Run the script against staging only.
+variables. The script makes live Auth/function/REST requests, so even without
+write mode it can update sign-in activity for configured accounts. Do not run
+it against a project unless those effects are explicitly approved.
 
 | Variable | Required | Notes |
 | --- | --- | --- |
@@ -50,7 +52,7 @@ variables. Run the script against staging only.
 | `SMOKE_ASSISTANT_EMAIL`, `SMOKE_ASSISTANT_PASSWORD` | Optional | Dedicated staging Assistant test account. |
 | `SMOKE_PERSONNEL_EMAIL`, `SMOKE_PERSONNEL_PASSWORD` | Optional | Dedicated staging Personnel test account. |
 | `SMOKE_ADMIN_EMAIL`, `SMOKE_ADMIN_PASSWORD` | Optional | Dedicated staging Admin test account. |
-| `SMOKE_TEST_WRITES` | Optional | Set to `true` only when approved to create test rows and upload/delete a temporary Storage object in staging. Do not set for production. |
+| `SMOKE_TEST_WRITES` | Optional | Leave unset under the current no-data-change constraint. Setting it to `true` creates evaluation/report rows and uploads then deletes a temporary Storage object. |
 | `SMOKE_TEST_CAPTCHA_TOKEN` | Required for write-enabled public report test | Fresh Turnstile token for the staging hostname. |
 | `SMOKE_TEST_REPORTER_EMAIL` | Optional | Email attached to the generated staging test report. |
 

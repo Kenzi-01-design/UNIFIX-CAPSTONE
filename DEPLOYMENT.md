@@ -166,7 +166,7 @@ GitHub Actions runs frozen dependency installation, Vitest, the production build
 and the client-secret scan on pushes and pull requests. To run the optional local
 Supabase/RLS suite, manually dispatch the workflow with **run_rls** enabled.
 
-For a safe staging smoke test, set `SMOKE_BASE_URL`, `VITE_SUPABASE_URL`, and
+For a staging smoke test, set `SMOKE_BASE_URL`, `VITE_SUPABASE_URL`, and
 `VITE_SUPABASE_ANON_KEY`, then optionally provide dedicated staging account
 pairs `SMOKE_EMPLOYEE_EMAIL`/`SMOKE_EMPLOYEE_PASSWORD`,
 `SMOKE_ASSISTANT_EMAIL`/`SMOKE_ASSISTANT_PASSWORD`,
@@ -177,18 +177,13 @@ pairs `SMOKE_EMPLOYEE_EMAIL`/`SMOKE_EMPLOYEE_PASSWORD`,
 pnpm smoke:post-deploy
 ```
 
-To create a test report and photo, set `SMOKE_TEST_WRITES=true`; report
-submission additionally requires a fresh `SMOKE_TEST_CAPTCHA_TOKEN`. Optionally
-set `SMOKE_TEST_REPORTER_EMAIL` for the generated report. The report is a real
-database record and must be closed/removed through the approved staging
-workflow. Eligible public/employee evaluation smoke tests also create
-anonymized response rows. The script checks tracking, photo upload/cleanup,
-role sign-in/profile, evaluation API eligibility, report notification creation
-when an Admin test account is configured, and a read-only due-schedule query.
-Browser route visibility and actual cron execution still require the manual
-checks in the final section. Do not run write-enabled smoke tests on production.
-The complete smoke-test variable list, including which values are test-only,
-is in [ENV_REFERENCE.md](ENV_REFERENCE.md).
+The script makes Auth, Edge Function, and REST requests; configured account
+logins can update sign-in activity. Do not run it against any project unless
+those effects are explicitly approved. Leave `SMOKE_TEST_WRITES` unset: setting
+it to `true` creates evaluation and report database rows and uploads then
+deletes a temporary Storage photo. Do not use write-enabled mode under the
+current no-data-change constraint. The complete smoke-test variable list is in
+[ENV_REFERENCE.md](ENV_REFERENCE.md).
 
 ## 6. Post-deployment checklist
 
