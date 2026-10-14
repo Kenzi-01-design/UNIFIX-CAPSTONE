@@ -214,15 +214,6 @@
           <button
             class="role-tab"
             type="button"
-            :aria-pressed="selectedRole === 'Student'"
-            :class="{ active: selectedRole === 'Student' }"
-            @click="setRole('Student')"
-          >
-            <UiIcon name="reporter" :size="20" /><span>Student</span>
-          </button>
-          <button
-            class="role-tab"
-            type="button"
             :aria-pressed="selectedRole === 'Employee'"
             :class="{ active: selectedRole === 'Employee' }"
             @click="setRole('Employee')"
