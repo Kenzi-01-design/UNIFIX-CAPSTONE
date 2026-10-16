@@ -123,7 +123,7 @@
           />
 
           <UserManagementView
-            v-else-if="currentView === 'user-management' && currentRole === 'Admin'"
+            v-else-if="currentView === 'user-management' && hasAdminAccess(currentRole)"
           />
 
           <ReportView
@@ -133,7 +133,7 @@
           />
 
           <RequestsView
-            v-else-if="currentView === 'requests' && ['Admin', 'Personnel'].includes(currentRole)"
+            v-else-if="currentView === 'requests' && ['Admin', 'Assistant', 'Personnel'].includes(currentRole)"
             :initial-status="activeRequestStatus"
             @open-request="openRequestModalById"
           />
@@ -165,7 +165,7 @@
           />
 
           <EvaluationView
-            v-else-if="currentView === 'evaluation-results' && currentRole === 'Admin'"
+            v-else-if="currentView === 'evaluation-results' && hasAdminAccess(currentRole)"
             admin-mode
           />
         </main>
@@ -217,7 +217,7 @@ import { useRequests } from './composables/useRequests.js';
 import { useNotifications } from './composables/useNotifications.js';
 import { useToast } from './composables/useToast.js';
 import { isSupabaseConfigured } from './lib/supabase.js';
-import { canAccessView } from './lib/access.js';
+import { canAccessView, hasAdminAccess } from './lib/access.js';
 
 // Components
 import SideBar from './components/SideBar.vue';
@@ -349,7 +349,7 @@ async function refreshAuthenticatedData() {
   const [reportsResult, requestsResult, personnelResult] = await Promise.allSettled([
     loadReports(),
     loadRequests(),
-    ...(currentRole.value === 'Admin' ? [loadTechnicians()] : [])
+    ...(hasAdminAccess(currentRole.value) ? [loadTechnicians()] : [])
   ]);
   if (reportsResult.status === 'rejected' || requestsResult.status === 'rejected') {
     console.error('Some work items could not be loaded for the signed-in account.', {

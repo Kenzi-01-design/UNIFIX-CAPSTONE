@@ -28,4 +28,10 @@ describe('role navigation', () => {
     expect(mobileItems.find((item) => item.view === 'reports').badgeCount).toBe(7);
     expect(mobileItems.find((item) => item.view === 'requests').badgeCount).toBe(3);
   });
+
+  it('gives Assistants the same navigation as Admins', () => {
+    const counts = { reports: 7, requests: 3 };
+    expect(getRoleNavigation('Assistant', counts)).toEqual(getRoleNavigation('Admin', counts));
+    expect(getMobilePrimaryNavigation('Assistant', counts)).toEqual(getMobilePrimaryNavigation('Admin', counts));
+  });
 });

@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
+import { hasAdminAccess } from '../lib/access.js';
 import { accountAccessState, authStateMessage, classifyAuthError } from '../lib/authFlow.js';
 
 // Private module-level state
@@ -135,7 +136,7 @@ function scheduleLoginEventsRefresh() {
   if (!loginEventsSubscriptionWanted || loginEventsPollTimer) return;
   loginEventsPollTimer = setTimeout(async () => {
     loginEventsPollTimer = null;
-    if (!loginEventsSubscriptionWanted || _currentRole.value !== 'Admin' || !_isAuthenticated.value) return;
+    if (!loginEventsSubscriptionWanted || !hasAdminAccess(_currentRole.value) || !_isAuthenticated.value) return;
     await refreshLoginEvents();
     scheduleLoginEventsRefresh();
   }, LOGIN_HISTORY_POLL_INTERVAL);
@@ -153,7 +154,7 @@ function scheduleLoginEventsRetry() {
 
 function subscribeToLoginEvents() {
   loginEventsSubscriptionWanted = true;
-  if (!isSupabaseConfigured || _currentRole.value !== 'Admin' || !_isAuthenticated.value || loginEventsChannel) return;
+  if (!isSupabaseConfigured || !hasAdminAccess(_currentRole.value) || !_isAuthenticated.value || loginEventsChannel) return;
   scheduleLoginEventsRefresh();
 
   const channel = supabase
@@ -187,7 +188,7 @@ async function recordLoginEvent(profile) {
     console.error('Could not record the successful login in the activity log.', error);
     throw error;
   }
-  if (profile.role === 'Admin') {
+  if (hasAdminAccess(profile.role)) {
     const event = Array.isArray(data) ? data[0] : data;
     if (event) upsertLoginEvent(event);
     void loadLoginEventsFromSupabase().catch((loadError) => {
@@ -252,7 +253,7 @@ async function loadAuthenticatedProfile() {
   _isAuthenticated.value = true;
   clearNotice();
   subscribeToProfile(user);
-  if (_currentRole.value === 'Admin') subscribeToLoginEvents();
+  if (hasAdminAccess(_currentRole.value)) subscribeToLoginEvents();
   else stopLoginEventsSubscription();
 }
 
@@ -425,7 +426,7 @@ export function useAuth() {
         _isAuthenticated.value = true;
         clearNotice();
         subscribeToProfile(data.user);
-        if (profile.role === 'Admin') {
+        if (hasAdminAccess(profile.role)) {
           subscribeToLoginEvents();
           void recordLoginEvent(profile).catch((error) => {
             console.error('Could not record the successful login in the activity log.', error);

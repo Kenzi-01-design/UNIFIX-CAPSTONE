@@ -36,7 +36,7 @@
           <p>{{ request.feedback }}</p>
         </section>
         <PhotoGallery :attachments="request.photoAttachments || []" :title="request.title" />
-        <section v-if="currentRole === 'Admin' && canReviewRequest" class="request-review">
+        <section v-if="hasAdminAccess(currentRole) && canReviewRequest" class="request-review">
           <strong>Review completed work</strong>
           <p>Verify the personnel’s work or return it for rework with a clear reason.</p>
           <label class="sr-only" :for="`request-rejection-${request.id}`">Reason for rejecting verification</label>
@@ -52,7 +52,7 @@
 
       <footer class="modal-actions">
         <button
-          v-if="currentRole === 'Admin'"
+          v-if="hasAdminAccess(currentRole)"
           class="btn-primary"
           type="button"
           @click="$emit('assign', request.id)"
@@ -60,7 +60,7 @@
           {{ request.assignedTo ? 'Reassign' : 'Assign' }}
         </button>
         <button
-          v-if="currentRole === 'Admin' && canReviewRequest"
+          v-if="hasAdminAccess(currentRole) && canReviewRequest"
           class="btn-secondary request-reject"
           type="button"
           :disabled="rejectionReason.trim().length < 5 || rejectionReason.trim().length > 500"
@@ -69,7 +69,7 @@
           Reject & Request Rework
         </button>
         <button
-          v-if="currentRole === 'Admin' && canReviewRequest"
+          v-if="hasAdminAccess(currentRole) && canReviewRequest"
           class="btn-primary"
           type="button"
           @click="$emit('verify', request.id)"
@@ -85,6 +85,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import PhotoGallery from './PhotoGallery.vue';
+import { hasAdminAccess } from '../lib/access.js';
 
 const props = defineProps({
   isOpen: { type: Boolean, default: false },

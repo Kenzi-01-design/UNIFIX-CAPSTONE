@@ -1,3 +1,31 @@
+const administratorNavigation = [
+  {
+    label: 'Main',
+    items: [
+      { view: 'dashboard', label: 'Dashboard', icon: 'dashboard', primary: true },
+      { view: 'submit', label: 'Submit Report', icon: 'add' },
+      { view: 'reports', label: 'Reports', icon: 'reports', badge: 'reports', primary: true },
+      { view: 'requests', label: 'Requests', icon: 'requests', badge: 'requests', primary: true }
+    ]
+  },
+  {
+    label: 'Administration',
+    items: [
+      { view: 'admin', label: 'Admin Panel', icon: 'admin', primary: true },
+      { view: 'activity-log', label: 'Activity Log', icon: 'activity' },
+      { view: 'user-management', label: 'User Management', icon: 'users' },
+      { view: 'evaluation-results', label: 'Evaluation Results', icon: 'activity' }
+    ]
+  },
+  {
+    label: 'Account',
+    items: [
+      { view: 'profile', label: 'Profile', icon: 'reporter' },
+      { view: 'settings', label: 'Settings', icon: 'settings' }
+    ]
+  }
+];
+
 const roleNavigation = {
   Employee: [
     {
@@ -12,26 +40,6 @@ const roleNavigation = {
       label: 'Account',
       items: [
         { view: 'evaluation', label: 'System Evaluation', icon: 'success' },
-        { view: 'profile', label: 'Profile', icon: 'reporter' },
-        { view: 'settings', label: 'Settings', icon: 'settings' }
-      ]
-    }
-  ],
-  Assistant: [
-    {
-      label: 'Main',
-      items: [
-        { view: 'dashboard', label: 'Dashboard', icon: 'dashboard', primary: true },
-        { view: 'reports', label: 'Reports', icon: 'reports', badge: 'reports', primary: true }
-      ]
-    },
-    {
-      label: 'Administration',
-      items: [{ view: 'admin', label: 'Review Submissions', icon: 'activity', primary: true }]
-    },
-    {
-      label: 'Account',
-      items: [
         { view: 'profile', label: 'Profile', icon: 'reporter' },
         { view: 'settings', label: 'Settings', icon: 'settings' }
       ]
@@ -55,33 +63,8 @@ const roleNavigation = {
       ]
     }
   ],
-  Admin: [
-    {
-      label: 'Main',
-      items: [
-        { view: 'dashboard', label: 'Dashboard', icon: 'dashboard', primary: true },
-        { view: 'submit', label: 'Submit Report', icon: 'add' },
-        { view: 'reports', label: 'Reports', icon: 'reports', badge: 'reports', primary: true },
-        { view: 'requests', label: 'Requests', icon: 'requests', badge: 'requests', primary: true }
-      ]
-    },
-    {
-      label: 'Administration',
-      items: [
-        { view: 'admin', label: 'Admin Panel', icon: 'admin', primary: true },
-        { view: 'activity-log', label: 'Activity Log', icon: 'activity' },
-        { view: 'user-management', label: 'User Management', icon: 'users' },
-        { view: 'evaluation-results', label: 'Evaluation Results', icon: 'activity' }
-      ]
-    },
-    {
-      label: 'Account',
-      items: [
-        { view: 'profile', label: 'Profile', icon: 'reporter' },
-        { view: 'settings', label: 'Settings', icon: 'settings' }
-      ]
-    }
-  ]
+  Admin: administratorNavigation,
+  Assistant: administratorNavigation
 };
 
 export function getRoleNavigation(role, counts = {}) {

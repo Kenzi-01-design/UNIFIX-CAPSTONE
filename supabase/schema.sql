@@ -222,6 +222,18 @@
         revoke all on function public.current_user_role() from public;
         grant execute on function public.current_user_role() to authenticated;
 
+        create or replace function public.has_admin_access()
+        returns boolean
+        language sql
+        stable
+        security definer
+        set search_path = public
+        as $$
+            select public.current_user_role() in ('Admin', 'Assistant');
+        $$;
+        revoke all on function public.has_admin_access() from public, anon;
+        grant execute on function public.has_admin_access() to authenticated;
+
         create or replace function public.current_user_profile_name()
         returns text
         language sql
@@ -291,8 +303,8 @@
         set search_path = public
         as $$
         begin
-          if auth.uid() is null or public.current_user_role() is distinct from 'Admin' then
-            raise exception 'Only an authenticated Admin can read login history';
+          if auth.uid() is null or not public.has_admin_access() then
+            raise exception 'Only an authenticated administrator can read login history';
           end if;
 
           return query
@@ -336,7 +348,7 @@
             for all to anon, authenticated using (false) with check (false);
         drop policy if exists "Admins can read account audit log" on public.account_audit_log;
         create policy "Admins can read account audit log" on public.account_audit_log
-            for select to authenticated using (public.current_user_role() = 'Admin');
+            for select to authenticated using (public.has_admin_access());
 
         create policy "Authenticated users can read reports" on public.reports
             for select to authenticated
@@ -354,8 +366,8 @@
 
         create policy "Admins can manage reports" on public.reports
             for all to authenticated
-            using (public.current_user_role() = 'Admin')
-            with check (public.current_user_role() = 'Admin');
+            using (public.has_admin_access())
+            with check (public.has_admin_access());
 
         create policy "Personnel can update assigned reports" on public.reports
             for update to authenticated
@@ -427,8 +439,8 @@
 
         create policy "Admins can manage requests" on public.requests
             for all to authenticated
-            using (public.current_user_role() = 'Admin')
-            with check (public.current_user_role() = 'Admin');
+            using (public.has_admin_access())
+            with check (public.has_admin_access());
 
         create or replace function public.enforce_role_update_scope()
         returns trigger
@@ -478,7 +490,7 @@
                             <> to_jsonb(old) - array['status', 'technician_state', 'assignment_note', 'completion_photo'] then
                     raise exception 'Personnel may update only the state of requests assigned to them';
                 end if;
-            elsif public.current_user_role() is distinct from 'Admin' then
+            elsif not public.has_admin_access() then
                 raise exception 'This role cannot update this record';
             end if;
             return new;
@@ -499,7 +511,7 @@
 
         create policy "Admins can read login events" on public.login_events
             for select to authenticated
-            using (public.current_user_role() = 'Admin');
+            using (public.has_admin_access());
 
         grant select, insert on public.login_events to authenticated;
         create policy "Users can record own login events" on public.login_events
@@ -534,8 +546,8 @@
 
         create policy "Admins can manage profiles" on public.user_profiles
             for all to authenticated
-            using (public.current_user_role() = 'Admin')
-            with check (public.current_user_role() = 'Admin');
+            using (public.has_admin_access())
+            with check (public.has_admin_access());
 
         create policy "Users can manage own preferences" on public.user_preferences
             for all to authenticated
@@ -580,7 +592,7 @@
           and new.registration_status = old.registration_status
           and new.rejection_reason is not distinct from old.rejection_reason;
           if coalesce(auth.role(), '') <> 'service_role'
-          and public.current_user_role() is distinct from 'Admin'
+          and not public.has_admin_access()
           and not bootstrap_call
           and not email_sync_call then
             if new.id <> old.id
@@ -1000,7 +1012,7 @@ begin
        <> to_jsonb(old) - array['status', 'technician_state', 'assignment_note', 'completion_photo', 'photo_attachments'] then
       raise exception 'Personnel may update only the state and completion photos of requests assigned to them';
     end if;
-  elsif public.current_user_role() <> 'Admin' then
+  elsif not public.has_admin_access() then
     raise exception 'This role cannot update this record';
   end if;
   return new;
@@ -1346,7 +1358,7 @@ create policy "Admins and submitters can read work item activity"
   on public.work_item_activity
   for select to authenticated
   using (
-    public.current_user_role() = 'Admin'
+    public.has_admin_access()
     or (
       submitter_email is not null
       and coalesce(auth.jwt() ->> 'email', '') <> ''
@@ -1971,7 +1983,7 @@ create policy "Public can read active report locations" on public.locations
 drop policy if exists "Authenticated roles can read locations" on public.locations;
 drop policy if exists "Admins can read locations" on public.locations;
 create policy "Admins can read locations" on public.locations
-  for select to authenticated using (public.current_user_role() = 'Admin');
+  for select to authenticated using (  public.has_admin_access());
 drop policy if exists "Assistants can read locations" on public.locations;
 create policy "Assistants can read locations" on public.locations
   for select to authenticated using (public.current_user_role() = 'Assistant');
@@ -1986,14 +1998,14 @@ create policy "Personnel can read locations" on public.locations
   for select to authenticated using (public.current_user_role() = 'Personnel');
 drop policy if exists "Admins can create locations" on public.locations;
 create policy "Admins can create locations" on public.locations
-  for insert to authenticated with check (public.current_user_role() = 'Admin');
+  for insert to authenticated with check (public.has_admin_access());
 drop policy if exists "Admins can update locations" on public.locations;
 create policy "Admins can update locations" on public.locations
-  for update to authenticated using (public.current_user_role() = 'Admin')
-  with check (public.current_user_role() = 'Admin');
+  for update to authenticated using (public.has_admin_access())
+  with check (public.has_admin_access());
 drop policy if exists "Admins can delete locations" on public.locations;
 create policy "Admins can delete locations" on public.locations
-  for delete to authenticated using (public.current_user_role() = 'Admin');
+  for delete to authenticated using (public.has_admin_access());
 
 insert into public.locations (building)
 values
@@ -2147,7 +2159,7 @@ alter table public.report_duplicate_votes enable row level security;
 revoke all on public.report_duplicate_votes from public, anon, authenticated;
 drop policy if exists "Admins can read duplicate report notes" on public.report_duplicate_votes;
 create policy "Admins can read duplicate report notes" on public.report_duplicate_votes
-  for select to authenticated using (public.current_user_role() = 'Admin');
+  for select to authenticated using (public.has_admin_access());
 drop policy if exists "Assistants can read duplicate report notes" on public.report_duplicate_votes;
 create policy "Assistants can read duplicate report notes" on public.report_duplicate_votes
   for select to authenticated using (public.current_user_role() = 'Assistant');
@@ -2271,7 +2283,7 @@ declare
   parent_report public.reports%rowtype;
   child_report public.reports%rowtype;
 begin
-  if coalesce(public.current_user_role(), '') <> 'Admin' then
+  if not public.has_admin_access() then
     raise exception 'Only administrators can merge reports';
   end if;
   if p_parent_id = p_child_id then
@@ -2338,7 +2350,7 @@ grant select, insert, update, delete on public.maintenance_schedules to authenti
 drop policy if exists "Staff can read maintenance schedules" on public.maintenance_schedules;
 drop policy if exists "Admins can read maintenance schedules" on public.maintenance_schedules;
 create policy "Admins can read maintenance schedules" on public.maintenance_schedules
-  for select to authenticated using (public.current_user_role() = 'Admin');
+  for select to authenticated using (public.has_admin_access());
 drop policy if exists "Assistants can read maintenance schedules" on public.maintenance_schedules;
 create policy "Assistants can read maintenance schedules" on public.maintenance_schedules
   for select to authenticated using (public.current_user_role() = 'Assistant');
@@ -2347,14 +2359,14 @@ create policy "Personnel can read maintenance schedules" on public.maintenance_s
   for select to authenticated using (public.current_user_role() = 'Personnel');
 drop policy if exists "Admins can create maintenance schedules" on public.maintenance_schedules;
 create policy "Admins can create maintenance schedules" on public.maintenance_schedules
-  for insert to authenticated with check (public.current_user_role() = 'Admin');
+  for insert to authenticated with check (public.has_admin_access());
 drop policy if exists "Admins can update maintenance schedules" on public.maintenance_schedules;
 create policy "Admins can update maintenance schedules" on public.maintenance_schedules
-  for update to authenticated using (public.current_user_role() = 'Admin')
-  with check (public.current_user_role() = 'Admin');
+  for update to authenticated using (public.has_admin_access())
+  with check (public.has_admin_access());
 drop policy if exists "Admins can delete maintenance schedules" on public.maintenance_schedules;
 create policy "Admins can delete maintenance schedules" on public.maintenance_schedules
-  for delete to authenticated using (public.current_user_role() = 'Admin');
+  for delete to authenticated using (public.has_admin_access());
 
 create or replace function public.generate_due_maintenance_work_orders()
 returns integer
@@ -2369,7 +2381,7 @@ declare
   generated integer := 0;
   assignees jsonb;
 begin
-  if coalesce(public.current_user_role(), '') <> 'Admin'
+  if not public.has_admin_access()
      and coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
      and session_user not in ('postgres', 'supabase_admin') then
     raise exception 'Only administrators or the maintenance scheduler can run due schedules';
@@ -2746,7 +2758,7 @@ as $$
 declare
   result jsonb;
 begin
-  if coalesce(public.current_user_role(), '') <> 'Admin' then
+  if not public.has_admin_access() then
     raise exception 'Only administrators may view evaluation results';
   end if;
 
@@ -3126,7 +3138,7 @@ begin
   old_text := $old$  start_status := old.status;$old$;
   new_text := $new$  start_status := old.status;
   if tg_table_name = 'reports'
-    and user_role = 'Admin'
+    and user_role in ('Admin', 'Assistant')
     and new.status = 'resolved'
       and (to_jsonb(new) ->> 'duplicate_of') is distinct from (to_jsonb(old) ->> 'duplicate_of')
       and old.status not in ('closed', 'resolved', 'action-taken')
@@ -3305,18 +3317,18 @@ grant select on public.account_reapplication_requests to authenticated;
 drop policy if exists "Admins can read reapplication requests" on public.account_reapplication_requests;
 create policy "Admins can read reapplication requests" on public.account_reapplication_requests
   for select to authenticated
-  using (public.current_user_role() = 'Admin');
+  using (public.has_admin_access());
 
 drop policy if exists "Admins can manage profiles" on public.user_profiles;
 drop policy if exists "Admins can read all profiles" on public.user_profiles;
 create policy "Admins can read all profiles" on public.user_profiles
   for select to authenticated
-  using (public.current_user_role() = 'Admin');
+  using (public.has_admin_access());
 drop policy if exists "Admins can update profiles" on public.user_profiles;
 create policy "Admins can update profiles" on public.user_profiles
   for update to authenticated
-  using (public.current_user_role() = 'Admin')
-  with check (public.current_user_role() = 'Admin');
+  using (public.has_admin_access())
+  with check (public.has_admin_access());
 revoke insert, delete on public.user_profiles from public, anon, authenticated;
 grant select, update on public.user_profiles to authenticated;
 
@@ -3364,8 +3376,8 @@ security definer
 set search_path = public
 as $$
 begin
-  if public.current_user_role() is distinct from 'Admin' then
-    raise exception 'Only an active Admin may reopen an application.';
+  if not public.has_admin_access() then
+    raise exception 'Only an active administrator may reopen an application.';
   end if;
   if not exists (
     select 1 from public.account_reapplication_requests
@@ -3396,7 +3408,7 @@ set search_path = public
 as $$
 declare
   service_call boolean := coalesce(auth.role(), '') = 'service_role';
-  admin_call boolean := public.current_user_role() = 'Admin';
+  admin_call boolean := public.has_admin_access();
   bootstrap_call boolean := coalesce(current_setting('unifix.first_admin_bootstrap', true) = 'on', false)
     and not exists (
       select 1 from public.user_profiles
@@ -3464,6 +3476,21 @@ begin
     if new.role not in ('Admin', 'Assistant', 'Employee', 'Personnel') then
       raise exception 'Choose a valid university role.';
     end if;
+  end if;
+
+  if not service_call and not bootstrap_call
+    and (
+      old.auth_user_id = auth.uid()
+      or (
+        old.auth_user_id is null
+        and lower(btrim(old.email)) = lower(btrim(coalesce(auth.jwt() ->> 'email', '')))
+      )
+    )
+    and (
+      new.role is distinct from old.role
+      or new.is_active is distinct from old.is_active
+    ) then
+    raise exception 'You cannot change your own role or account access.';
   end if;
 
   if old.role = 'Admin' and old.is_active
@@ -3687,7 +3714,7 @@ begin
   for administrator in
     select auth_user_id, email
     from public.user_profiles
-    where role = 'Admin' and is_active
+    where role in ('Admin', 'Assistant') and is_active
   loop
     insert into public.notifications (
       user_email, event_type, title, message, dedupe_key

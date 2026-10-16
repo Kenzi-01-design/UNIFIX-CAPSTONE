@@ -1,9 +1,9 @@
 # Assistant guide
 
-1. Sign in and use the Dashboard for open-work summaries and analytics.
-2. Open **Reports** or **Review Submissions** to inspect reports and requests available to the Assistant role.
-3. Review details and follow up through the in-app activity and notification views. Use the report timeline for recorded workflow changes.
-4. For work awaiting verification, review the completion details before accepting or rejecting it. A rejection requires a clear reason for rework.
-5. Use **System Evaluation** to submit an optional anonymous survey.
+1. Sign in and use the Dashboard for operational KPIs and analytics.
+2. Use **Reports** and **Requests** to review submissions, assign or reassign personnel, adjust risk, and follow work through verification. Provide a clear reason when requesting rework.
+3. Use **Admin Panel → Locations & Maintenance** to manage facility locations and preventive schedules.
+4. Use **Activity Log** to review work and sign-in history. Use **User Management** to approve applications, manage account roles and access, and invite or deactivate users.
+5. Open **Evaluation Results** for anonymous SUS and ISO/IEC 25010 summaries.
 
-Assistants can review records and analytics, but Admin-only functions—user and role management, facility configuration, and evaluation results—are not available to this role.
+Assistants have the same application permissions as Admins. The roles remain distinct in the database: first-Admin bootstrap and last-active-Admin protections still apply, and the account-type selector cannot grant either role.

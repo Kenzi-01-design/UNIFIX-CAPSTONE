@@ -61,7 +61,7 @@
           <div class="rc-title">{{ request.title }}</div>
           <div class="request-meta"><UiIcon name="building" :size="14" /> {{ request.dept || 'Department not specified' }}</div>
           <p v-if="request.details" class="request-details">{{ request.details }}</p>
-          <div v-if="currentRole === 'Admin' && request.feedback" class="request-feedback">
+          <div v-if="hasAdminAccess(currentRole) && request.feedback" class="request-feedback">
             <strong>Employee feedback<span v-if="request.feedbackDate"> · {{ request.feedbackDate }}</span></strong>
             <p>{{ request.feedback }}</p>
           </div>
@@ -88,6 +88,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { useRequests } from '../composables/useRequests.js';
+import { hasAdminAccess } from '../lib/access.js';
 import { useAuth } from '../composables/useAuth.js';
 import UiIcon from '../components/UiIcon.vue';
 

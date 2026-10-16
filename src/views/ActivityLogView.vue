@@ -13,10 +13,10 @@
       <p v-else-if="activityLoading && activeTab !== 'login' && !visibleEntries.length" class="activity-log-notice" aria-live="polite">
         Loading activity history…
       </p>
-      <p v-if="activeTab === 'login' && currentRole !== 'Admin'" class="activity-log-notice">
-        Login history is available to administrators only.
+      <p v-if="activeTab === 'login' && !hasAdminAccess(currentRole)" class="activity-log-notice">
+        Login history is available to Admins and Assistants.
       </p>
-      <p v-if="activeTab === 'login' && currentRole === 'Admin' && loginHistoryError" class="activity-log-notice" role="alert">
+      <p v-if="activeTab === 'login' && hasAdminAccess(currentRole) && loginHistoryError" class="activity-log-notice" role="alert">
         {{ loginHistoryError }}
         <button type="button" class="btn btn-secondary btn-sm" @click="refreshLoginEvents">Retry login history</button>
       </p>
@@ -40,7 +40,7 @@
       </div>
 
       <div
-        v-if="activeTab !== 'login' || currentRole === 'Admin'"
+        v-if="activeTab !== 'login' || hasAdminAccess(currentRole)"
         class="responsive-table-scroll responsive-table-scroll--activity"
         style="overflow-x: auto"
       >
@@ -93,6 +93,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useAuth } from '../composables/useAuth.js';
 import { useWorkItemActivity } from '../composables/useWorkItemActivity.js';
 import { mergeActivityEntries } from '../lib/activityLog.js';
+import { hasAdminAccess } from '../lib/access.js';
 
 const { currentRole, loginEvents, loginHistoryError, refreshLoginEvents } = useAuth();
 const { events, isLoading: activityLoading, error: activityError, reload, start, stop } = useWorkItemActivity();
@@ -101,7 +102,7 @@ const activeTab = ref('reports');
 const workItemEntries = computed(() => mergeActivityEntries(events.value));
 const reportEntries = computed(() => workItemEntries.value.filter((item) => item.type === 'REPORT'));
 const requestEntries = computed(() => workItemEntries.value.filter((item) => item.type === 'REQUEST'));
-const loginEntries = computed(() => currentRole.value === 'Admin' ? loginEvents.value : []);
+const loginEntries = computed(() => hasAdminAccess(currentRole.value) ? loginEvents.value : []);
 const tabs = computed(() => [
   { id: 'reports', label: 'Reports', entries: reportEntries.value },
   { id: 'requests', label: 'Requests', entries: requestEntries.value },
@@ -122,7 +123,7 @@ function refreshActivity() {
 
 onMounted(() => {
   start();
-  if (currentRole.value === 'Admin') void refreshLoginEvents();
+  if (hasAdminAccess(currentRole.value)) void refreshLoginEvents();
 });
 onBeforeUnmount(stop);
 </script>

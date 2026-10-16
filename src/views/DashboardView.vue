@@ -1,8 +1,8 @@
 <template>
   <div class="view active" id="view-dashboard">
-    <AnalyticsDashboard v-if="['Admin', 'Assistant'].includes(currentRole)" />
-    <!-- Analytics are available to administrators only. -->
-    <div v-if="currentRole === 'Admin'" class="stats-grid">
+    <AnalyticsDashboard v-if="hasAdminAccess(currentRole)" />
+    <!-- Both administrative roles share the same operational dashboard. -->
+    <div v-if="hasAdminAccess(currentRole)" class="stats-grid">
       <div class="stat-card blue" @click="$emit('filter-reports', {})">
         <div class="stat-header">
           <span class="stat-label">Total Reports</span>
@@ -81,7 +81,7 @@
       </div>
     </div>
 
-    <section v-if="currentRole !== 'Admin'" class="role-dashboard-intro">
+    <section v-if="!hasAdminAccess(currentRole)" class="role-dashboard-intro">
       <div>
         <span class="eyebrow">{{ currentRole === 'Personnel' ? 'Maintenance workspace' : 'Campus services' }}</span>
         <h2>{{ currentRole === 'Personnel' ? 'Your assigned work, at a glance.' : 'Keep your campus moving.' }}</h2>
@@ -90,7 +90,7 @@
       <div class="dashboard-intro-mark"><UiIcon :name="currentRole === 'Personnel' ? 'tasks' : 'building'" :size="42" /></div>
     </section>
 
-    <div v-if="currentRole !== 'Admin'" class="quick-actions-grid">
+    <div v-if="!hasAdminAccess(currentRole)" class="quick-actions-grid">
       <button v-if="currentRole !== 'Employee'" class="quick-action primary" @click="$emit('navigate', 'submit')">
         <span class="quick-action-icon"><UiIcon name="add" /></span>
         <span><strong>{{ currentRole === 'Personnel' ? 'Report an Issue' : 'Submit a Report' }}</strong><small>Tell maintenance what needs attention</small></span>
@@ -113,7 +113,7 @@
       </button>
     </div>
 
-    <div v-if="currentRole !== 'Admin'" class="work-summary-grid">
+    <div v-if="!hasAdminAccess(currentRole)" class="work-summary-grid">
       <div v-for="item in workSummary" :key="item.label" class="work-summary-card" :class="item.tone">
         <span class="work-summary-icon"><UiIcon :name="item.icon" /></span>
         <strong>{{ item.value }}</strong>
@@ -123,7 +123,7 @@
 
     <!-- Main Content Panels (Recent Reports & Category Breakdown) -->
     <div class="grid-2">
-      <div v-if="currentRole === 'Admin'" class="panel">
+      <div v-if="hasAdminAccess(currentRole)" class="panel">
         <div class="panel-header">
           <span class="panel-title">Recent Reports & Requests</span>
           <span class="panel-action" @click="$emit('navigate', 'reports')">View all →</span>
@@ -162,7 +162,7 @@
         </div>
       </div>
 
-      <div v-if="currentRole === 'Admin'" class="panel">
+      <div v-if="hasAdminAccess(currentRole)" class="panel">
         <div class="panel-header">
           <span class="panel-title">Reports By Category</span>
           <span class="panel-action">Volume Breakdown</span>
@@ -220,6 +220,7 @@ import { useReports } from '../composables/useReports.js';
 import { useRequests } from '../composables/useRequests.js';
 import { useAuth } from '../composables/useAuth.js';
 import UiIcon from '../components/UiIcon.vue';
+import { hasAdminAccess } from '../lib/access.js';
 const AnalyticsDashboard = defineAsyncComponent(() => import('../components/AnalyticsDashboard.vue'));
 
 const props = defineProps({

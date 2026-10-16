@@ -164,6 +164,43 @@ describe('useAuth sign-in handling', () => {
     );
   });
 
+  it('loads an Assistant login into the administrative history feed', async () => {
+    mocks.loginRecordResult = [{
+      id: 'LOGIN-auth-assistant-1',
+      user_name: 'Assistant User',
+      role: 'Assistant',
+      email: 'assistant@nvsu.edu.ph',
+      logged_in_at: '2026-10-12T09:00:00.000Z'
+    }];
+    mocks.auth.signInWithPassword.mockResolvedValue({
+      data: { user: { id: 'auth-assistant', email: 'assistant@nvsu.edu.ph' } },
+      error: null
+    });
+    mocks.profileResult = {
+      data: {
+        auth_user_id: 'auth-assistant',
+        name: 'Assistant User',
+        email: 'assistant@nvsu.edu.ph',
+        role: 'Assistant',
+        is_active: true,
+        registration_status: 'approved'
+      },
+      error: null
+    };
+    const auth = await loadAuth();
+    await auth.login('assistant@nvsu.edu.ph', 'password', 'Assistant');
+
+    expect(auth.loginEvents.value).toContainEqual(expect.objectContaining({
+      id: 'LOGIN-auth-assistant-1',
+      title: 'Assistant User'
+    }));
+    expect(mocks.channel.on).toHaveBeenCalledWith(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'login_events' },
+      expect.any(Function)
+    );
+  });
+
   it('adds staff sign-ins from realtime payloads immediately to Admin login history', async () => {
     mocks.loginRecordResult = [{
       id: 'LOGIN-auth-admin-1',

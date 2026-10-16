@@ -10,23 +10,22 @@ describe('role access', () => {
     }
   });
 
-  it('keeps administrative routes out of non-admin navigation', () => {
-    for (const role of ['Employee', 'Assistant', 'Personnel']) {
+  it('grants Admin and Assistant the same administrative routes', () => {
+    const adminViews = ['dashboard', 'submit', 'reports', 'requests', 'admin', 'activity-log', 'user-management', 'profile', 'settings', 'evaluation-results'];
+    for (const view of adminViews) {
+      expect(canAccessView('Admin', view)).toBe(true);
+      expect(canAccessView('Assistant', view)).toBe(true);
+    }
+    for (const role of ['Employee', 'Personnel']) {
       for (const view of ['user-management', 'activity-log', 'evaluation-results']) {
         expect(canAccessView(role, view)).toBe(false);
       }
     }
-    expect(canAccessView('Admin', 'user-management')).toBe(true);
-    expect(canAccessView('Admin', 'evaluation-results')).toBe(true);
-    expect(canAccessView('Admin', 'requests')).toBe(true);
-    expect(canAccessView('Assistant', 'requests')).toBe(false);
   });
 
   it('limits employee, assistant, and personnel to their intended screens', () => {
     expect(canAccessView('Employee', 'my-requisitions')).toBe(true);
     expect(canAccessView('Employee', 'submit')).toBe(false);
-    expect(canAccessView('Assistant', 'admin')).toBe(true);
-    expect(canAccessView('Assistant', 'settings')).toBe(true);
     expect(canAccessView('Personnel', 'tasks')).toBe(true);
     expect(canAccessView('Personnel', 'reports')).toBe(true);
     expect(canAccessView('Personnel', 'requests')).toBe(true);

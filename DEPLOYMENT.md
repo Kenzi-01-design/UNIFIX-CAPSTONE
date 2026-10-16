@@ -16,7 +16,7 @@ for authentication, Postgres, Storage, and Edge Functions.
    separate optional Settings flow.
 2. For an existing project, apply every migration in
    `supabase/migrations/` in ascending filename order. The current repository
-   sequence ends at `202610130001_preserve_tracking_code_counter.sql`; do not stop at an
+   sequence ends at `202610160001_assistant_admin_access.sql`; do not stop at an
    older migration cutoff. Confirm the applied migration list against the
    project before applying anything. Migration
    `202610060016_start_tracking_codes_at_100.sql` sets the current-year
@@ -25,12 +25,14 @@ for authentication, Postgres, Storage, and Edge Functions.
    `202610130001_preserve_tracking_code_counter.sql`; it only raises the
    counter to at least 99 and preserves higher current-year values found in
    either the counter table or existing report/request tracking codes. Review
-   the resulting counter and codes in staging before production.
+   the resulting counter and codes in staging before production. The final
+   migration gives Assistants the same application permissions as Admins while
+   keeping separate roles for first-Admin bootstrap and last-Admin protection.
    For a new project, run the complete `supabase/schema.sql` script instead of
    replaying the migration history. It requests a PostgREST schema-cache reload
    after creating database objects.
 3. Review RLS and Storage policies in the Dashboard. Do not enable broad anonymous read access to reports, requests, user profiles, notifications, or photos.
-4. For self-registration, apply the registration and account-flow migrations before opening registration. In **Authentication → Providers → Email**, turn **Confirm email** off, then save. Applicants may request Employee, Assistant, or Personnel; all new accounts are still created inactive and pending. An Admin must confirm or change the requested role in User Management before approval activates the account. Admin cannot be requested during public signup. Never trust client-submitted roles.
+4. For self-registration, apply the registration and account-flow migrations before opening registration. In **Authentication → Providers → Email**, turn **Confirm email** off, then save. Applicants may request Employee, Assistant, or Personnel; all new accounts are still created inactive and pending. An Admin or Assistant must confirm or change the requested role in User Management before approval activates the account. Admin cannot be requested during public signup. Never trust client-submitted roles.
 5. Configure Cloudflare Turnstile with the production host name.
 
 ## 2. Set frontend environment variables
@@ -191,7 +193,7 @@ current no-data-change constraint. The complete smoke-test variable list is in
 - Verify tracking results expose milestones and a generic assigned-team label only.
 - Test Employee, Assistant, Personnel, and Admin accounts against the permission matrix in `README.md`.
 - Install the PWA, open it once online, then test its offline fallback and queued report drafts.
-- Submit a test survey and check the Admin-only aggregated results; ensure no personal identifiers appear.
+- Submit a test survey and check the Admin/Assistant aggregated results; ensure no personal identifiers appear.
 - Run the SQL RLS suite against a disposable/staging project with `pnpm test:rls`.
 - Inspect browser requests and built assets; the Supabase service-role key must never appear.
 - Check backups, project-level MFA, Auth redirect URLs, Turnstile allowed hostnames, and notification webhook configuration.

@@ -37,7 +37,7 @@
           <span>{{ report.loc }}</span>
         </div>
         <div class="modal-desc">{{ report.desc || report.description || 'No description provided.' }}</div>
-        <section v-if="currentRole === 'Admin' && canAdminResolve" class="verification-review">
+        <section v-if="hasAdminAccess(currentRole) && canAdminResolve" class="verification-review">
           <strong>Review completed work</strong>
           <p>Verify the repair or return it for rework with a clear reason.</p>
           <label class="sr-only" :for="`report-rejection-${report.id}`">Reason for rejecting verification</label>
@@ -112,7 +112,7 @@
         <button class="btn-secondary" @click="$emit('close')">Close</button>
 
         <!-- Admin Specific Actions -->
-        <template v-if="currentRole === 'Admin'">
+        <template v-if="hasAdminAccess(currentRole)">
           <button class="btn-primary" @click="$emit('assign', report.id)">
             {{ report.assignedTo ? 'Reassign' : 'Assign' }}
           </button>
@@ -173,6 +173,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import PhotoPicker from './PhotoPicker.vue';
+import { hasAdminAccess } from '../lib/access.js';
 import PhotoGallery from './PhotoGallery.vue';
 import { useReportFeedback } from '../composables/useReportFeedback.js';
 import { useReports } from '../composables/useReports.js';

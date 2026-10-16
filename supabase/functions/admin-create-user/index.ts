@@ -65,8 +65,8 @@ Deno.serve(async (request) => {
       console.error('Admin invitation caller profile lookup failed.');
       return respond(origin, { error: 'Unable to verify administrator access.' }, 503);
     }
-    if (!actor?.is_active || actor.role !== 'Admin') {
-      return respond(origin, { error: 'Only active administrators may invite users.' }, 403);
+    if (!actor?.is_active || !['Admin', 'Assistant'].includes(actor.role)) {
+      return respond(origin, { error: 'Only active administrators and assistants may manage users.' }, 403);
     }
 
     const limitKey = await hash(`admin-create-user:${authData.user.id}`);

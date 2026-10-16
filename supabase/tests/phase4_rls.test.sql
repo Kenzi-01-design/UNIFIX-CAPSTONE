@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(33);
 
 insert into public.user_profiles (id, name, email, role, department)
 values
@@ -152,6 +152,45 @@ reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"role":"authenticated","email":"assistant.user@nvsu.edu.ph"}', true);
+select ok(public.has_admin_access(), 'Assistant receives the shared administrative authorization');
+select is(
+  (select count(*) from public.user_profiles where email = 'phase4-target@nvsu.edu.ph'),
+  1::bigint,
+  'Assistant can read user profiles for account management'
+);
+select throws_ok(
+  $$update public.user_profiles set role = 'Admin' where email = 'assistant.user@nvsu.edu.ph'$$,
+  'P0001',
+  'Assistant cannot promote their own account'
+);
+select throws_ok(
+  $$update public.user_profiles set is_active = false where email = 'assistant.user@nvsu.edu.ph'$$,
+  'P0001',
+  'Assistant cannot deactivate their own account'
+);
+update public.user_profiles
+set role = 'Personnel'
+where email = 'phase4-target@nvsu.edu.ph';
+select is(
+  (select role from public.user_profiles where email = 'phase4-target@nvsu.edu.ph'),
+  'Personnel',
+  'Assistant can manage user roles'
+);
+update public.reports
+set assigned_personnel = '["Juan dela Cruz"]'::jsonb,
+    assigned_to = 'Juan dela Cruz',
+    status = 'in-progress',
+    technician_state = 'assigned'
+where id = 'phase4-rls-unassigned-report';
+select is(
+  (select assigned_to from public.reports where id = 'phase4-rls-unassigned-report'),
+  'Juan dela Cruz',
+  'Assistant can assign a report to Personnel'
+);
+select lives_ok(
+  $$select public.get_evaluation_summary()$$,
+  'Assistant can view aggregated evaluation results'
+);
 update public.reports set status = 'closed'
 where id = 'phase5-rls-duplicate-parent';
 select is(

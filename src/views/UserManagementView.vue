@@ -106,7 +106,7 @@
             </tbody>
           </table>
         </div>
-        <p class="user-form-note">Applicants can request Employee, Assistant, or Personnel. Confirm or change the requested role before approving; accounts remain inactive until Admin approval. Rejected accounts remain inactive, and applicants may request a new review once every 30 days.</p>
+        <p class="user-form-note">Applicants can request Employee, Assistant, or Personnel. Confirm or change the requested role before approving; accounts remain inactive until an Admin or Assistant approves them. Rejected accounts remain inactive, and applicants may request a new review once every 30 days.</p>
       </section>
 
       <section v-else-if="activeTab === 'invite'" class="panel user-form-panel">

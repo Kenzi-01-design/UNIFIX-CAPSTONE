@@ -1,7 +1,7 @@
 <template>
   <div class="view active" id="view-admin">
     <div class="admin-toolbar">
-      <div v-if="currentRole === 'Admin'" class="admin-toolbar-actions">
+      <div v-if="hasAdminAccess(currentRole)" class="admin-toolbar-actions">
         <button class="btn-secondary admin-toolbar-button" @click="exportCSV">
           <UiIcon name="export" :size="16" /> Export CSV
         </button>
@@ -33,7 +33,7 @@
         All Requests <span class="tab-count">{{ requests.length }}</span>
       </button>
       <button
-        v-if="currentRole === 'Admin'"
+        v-if="hasAdminAccess(currentRole)"
         type="button"
         class="admin-tab"
         :class="{ active: activeAdminTab === 'assignment' }"
@@ -44,7 +44,7 @@
         Assign Personnel <span class="tab-count">{{ unassignedQueue.length }}</span>
       </button>
       <button
-        v-if="currentRole === 'Admin'"
+        v-if="hasAdminAccess(currentRole)"
         type="button"
         class="admin-tab"
         :class="{ active: activeAdminTab === 'facilities' }"
@@ -57,12 +57,12 @@
     </div>
 
     <div class="admin-grid">
-      <FacilitiesMaintenancePanel v-if="currentRole === 'Admin' && activeAdminTab === 'facilities'" />
+      <FacilitiesMaintenancePanel v-if="hasAdminAccess(currentRole) && activeAdminTab === 'facilities'" />
 
       <!-- 1. Maintenance Reports Table -->
       <div v-if="activeAdminTab === 'reports'" class="report-table-wrap">
         <div class="panel-header">
-          <span class="panel-title">{{ currentRole === 'Admin' ? 'All Reports — Manage & Assign' : 'Review Reports' }}</span>
+          <span class="panel-title">{{ hasAdminAccess(currentRole) ? 'All Reports — Manage & Assign' : 'Review Reports' }}</span>
           <div class="admin-panel-header-actions">
             <span class="panel-action">{{ reports.length }} total</span>
           </div>
@@ -76,7 +76,7 @@
                 <th>Category</th>
                 <th>Location</th>
                 <th>Risk</th>
-                <th v-if="currentRole !== 'Assistant'">Status</th>
+                <th>Status</th>
                 <th>Assigned To</th>
                 <th>Actions</th>
               </tr>
@@ -89,7 +89,7 @@
                 <td style="font-size:12px;color:var(--text-3)">{{ r.loc.split('·')[0] }}</td>
                 <td>
                   <select
-                    v-if="['Admin', 'Assistant'].includes(currentRole)"
+                    v-if="hasAdminAccess(currentRole)"
                     class="risk-select"
                     :value="normalizeRisk(r.risk)"
                     @change="handleReportRisk(r.id, $event.target.value)"
@@ -100,12 +100,12 @@
                   </select>
                   <span v-else :class="['tag', r.risk]">{{ capitalize(r.risk) }}</span>
                 </td>
-                <td v-if="currentRole !== 'Assistant'"><span :class="['tag', r.status]">{{ formatStatus(r.status) }}</span></td>
+                <td><span :class="['tag', r.status]">{{ formatStatus(r.status) }}</span></td>
                 <td style="font-size:12px">
                   <span v-if="r.assignedTo">{{ r.assignedTo }}</span>
                   <span v-else style="color:var(--red);font-weight:700">Unassigned</span>
                 </td>
-                <td v-if="currentRole === 'Admin'" style="display:flex;gap:6px;flex-wrap:wrap">
+                <td v-if="hasAdminAccess(currentRole)" style="display:flex;gap:6px;flex-wrap:wrap">
                   <button class="admin-action-btn" type="button" @click="$emit('open-report', r.id)">View details & photos</button>
                   <button class="admin-action-btn assign" @click="pickForAssignment(r.id)">
                     {{ r.assignedTo ? '+ Personnel' : 'Assign' }}
@@ -126,7 +126,7 @@
       </div>
 
       <!-- 2. Assignment Panel -->
-      <div v-if="currentRole === 'Admin' && activeAdminTab === 'assignment'" class="analytics-panel">
+      <div v-if="hasAdminAccess(currentRole) && activeAdminTab === 'assignment'" class="analytics-panel">
         <div ref="assignmentPanel" class="panel">
           <div class="panel-header">
             <span class="panel-title">Assign Personnel</span>
@@ -235,7 +235,7 @@
                 <th>Date</th>
                 <th>Status</th>
                 <th>Risk</th>
-                <th v-if="currentRole === 'Admin'">Admin Remark</th>
+                <th v-if="hasAdminAccess(currentRole)">Admin Remark</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -257,7 +257,7 @@
                 <td><span :class="['tag', req.status]">{{ formatStatus(req.status) }}</span></td>
                 <td>
                   <select
-                    v-if="currentRole === 'Admin'"
+                    v-if="hasAdminAccess(currentRole)"
                     class="risk-select"
                     :value="req.risk || 'low'"
                     @change="handleRequestRisk(req.id, $event.target.value)"
@@ -268,11 +268,11 @@
                   </select>
                   <span v-else :class="['tag', req.risk || 'low']">{{ capitalize(req.risk || 'low') }}</span>
                 </td>
-                <td v-if="currentRole === 'Admin'" style="min-width: 240px;">
+                <td v-if="hasAdminAccess(currentRole)" style="min-width: 240px;">
                   <textarea v-model="req.adminRemark" rows="2" maxlength="1000" placeholder="Explain delay or resource issue..." style="width:100%;"></textarea>
                   <button class="admin-action-btn assign" @click="handleRequestRemark(req.id, req.adminRemark)">Save Remark</button>
                 </td>
-                <td v-if="currentRole === 'Admin'" style="display:flex;gap:6px;flex-wrap:wrap">
+                <td v-if="hasAdminAccess(currentRole)" style="display:flex;gap:6px;flex-wrap:wrap">
                   <button class="admin-action-btn" type="button" @click="$emit('open-request', req.id)">View details & photos</button>
                   <button class="admin-action-btn assign" @click="pickRequestForAssignment(req.id)">
                     {{ req.assignedTo ? 'Reassign' : 'Assign' }}
@@ -291,7 +291,7 @@
                 </td>
               </tr>
               <tr v-if="!requests.length">
-                <td :colspan="currentRole === 'Admin' ? 9 : 7" style="text-align: center; color: var(--text-3); padding: 24px;">
+                <td :colspan="hasAdminAccess(currentRole) ? 9 : 7" style="text-align: center; color: var(--text-3); padding: 24px;">
                   No faculty requests submitted yet.
                 </td>
               </tr>
@@ -310,6 +310,7 @@ import { useRequests } from '../composables/useRequests.js';
 import { useToast } from '../composables/useToast.js';
 import UiIcon from '../components/UiIcon.vue';
 import FacilitiesMaintenancePanel from '../components/FacilitiesMaintenancePanel.vue';
+import { hasAdminAccess } from '../lib/access.js';
 
 const props = defineProps({
   currentRole: {
@@ -355,24 +356,24 @@ function normalizeRisk(risk) {
 }
 
 function handleReportRisk(id, risk) {
-  if (!['Admin', 'Assistant'].includes(currentRole.value)) return;
+  if (!hasAdminAccess(currentRole.value)) return;
   setReportRisk(id, risk);
   showToast(`${id} risk marked ${capitalize(risk)}.`, 'success');
 }
 
 function handleRequestRisk(id, risk) {
-  if (!['Admin', 'Assistant'].includes(currentRole.value)) return;
+  if (!hasAdminAccess(currentRole.value)) return;
   setRequestRisk(id, risk);
   showToast(`${id} risk marked ${capitalize(risk)}.`, 'success');
 }
 
 function handleReportRemark(id, remark) {
-  if (currentRole.value !== 'Admin') return;
+  if (!hasAdminAccess(currentRole.value)) return;
   if (setReportRemark(id, remark)) showToast(`Remark saved for ${id}.`, 'success');
 }
 
 function handleRequestRemark(id, remark) {
-  if (currentRole.value !== 'Admin') return;
+  if (!hasAdminAccess(currentRole.value)) return;
   if (setRequestRemark(id, remark)) showToast(`Remark saved for ${id}.`, 'success');
 }
 

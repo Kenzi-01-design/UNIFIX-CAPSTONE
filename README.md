@@ -16,15 +16,15 @@ Supabase is prepared as the database layer for reports, requests, and login even
 1. Create a Supabase project.
 2. Copy `.env.example` to `.env.local`.
 3. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the project API settings.
-4. Run the complete `supabase/schema.sql` script in the Supabase SQL Editor for a new project. For an existing project, apply the additive scripts in `supabase/migrations/` in filename order. The schema and migration sequence include durable, realtime activity history. Login records are written and read through authenticated database functions, with staff identity and Admin access checked server-side. Both paths request a PostgREST schema-cache reload after the database objects are installed.
-5. Users can submit registrations from the public **Create account** page. Apply `202610050017_user_registration_approval.sql`; each new Auth account then gets a pending, inactive Employee profile, which an Admin must approve and assign a role to before sign-in is enabled.
+4. Run the complete `supabase/schema.sql` script in the Supabase SQL Editor for a new project. For an existing project, apply the additive scripts in `supabase/migrations/` in filename order. The schema and migration sequence include durable, realtime activity history. Login records are written and read through authenticated database functions, with staff identity and Admin/Assistant access checked server-side. Both paths request a PostgREST schema-cache reload after the database objects are installed.
+5. Users can submit registrations from the public **Create account** page. Apply `202610050017_user_registration_approval.sql`; each new Auth account then gets a pending, inactive Employee profile, which an Admin or Assistant can approve and assign a role to before sign-in is enabled.
 6. Deploy the public and notification Edge Functions after setting the CAPTCHA, allowed-origin, and notification values below.
 
 ### Phase 1 capabilities
 
 - Report and request images are compressed in the browser and stored in the private `report-photos` bucket (up to three JPG/PNG/WebP images per work item, at most 5 MB each).
 - Every report and request receives a database-generated tracking code. The public tracking page reveals only milestone status, a generic assigned team label, and the last update time.
-- Administrators can review and assign reports and requests, and verify completed work.
+- Admins and Assistants can review and assign reports and requests, and verify completed work.
 - A reporter can submit one 1–5 rating and optional comment after a report is completed. Administrators and assistants can see report average ratings.
 
 ### Public report CAPTCHA
@@ -50,8 +50,9 @@ function to be called without a user JWT; Turnstile verification is the gate.
 
 Applicants may request Employee, Assistant, or Personnel during registration.
 The request is stored separately from the account's effective role; new profiles
-remain inactive and pending until an Admin confirms or changes the role and
-approves the application. Public registration cannot request the Admin role.
+remain inactive and pending until an Admin or Assistant confirms or changes the
+role and approves the application. Public registration cannot request the Admin
+role.
 Apply migration `202610060007_requested_registration_role.sql` to existing
 projects before enabling role selection.
 
@@ -98,9 +99,9 @@ cannot be reconstructed.
 
 - Admin and Assistant dashboards include date/category-filtered operational KPIs, workload and issue charts, CSV export, and a print-ready PDF summary. Production aggregates are calculated by the `get_unifix_analytics` database function; demo mode calculates the same metrics from local demo records.
 - Report submission checks open reports with the same category and location and a similar title. The reporter can add a vote/note to an existing report or continue as a distinct issue. Public matching returns only a small set of matching issue details, and search/vote RPCs are rate-limited. Administrators can merge eligible reports; merged items inherit later status changes from the primary report.
-- Administrators manage building/floor/room locations. Active locations populate report and request forms; printable QR sheets link to `/report?location=<id>` and pre-fill the matching report location.
+- Admins and Assistants manage building/floor/room locations. Active locations populate report and request forms; printable QR sheets link to `/report?location=<id>` and pre-fill the matching report location.
 - Service requests include a formatted job-order print view with control number, requester/office, service details, signature blocks, and completion/acceptance section. The **Download PDF** action opens the browser's print dialog; select **Save as PDF**.
-- Administrators can create/edit and pause preventive-maintenance schedules. Due schedules generate tagged work orders and advance their next-due date. The Admin panel's **Generate due work orders** action runs due schedules immediately.
+- Admins and Assistants can create/edit and pause preventive-maintenance schedules. Due schedules generate tagged work orders and advance their next-due date. The Admin panel's **Generate due work orders** action runs due schedules immediately.
 
 Apply `supabase/migrations/202610050003_phase3_analytics_duplicates_locations_maintenance.sql` to an existing project, or use the updated `supabase/schema.sql` for a fresh project. To run preventive schedules automatically, enable `pg_cron` in the Supabase Dashboard, then schedule the database function in the SQL Editor:
 
@@ -116,7 +117,7 @@ The daily job creates at most one work order per schedule per due date and advan
 
 For an existing project, apply all migrations in ascending filename order
 through the current latest migration,
-`202610130001_preserve_tracking_code_counter.sql`. See [DEPLOYMENT.md](DEPLOYMENT.md)
+`202610160001_assistant_admin_access.sql`. See [DEPLOYMENT.md](DEPLOYMENT.md)
 for the tracking-counter migration caution.
 For a new project, use the complete `supabase/schema.sql` instead of replaying
 the migration history.
@@ -133,8 +134,7 @@ For local-only demo mode without Supabase, explicitly set `VITE_DEMO_MODE=true`.
 The schema creates reports, requests, login events, user profiles, and persisted user preferences. It also enables Row Level Security:
 
 - authenticated reporters can create and view their own reports/requests;
-- administrators manage all records and user profiles;
-- assistants can adjust risk and review submissions;
+- Admins and Assistants manage reports and requests, assign personnel, verify work, and manage user profiles, facilities, and account approvals; the Admin role remains distinct for first-admin bootstrap and last-admin protection;
 - assigned personnel can progress only their own work orders; and
 - users can edit only their own contact details and notification preferences.
 
@@ -149,7 +149,7 @@ The database policies require Supabase Auth and match authenticated email addres
 ### Phase 4 quality, security, and evaluation
 
 - The app is installable as a PWA, caches its application shell after the first online visit, and shows an offline fallback. Public report drafts (including compressed photo files) can be saved in IndexedDB on the device. Drafts are restored on reconnect but are **not silently submitted**: users must review the content, reconnect, and complete Turnstile verification before sending.
-- Anonymous SUS and ISO/IEC 25010 evaluation is available from the public home page and signed-in navigation. The survey stores only ratings and a respondent-selected role. No name, email, or account identifier is saved. Public writes go through a size-limited, origin-checked Edge Function with database-backed rate limiting; the Admin results page returns aggregates only.
+- Anonymous SUS and ISO/IEC 25010 evaluation is available from the public home page and signed-in navigation. The survey stores only ratings and a respondent-selected role. No name, email, or account identifier is saved. Public writes go through a size-limited, origin-checked Edge Function with database-backed rate limiting; the Admin/Assistant results page returns aggregates only.
 - Personnel report reads are restricted to reports assigned to them or reports they personally submitted. New evaluation responses have RLS enabled and cannot be read directly by any client role.
 - Vitest covers report/request verification transitions. The pgTAP RLS suite is in `supabase/tests/phase4_rls.test.sql`. Run `pnpm test` for unit tests and `pnpm test:rls` against a local/staging Supabase instance.
 - `pnpm security:check` scans the built frontend bundle for a service-role environment reference or JWT. `vercel.json`, `public/_headers`, and `public/_redirects` configure deployment security headers and SPA routing.
@@ -171,8 +171,7 @@ requires the Supabase CLI and a disposable local or staging database. Apply
 Phase 1–3 migrations, or use the complete `supabase/schema.sql` for a new
 project. Deploy `swift-worker` as described in [DEPLOYMENT.md](DEPLOYMENT.md).
 For existing projects, apply every migration in ascending filename order
-through the current latest migration,
-`202610130001_preserve_tracking_code_counter.sql`.
+through the current latest migration.
 Review [DEPLOYMENT.md](DEPLOYMENT.md) before applying migrations to a live
 project.
 
@@ -201,14 +200,14 @@ provider setup is covered in the Phase 1/2 sections and deployment guide.
 | Capability | Public | Employee | Assistant | Personnel | Admin |
 | --- | --- | --- | --- | --- | --- |
 | Submit public report and track by code | Yes | Yes | Yes | Yes | Yes |
-| Submit/read service requests | No sign-in; public report flow | Own requests | Review requests | Assigned requests only | All |
+| Submit/read service requests | No sign-in; public report flow | Own requests | All | Assigned requests only | All |
 | View reports | Tracking milestones only | Own submissions | All reports | Assigned reports and own submissions | All |
-| Assign personnel / manage users and roles | No | No | No | No | Yes |
-| Update assigned work progress | No | No | No | Assigned work only | Yes |
+| Assign personnel / manage users and roles | No | No | Yes | No | Yes |
+| Update assigned work progress | No | No | Yes | Assigned work only | Yes |
 | Verify completed work | No | No | Yes | No | Yes |
-| Configure locations and maintenance schedules | No | No | No | No | Yes |
+| Configure locations and maintenance schedules | No | No | Yes | No | Yes |
 | View analytics | No | No | Analytics | No | Yes |
-| View evaluation aggregates | No | No | No | No | Yes |
+| View analytics, activity, and evaluation results | No | No | Yes | No | Yes |
 | Submit optional anonymous evaluation | Yes | Yes | Yes | Yes | Yes |
 
 The database also recognizes a `Student` profile role. It can submit its own
