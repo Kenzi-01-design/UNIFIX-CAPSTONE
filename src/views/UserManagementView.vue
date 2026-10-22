@@ -191,12 +191,6 @@
                   >
                     {{ user.isActive ? 'Deactivate' : 'Reactivate' }}
                   </button>
-                  <button
-                    v-if="user.authUserId || isDemoMode"
-                    class="admin-action-btn assign"
-                    :disabled="deletingUserId === user.id"
-                    @click="deleteAccount(user)"
-                  >{{ deletingUserId === user.id ? 'Deleting…' : 'Delete account' }}</button>
                 </td>
               </tr>
               <tr v-if="!profiles.length"><td colspan="6" class="empty-users">No user profiles found.</td></tr>
@@ -217,7 +211,7 @@ import { resolveApprovalRole } from '../lib/registrationRoles.js';
 
 const {
   profiles, profilesLoadError, reapplicationsLoadError, roles, loadProfiles, inviteUser, updateProfile,
-  setProfileActive, reviewRegistration, reopenRegistration, deleteUserAccount
+  setProfileActive, reviewRegistration, reopenRegistration
 } = useUserProfiles();
 const { showToast } = useToast();
 const activeTab = ref('approvals');
@@ -226,7 +220,6 @@ const savingUser = ref(false);
 const editingId = ref('');
 const reviewingUserId = ref('');
 const reopeningUserId = ref('');
-const deletingUserId = ref('');
 const departments = ['CIT', 'CAS', 'COE', 'CTE'];
 const form = reactive({ name: '', email: '', role: 'Employee', department: '', phone: '', location: 'Bambang Campus' });
 const activeUsers = computed(() => profiles.value.filter((user) => user.isActive).length);
@@ -319,19 +312,6 @@ async function reopenUser(user) {
     showToast(error.message || 'Unable to reopen this application.', 'error');
   } finally {
     reopeningUserId.value = '';
-  }
-}
-
-async function deleteAccount(user) {
-  if (!window.confirm(`Delete the Auth account and profile for ${user.name} (${user.email})? Accounts linked to work history cannot be deleted.`)) return;
-  deletingUserId.value = user.id;
-  try {
-    await deleteUserAccount(user.authUserId, user.id);
-    showToast(isDemoMode ? 'Demo account removed.' : 'Auth account and profile deleted.', 'success');
-  } catch (error) {
-    showToast(error.message || 'Unable to delete this account.', 'error');
-  } finally {
-    deletingUserId.value = '';
   }
 }
 
