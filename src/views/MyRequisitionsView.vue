@@ -54,11 +54,12 @@
             </div>
             <form
               v-if="canReopen(req)"
-              class="request-feedback"
+              class="request-feedback request-reopen"
               @submit.prevent="reopenRequest(req.id)"
             >
               <strong>Reopen this request</strong>
-              <label :for="`reopen-${req.id}`">Reason (5–500 characters)</label>
+              <p>Available for 7 days after verification. Provide a reason so staff can continue the work.</p>
+              <label class="sr-only" :for="`reopen-${req.id}`">Reason for reopening</label>
               <textarea
                 :id="`reopen-${req.id}`"
                 v-model="reopenDrafts[req.id]"
@@ -66,14 +67,14 @@
                 maxlength="500"
                 minlength="5"
                 required
-                placeholder="Explain why this request needs further work..."
+                placeholder="Reason for reopening (5–500 characters)"
               ></textarea>
               <button
                 class="btn-primary feedback-submit"
                 type="submit"
                 :disabled="(reopenDrafts[req.id] || '').trim().length < 5"
               >
-                Reopen Request
+                Reopen request
               </button>
             </form>
           </div>
@@ -164,5 +165,11 @@ function openJobOrder(request, action) {
 .request-feedback textarea { display: block; width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; resize: vertical; outline: none; }
 .request-feedback textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(15, 107, 61, 0.12); }
 .feedback-submit { margin-top: 8px; padding: 8px 12px; font-size: 12px; }
+.request-reopen { padding: 16px; border-radius: 10px; }
+.request-reopen > strong { color: var(--text); font-size: 14px; }
+.request-reopen > p { margin: 7px 0 12px; color: var(--text-2); font-size: 12px; line-height: 1.5; }
+.request-reopen textarea { padding: 11px 12px; border-color: var(--border-dark); border-radius: 8px; font-size: 13px; line-height: 1.5; }
+.request-reopen .feedback-submit { width: 100%; margin-top: 10px; padding: 12px 16px; font-size: 14px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
 .empty-requisitions { color: var(--text-3); font-size: 13px; text-align: center; padding: 36px 0; }
 </style>
