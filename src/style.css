@@ -524,7 +524,7 @@ textarea,
   display: flex;
   align-items: baseline;
   flex: 1;
-  gap: 4px;
+  gap: 8px;
   min-width: 0;
 }
 .user-info .user-role {
