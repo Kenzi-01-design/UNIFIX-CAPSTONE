@@ -21,15 +21,6 @@ describe('getPublicFunctionErrorMessage', () => {
     expect(message).toContain('PUBLIC_APP_ORIGINS');
   });
 
-  it('points password recovery network failures to its dedicated origin setting', async () => {
-    const message = await getPublicFunctionErrorMessage('password-recovery', {
-      name: 'FunctionsFetchError',
-      message: 'Failed to send a request to the Edge Function'
-    });
-
-    expect(message).toContain('PASSWORD_RECOVERY_APP_ORIGINS');
-  });
-
   it('shows safe function error details from JSON responses', async () => {
     const context = { clone: vi.fn(() => ({ json: async () => ({ error: 'Invalid tracking code.' }) })) };
 

@@ -175,6 +175,13 @@
                 <td class="user-actions">
                   <button class="admin-action-btn assign" @click="editUser(user)">Edit</button>
                   <button
+                    v-if="currentRole === 'Admin' && user.authUserId && user.isActive && user.registrationStatus === 'approved'"
+                    class="admin-action-btn assign"
+                    @click="openPasswordUpdate(user)"
+                  >
+                    Set password
+                  </button>
+                  <button
                     v-if="user.registrationStatus === 'rejected' && (user.reapplicationRequestedAt || isDemoMode)"
                     class="admin-action-btn assign"
                     :disabled="reopeningUserId === user.id"
@@ -199,6 +206,64 @@
         </div>
       </section>
     </div>
+
+    <div
+      v-if="passwordTarget"
+      class="user-password-overlay"
+      @click.self="closePasswordUpdate"
+    >
+      <section
+        class="user-password-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="set-user-password-title"
+      >
+        <h3 id="set-user-password-title">Set password for {{ passwordTarget.name }}</h3>
+        <p>Give the new password directly to the user at the campus office. Do not send it by email or chat.</p>
+        <form v-if="!passwordUpdated" class="user-password-form" @submit.prevent="updateUserPassword">
+          <label for="admin-new-user-password">New password</label>
+          <input
+            id="admin-new-user-password"
+            v-model="newUserPassword"
+            type="password"
+            autocomplete="new-password"
+            minlength="8"
+            maxlength="128"
+            required
+          />
+          <label for="admin-confirm-user-password">Confirm new password</label>
+          <input
+            id="admin-confirm-user-password"
+            v-model="confirmUserPassword"
+            type="password"
+            autocomplete="new-password"
+            minlength="8"
+            maxlength="128"
+            required
+          />
+          <div class="user-password-actions">
+            <button type="button" class="btn-secondary" :disabled="updatingPassword" @click="closePasswordUpdate">Cancel</button>
+            <button type="submit" class="btn-primary" :disabled="updatingPassword">
+              {{ updatingPassword ? 'Updating…' : 'Update password' }}
+            </button>
+          </div>
+        </form>
+        <div v-else class="user-password-updated" role="status">
+          <label for="updated-user-password">Updated password</label>
+          <input
+            id="updated-user-password"
+            :type="showAdminPassword ? 'text' : 'password'"
+            :value="newUserPassword"
+            readonly
+            autocomplete="off"
+          />
+          <button type="button" class="user-password-toggle" @click="showAdminPassword = !showAdminPassword">
+            {{ showAdminPassword ? 'Hide password' : 'Show password' }}
+          </button>
+          <button type="button" class="btn-primary" @click="closePasswordUpdate">Done</button>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -209,9 +274,11 @@ import { useUserProfiles } from '../composables/useUserProfiles.js';
 import { useToast } from '../composables/useToast.js';
 import { resolveApprovalRole } from '../lib/registrationRoles.js';
 
+defineProps({ currentRole: { type: String, required: true } });
+
 const {
   profiles, profilesLoadError, reapplicationsLoadError, roles, loadProfiles, inviteUser, updateProfile,
-  setProfileActive, reviewRegistration, reopenRegistration
+  setProfileActive, reviewRegistration, reopenRegistration, setUserPassword
 } = useUserProfiles();
 const { showToast } = useToast();
 const activeTab = ref('approvals');
@@ -220,6 +287,12 @@ const savingUser = ref(false);
 const editingId = ref('');
 const reviewingUserId = ref('');
 const reopeningUserId = ref('');
+const passwordTarget = ref(null);
+const newUserPassword = ref('');
+const confirmUserPassword = ref('');
+const updatingPassword = ref(false);
+const passwordUpdated = ref(false);
+const showAdminPassword = ref(false);
 const departments = ['CIT', 'CAS', 'COE', 'CTE'];
 const form = reactive({ name: '', email: '', role: 'Employee', department: '', phone: '', location: 'Bambang Campus' });
 const activeUsers = computed(() => profiles.value.filter((user) => user.isActive).length);
@@ -249,6 +322,45 @@ function editUser(user) {
   editingId.value = user.id;
   Object.assign(form, user);
   activeTab.value = 'invite';
+}
+
+function openPasswordUpdate(user) {
+  passwordTarget.value = user;
+  newUserPassword.value = '';
+  confirmUserPassword.value = '';
+  passwordUpdated.value = false;
+  showAdminPassword.value = false;
+}
+
+function closePasswordUpdate() {
+  if (updatingPassword.value) return;
+  passwordTarget.value = null;
+  newUserPassword.value = '';
+  confirmUserPassword.value = '';
+  passwordUpdated.value = false;
+  showAdminPassword.value = false;
+}
+
+async function updateUserPassword() {
+  if (!passwordTarget.value) return;
+  if (newUserPassword.value.length < 8 || newUserPassword.value.length > 128) {
+    showToast('The new password must be between 8 and 128 characters.', 'error');
+    return;
+  }
+  if (newUserPassword.value !== confirmUserPassword.value) {
+    showToast('The passwords do not match.', 'error');
+    return;
+  }
+  updatingPassword.value = true;
+  try {
+    await setUserPassword(passwordTarget.value.authUserId, newUserPassword.value);
+    passwordUpdated.value = true;
+    showToast(`${passwordTarget.value.name}'s password was updated.`, 'success');
+  } catch (error) {
+    showToast(error.message || 'Unable to update the user password.', 'error');
+  } finally {
+    updatingPassword.value = false;
+  }
 }
 
 async function saveUser() {
@@ -319,3 +431,46 @@ function formatRegistrationStatus(status) {
   return String(status || 'approved').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 </script>
+
+<style scoped>
+.user-password-overlay {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(15 23 42 / 58%);
+}
+.user-password-dialog {
+  width: min(100%, 440px);
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.user-password-dialog h3 { margin: 0 0 8px; }
+.user-password-dialog p { margin: 0 0 18px; color: var(--text-2); line-height: 1.5; }
+.user-password-form,.user-password-updated { display: grid; gap: 12px; }
+.user-password-form label,.user-password-updated label { font-size: 13px; font-weight: 700; }
+.user-password-form input,.user-password-updated input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.user-password-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+.user-password-updated .btn-primary { width: 100%; }
+.user-password-updated .user-password-toggle {
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  cursor: pointer;
+}
+</style>

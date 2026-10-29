@@ -10,15 +10,24 @@ for authentication, Postgres, Storage, and Edge Functions.
    production frontend origin (for example, `https://unifix.example.edu`). Add
    that origin and only the exact callback URLs used by the app to **Redirect
    URLs**. Add the local development origin only to a non-production project.
-   Password recovery and account registration callbacks must return to the
-   frontend origin; never use a wildcard redirect. Sign-up email confirmation
+   Account registration callbacks must return to the frontend origin; never
+   use a wildcard redirect. Sign-up email confirmation
    must be disabled as described below; notification email verification is a
    separate optional Settings flow.
 2. For an existing project, apply every migration in
    `supabase/migrations/` in ascending filename order. The current repository
-   sequence ends at `202610290001_sms_password_recovery.sql`; do not stop at an
+   sequence ends at `202610290002_remove_sms_password_recovery.sql`; do not stop at an
    older migration cutoff. Confirm the applied migration list against the
    project before applying anything. Migration
+   `202610290002_remove_sms_password_recovery.sql` drops the unused recovery
+   challenge storage. Before applying it, delete the previously deployed
+   self-service recovery function so the old email recovery path is disabled:
+
+   ```bash
+   supabase functions delete password-recovery
+   supabase secrets unset PASSWORD_RECOVERY_APP_ORIGINS
+   ```
+
    `202610060016_start_tracking_codes_at_100.sql` sets the current-year
    counter to 99 and can lower an existing counter. Never clear reports or
    requests to apply it. After the earlier migrations, apply
@@ -74,20 +83,13 @@ supabase secrets set RESEND_API_KEY=your-resend-key
 supabase secrets set NOTIFICATION_FROM_EMAIL="UNIFIX <notifications@example.edu>"
 supabase secrets set ADMIN_APP_ORIGINS=https://unifix.example.edu
 supabase secrets set NOTIFICATION_APP_ORIGINS=https://unifix.example.edu
-supabase secrets set PASSWORD_RECOVERY_APP_ORIGINS=https://unifix.example.edu
 ```
 
-Password recovery supports a verified alternate email recovery link and an SMS
-verification code sent to the phone number on an active, approved account. Apply
-the SMS password-recovery migration before deploying the function. Email recovery
-requires the configured Resend account; phone recovery requires the Semaphore
-settings below:
+Self-service password recovery is disabled. Active Admins can set a new password
+from **User Management → University Users** and provide it directly to the user
+at the campus office. Do not deploy a `password-recovery` function.
 
-```bash
-supabase functions deploy password-recovery
-```
-
-SMS settings (required for phone password recovery and SMS notifications):
+Semaphore is optional and is only needed if SMS notifications are enabled:
 
 ```bash
 supabase secrets set SEMAPHORE_API_KEY=your-semaphore-key
@@ -102,6 +104,7 @@ supabase functions deploy track-report
 supabase functions deploy swift-worker
 supabase functions deploy deliver-notification
 supabase functions deploy admin-create-user
+supabase functions deploy admin-set-user-password
 supabase functions deploy notification-email-verification
 ```
 
@@ -121,8 +124,8 @@ requirements are:
 | `swift-worker` | Supabase URL/anon/service-role keys, `PUBLIC_APP_ORIGINS` |
 | `deliver-notification` | Supabase URL/service-role key, `NOTIFICATION_WEBHOOK_SECRET`; Resend settings for email and Semaphore settings for optional SMS |
 | `admin-create-user` | Supabase URL/service-role key, `ADMIN_APP_ORIGINS` |
+| `admin-set-user-password` | Supabase URL/service-role key, `ADMIN_APP_ORIGINS`; verifies that the caller is an active Admin |
 | `notification-email-verification` | Supabase URL/anon/service-role keys, Resend settings, `NOTIFICATION_APP_ORIGINS` (or its `ADMIN_APP_ORIGINS` fallback) |
-| `password-recovery` | Supabase URL/service-role key, `PASSWORD_RECOVERY_APP_ORIGINS` (or its `NOTIFICATION_APP_ORIGINS` fallback); Resend settings for email recovery and Semaphore settings for phone recovery |
 
 `swift-worker` also handles public and Employee evaluation submissions; its
 checked-in handler validates the evaluation payload and respondent role.

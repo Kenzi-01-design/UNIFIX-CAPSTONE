@@ -385,42 +385,17 @@ describe('useAuth sign-in handling', () => {
     });
   });
 
-  it('requests password recovery through the alternate verified email service', async () => {
-    mocks.functions.invoke.mockResolvedValue({ data: { sent: true }, error: null });
+  it('ends a legacy password-recovery session and directs the user to campus Admin', async () => {
     const auth = await loadAuth();
+    const authStateHandler = mocks.auth.onAuthStateChange.mock.calls.at(-1)[0];
 
-    await expect(auth.sendPasswordReset(' Recovery@Gmail.com ')).resolves.toBeUndefined();
-    expect(mocks.functions.invoke).toHaveBeenCalledWith('password-recovery', {
-      body: { email: 'recovery@gmail.com' }
+    authStateHandler('PASSWORD_RECOVERY', {
+      user: { email: 'employee@nvsu.edu.ph' }
     });
-  });
+    await vi.waitFor(() => expect(mocks.auth.signOut).toHaveBeenCalledWith({ scope: 'local' }));
 
-  it('requests a phone recovery code through the password recovery service', async () => {
-    mocks.functions.invoke.mockResolvedValue({
-      data: { sent: true, challengeId: 'challenge-1' },
-      error: null
-    });
-    const auth = await loadAuth();
-
-    await expect(auth.requestPhonePasswordRecovery('09171234567')).resolves.toBe('challenge-1');
-    expect(mocks.functions.invoke).toHaveBeenCalledWith('password-recovery', {
-      body: { action: 'request-phone', phone: '09171234567' }
-    });
-  });
-
-  it('submits the phone recovery code and new password to the recovery service', async () => {
-    mocks.functions.invoke.mockResolvedValue({ data: { reset: true }, error: null });
-    const auth = await loadAuth();
-
-    await expect(auth.resetPasswordWithPhoneCode('challenge-1', '123456', 'new-password')).resolves.toBeUndefined();
-    expect(mocks.functions.invoke).toHaveBeenCalledWith('password-recovery', {
-      body: {
-        action: 'reset-phone',
-        challengeId: 'challenge-1',
-        code: '123456',
-        password: 'new-password'
-      }
-    });
+    expect(auth.isAuthenticated.value).toBe(false);
+    expect(auth.authNotice.value).toContain('Visit the campus office');
   });
 
   it('does not send a client-controlled verified flag when saving notification preferences', async () => {

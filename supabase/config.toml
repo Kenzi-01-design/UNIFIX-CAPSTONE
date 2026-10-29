@@ -10,5 +10,5 @@ verify_jwt = false
 [functions.deliver-notification]
 verify_jwt = false
 
-[functions.password-recovery]
+[functions.admin-set-user-password]
 verify_jwt = false

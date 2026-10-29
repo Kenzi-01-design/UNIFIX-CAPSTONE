@@ -16,7 +16,6 @@ const _activeUserProfile = ref(null);
 const _isAuthenticated = ref(false);
 const _authNotice = ref('');
 const _authNoticeCode = ref('');
-const _passwordRecoveryMode = ref(false);
 const loginHistoryError = ref('');
 const LOGIN_EVENTS_KEY = 'unifix-login-events-v1';
 const LOGIN_HISTORY_POLL_INTERVAL = 10_000;
@@ -234,7 +233,6 @@ async function loadAuthenticatedProfile() {
       _activeUserProfile.value = null;
       _currentRole.value = 'Admin';
       _activeUserName.value = '';
-      _passwordRecoveryMode.value = false;
     }
     return;
   }
@@ -273,19 +271,25 @@ if (isSupabaseConfigured) {
       _activeUserName.value = '';
       stopProfileSubscription();
       stopLoginEventsSubscription();
-      _passwordRecoveryMode.value = false;
       return;
     }
     if (event === 'PASSWORD_RECOVERY') {
-      _passwordRecoveryMode.value = true;
+      _authNoticeCode.value = 'password-recovery-disabled';
+      _authNotice.value = 'Password recovery is handled in person by campus administration. Visit the campus office for assistance.';
       _isAuthenticated.value = false;
       _currentRole.value = 'Admin';
       _activeUserName.value = '';
       _activeUserEmail.value = session.user.email || '';
       _activeUserProfile.value = null;
+      queueMicrotask(() => {
+        void supabase.auth.signOut({ scope: 'local' })
+          .then(({ error }) => {
+            if (error) console.error('Could not end a retired password recovery session.', error);
+          })
+          .catch((error) => console.error('Could not end a retired password recovery session.', error));
+      });
       return;
     }
-    if (_passwordRecoveryMode.value) return;
     if (suppressAuthProfileLoad) return;
     if (['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(event)) {
       queueMicrotask(() => {
@@ -474,52 +478,6 @@ export function useAuth() {
     localStorage.setItem(LOGIN_EVENTS_KEY, JSON.stringify(loginEvents.value));
   }
 
-  async function sendPasswordReset(email) {
-    if (!isSupabaseConfigured || !supabase) {
-      throw new Error('Password recovery is unavailable until Supabase is configured.');
-    }
-    const recoveryEmail = email.trim().toLowerCase();
-    const { data, error } = await supabase.functions.invoke('password-recovery', {
-      body: { email: recoveryEmail }
-    });
-    if (error) {
-      console.error('Password recovery email request failed.', error);
-      throw new Error(await getPublicFunctionErrorMessage('password-recovery', error));
-    }
-    if (!data?.sent) throw new Error('The recovery request could not be completed. Please try again later.');
-  }
-
-  async function requestPhonePasswordRecovery(phone) {
-    if (!isSupabaseConfigured || !supabase) {
-      throw new Error('Password recovery is unavailable until Supabase is configured.');
-    }
-    const { data, error } = await supabase.functions.invoke('password-recovery', {
-      body: { action: 'request-phone', phone }
-    });
-    if (error) {
-      console.error('Phone password recovery code request failed.', error);
-      throw new Error(await getPublicFunctionErrorMessage('password-recovery', error));
-    }
-    if (!data?.sent || typeof data.challengeId !== 'string') {
-      throw new Error('The recovery request could not be completed. Please try again later.');
-    }
-    return data.challengeId;
-  }
-
-  async function resetPasswordWithPhoneCode(challengeId, code, password) {
-    if (!isSupabaseConfigured || !supabase) {
-      throw new Error('Password recovery is unavailable until Supabase is configured.');
-    }
-    const { data, error } = await supabase.functions.invoke('password-recovery', {
-      body: { action: 'reset-phone', challengeId, code, password }
-    });
-    if (error) {
-      console.error('Phone password recovery could not be completed.', error);
-      throw new Error(await getPublicFunctionErrorMessage('password-recovery', error));
-    }
-    if (!data?.reset) throw new Error('The recovery code is invalid or expired. Request a new code and try again.');
-  }
-
   async function requestRegistrationReapplication(email, password) {
     if (!isSupabaseConfigured || !supabase) throw new Error('Re-application is unavailable.');
     suppressAuthProfileLoad = true;
@@ -572,14 +530,6 @@ export function useAuth() {
         ? authStateMessage(state)
         : 'The password could not be changed. Please try again.');
     }
-  }
-
-  async function completePasswordRecovery(password) {
-    await changePassword(password);
-    _passwordRecoveryMode.value = false;
-    const { error } = await supabase.auth.signOut({ scope: 'local' });
-    if (error) throw new Error('Your password changed, but sign-out did not complete. Sign out before continuing.');
-    clearNotice();
   }
 
   async function logout() {
@@ -791,18 +741,13 @@ export function useAuth() {
     activeUserEmail: _activeUserEmail,
     authNotice: _authNotice,
     authNoticeCode: _authNoticeCode,
-    passwordRecoveryMode: _passwordRecoveryMode,
     isAuthenticated: _isAuthenticated,
     userInitials,
     login,
-    sendPasswordReset,
-    requestPhonePasswordRecovery,
-    resetPasswordWithPhoneCode,
     requestRegistrationReapplication,
     requestNotificationEmailVerification,
     verifyNotificationEmail,
     changePassword,
-    completePasswordRecovery,
     logout,
     loadProfile,
     saveProfile,

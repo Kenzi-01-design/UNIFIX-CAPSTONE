@@ -46,17 +46,11 @@
       @open-login="navigatePublicPage('login')"
     />
 
-    <PasswordRecoveryView
-      v-else-if="!isAuthenticated && publicPage === 'password-recovery'"
-      @back="navigatePublicPage('login')"
-    />
-
     <LoginView
       v-else-if="!isAuthenticated"
       show-back
       @back="navigatePublicPage('home')"
       @register="navigatePublicPage('register')"
-      @forgot-password="navigatePublicPage('password-recovery')"
       @logged-in="handleLoginSuccess"
     />
 
@@ -130,6 +124,7 @@
 
           <UserManagementView
             v-else-if="currentView === 'user-management' && hasAdminAccess(currentRole)"
+            :current-role="currentRole"
           />
 
           <ReportView
@@ -235,7 +230,6 @@ import MobileNavigation from './components/MobileNavigation.vue';
 
 // Views
 import LoginView from './views/LoginView.vue';
-import PasswordRecoveryView from './views/PasswordRecoveryView.vue';
 import RegisterView from './views/RegisterView.vue';
 import HomeView from './views/HomeView.vue';
 import TrackReportView from './views/TrackReportView.vue';
@@ -255,7 +249,7 @@ const AdminView = defineAsyncComponent(() => import('./views/AdminView.vue'));
 const EvaluationView = defineAsyncComponent(() => import('./views/EvaluationView.vue'));
 
 const {
-  currentRole, activeUserName, activeUserEmail, authNotice, passwordRecoveryMode,
+  currentRole, activeUserName, activeUserEmail, authNotice,
   verifyNotificationEmail,
   isAuthenticated, logout, loadSettings
 } = useAuth();
@@ -303,7 +297,7 @@ const isFacilityStatusRoute = routePath === '/facility'
   || (routePath === '/report' && Boolean(locationPrefillId) && initialUrl.searchParams.get('new') !== '1');
 const publicPage = ref(isFacilityStatusRoute ? 'facility' : routePath === '/report' ? 'report' : 'home');
 const publicPageNames = new Set([
-  'home', 'evaluation', 'track', 'report', 'register', 'login', 'password-recovery', 'facility'
+  'home', 'evaluation', 'track', 'report', 'register', 'login', 'facility'
 ]);
 const activeReportFilter = ref({});
 const activeRequestStatus = ref('');
@@ -384,9 +378,6 @@ async function refreshAuthenticatedData() {
 let activeIdentity = '';
 watch(authNotice, (message) => {
   if (message) navigatePublicPage('login');
-});
-watch(passwordRecoveryMode, (recovering) => {
-  if (recovering) navigatePublicPage('login');
 });
 watch([isAuthenticated, currentRole, activeUserEmail], ([authenticated, role, email]) => {
   const nextIdentity = authenticated ? `${email.toLowerCase()}|${role}` : '';

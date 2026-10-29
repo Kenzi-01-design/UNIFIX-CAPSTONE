@@ -32,8 +32,8 @@ from the Supabase platform. These are project configuration values, not
 | `NOTIFICATION_FROM_EMAIL` | Email delivery/verification | No | Verified sender identity used for outgoing mail. |
 | `NOTIFICATION_APP_ORIGINS` | `notification-email-verification` | No | Comma-separated exact frontend origins. Falls back to `ADMIN_APP_ORIGINS`. |
 | `ADMIN_APP_ORIGINS` | `admin-create-user` | No | Comma-separated exact frontend origins. Also the fallback for notification verification. |
-| `SEMAPHORE_API_KEY` | SMS notifications and phone password recovery | Yes | Semaphore provider key; required to send SMS notifications or password recovery codes. |
-| `SEMAPHORE_SENDER_NAME` | SMS notifications and phone password recovery | No | Sender name configured with Semaphore. |
+| `SEMAPHORE_API_KEY` | Optional SMS notifications | Yes | Semaphore provider key; required only if SMS notifications are enabled. |
+| `SEMAPHORE_SENDER_NAME` | Optional SMS notifications | No | Sender name configured with Semaphore. |
 
 ## Post-deployment smoke-test variables
 
@@ -65,8 +65,8 @@ it against a project unless those effects are explicitly approved.
 | `swift-worker` | Platform `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`; `PUBLIC_APP_ORIGINS` (or legacy `PUBLIC_APP_ORIGIN`). Also handles public and Employee evaluation submissions with role and payload validation. |
 | `deliver-notification` | Platform `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; `NOTIFICATION_WEBHOOK_SECRET`. Configure `RESEND_API_KEY` and `NOTIFICATION_FROM_EMAIL` for email; configure both Semaphore values only if SMS is used. |
 | `admin-create-user` | Platform `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; `ADMIN_APP_ORIGINS`. |
+| `admin-set-user-password` | Platform `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; `ADMIN_APP_ORIGINS`; the function only accepts active Admin accounts. |
 | `notification-email-verification` | Platform `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`; `RESEND_API_KEY`, `NOTIFICATION_FROM_EMAIL`, and `NOTIFICATION_APP_ORIGINS` (or `ADMIN_APP_ORIGINS`). |
-| `password-recovery` | Platform `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; `PASSWORD_RECOVERY_APP_ORIGINS` (or `NOTIFICATION_APP_ORIGINS`); Resend settings for email recovery and Semaphore settings for phone recovery. |
 
 ## Deployment note
 

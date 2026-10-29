@@ -5,10 +5,7 @@ export async function getPublicFunctionErrorMessage(functionName, error) {
 
   if (error?.name === 'FunctionsFetchError'
     || error?.message === 'Failed to send a request to the Edge Function') {
-    const originSecret = functionName === 'password-recovery'
-      ? 'PASSWORD_RECOVERY_APP_ORIGINS'
-      : 'PUBLIC_APP_ORIGINS';
-    return `Could not reach the ${functionName} Edge Function. Confirm it is deployed and this site's exact origin is included in Supabase's ${originSecret} secret.`;
+    return `Could not reach the ${functionName} Edge Function. Confirm it is deployed and this site's exact origin is included in Supabase's PUBLIC_APP_ORIGINS secret.`;
   }
 
   if (error?.context) {

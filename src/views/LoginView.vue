@@ -186,22 +186,6 @@
           </span>
         </div>
       </header>
-      <form v-if="passwordRecoveryMode" class="recovery-form" @submit.prevent="submitRecovery">
-        <h2>Set a new password</h2>
-        <p class="sub">Choose a new password for your UNIFIX account.</p>
-        <div class="form-group">
-          <label for="recovery-password">New password</label>
-          <input id="recovery-password" v-model="recoveryPassword" type="password" autocomplete="new-password" minlength="8" required />
-        </div>
-        <div class="form-group">
-          <label for="recovery-confirm-password">Confirm new password</label>
-          <input id="recovery-confirm-password" v-model="recoveryConfirmPassword" type="password" autocomplete="new-password" minlength="8" required />
-        </div>
-        <button class="btn-primary" type="submit" :disabled="recoveryWorking">
-          {{ recoveryWorking ? 'Updating…' : 'Update Password' }}
-        </button>
-      </form>
-      <template v-else>
       <h2>Welcome!</h2>
       <p class="sub">Sign in with your NVSU institutional account.</p>
       <p v-if="authNotice" class="login-auth-notice" role="alert">{{ authNotice }}</p>
@@ -279,11 +263,9 @@
 
       <div class="login-password-help">
         <small v-if="authNoticeCode === 'wrong-credentials'">
-          If an administrator invited you, open the invitation email and set your password first.
+          If you were invited, use the invitation email to set your first password. For password updates, visit the campus office and ask an Admin.
         </small>
-        <button type="button" @click="$emit('forgot-password')">
-          {{ authNoticeCode === 'wrong-credentials' ? 'Reset your password' : 'Forgot password?' }}
-        </button>
+        <small v-else>Forgot your password? Visit the campus office for assistance from an Admin.</small>
       </div>
 
       <button class="btn-primary" :disabled="signingIn" @click="handleLogin">
@@ -305,7 +287,6 @@
         Need technical assistance? Contact
         <strong style="color: var(--text-2)">ict@nvsu.edu.ph</strong>
       </p>
-      </template>
     </div>
   </div>
 </template>
@@ -320,12 +301,11 @@ import { isSupabaseConfigured } from '../lib/supabase.js';
 import UiIcon from '../components/UiIcon.vue';
 
 defineProps({ showBack: Boolean });
-const emit = defineEmits(['logged-in', 'back', 'register', 'forgot-password']);
+const emit = defineEmits(['logged-in', 'back', 'register']);
 
 const {
   login, loadSettings,
-  requestRegistrationReapplication, completePasswordRecovery, activeUserName, authNotice, authNoticeCode,
-  passwordRecoveryMode
+  requestRegistrationReapplication, activeUserName, authNotice, authNoticeCode
 } = useAuth();
 const { showToast } = useToast();
 const { refreshNotifications } = useNotifications();
@@ -335,9 +315,6 @@ const email = ref('');
 const password = ref('');
 const signingIn = ref(false);
 const reapplying = ref(false);
-const recoveryPassword = ref('');
-const recoveryConfirmPassword = ref('');
-const recoveryWorking = ref(false);
 
 function setRole(role) {
   selectedRole.value = role;
@@ -390,24 +367,6 @@ async function requestReapplication() {
   }
 }
 
-async function submitRecovery() {
-  if (recoveryPassword.value !== recoveryConfirmPassword.value) {
-    showToast('The passwords do not match.', 'error');
-    return;
-  }
-  recoveryWorking.value = true;
-  try {
-    await completePasswordRecovery(recoveryPassword.value);
-    recoveryPassword.value = '';
-    recoveryConfirmPassword.value = '';
-    showToast('Password updated. Sign in with your new password.', 'success');
-  } catch (error) {
-    showToast(error.message || 'Unable to update the password.', 'error');
-  } finally {
-    recoveryWorking.value = false;
-  }
-}
-
 </script>
 
 <style scoped>
@@ -437,15 +396,9 @@ async function submitRecovery() {
 .role-hint { display:block; margin-top:8px; color:var(--text-3); }
 .login-password-help { display:grid; justify-items:end; gap:6px; margin:0 0 24px; }
 .login-password-help small { color:var(--text-3); text-align:right; line-height:1.4; }
-.login-password-help button { padding:0; border:0; background:transparent; font:inherit; font-size:13px; color:var(--primary); font-weight:600; cursor:pointer; }
 .login-state-action { display:grid; gap:8px; margin:0 0 18px; }
 .login-state-action .btn-secondary { width:100%; }
 .login-state-action small { color:var(--text-3); line-height:1.5; }
-.recovery-form { display:grid; gap:14px; }
-.recovery-form h2 { margin:0; }
-.recovery-form .form-group { margin:0; }
-.recovery-form .btn-primary { width:100%; }
-
 @media (min-width: 768px) and (max-height: 760px) {
   .login-form-header { margin-bottom: 14px; }
   .login-form-wrap p.sub { margin-bottom: 14px; }

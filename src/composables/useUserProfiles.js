@@ -140,6 +140,31 @@ async function inviteUser(profileData) {
   return data;
 }
 
+async function setUserPassword(authUserId, password) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Password updates require a configured university account.');
+  }
+  if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+    throw new Error('The new password must be between 8 and 128 characters.');
+  }
+  const { data, error } = await supabase.functions.invoke('admin-set-user-password', {
+    body: { targetAuthUserId: authUserId, password }
+  });
+  if (error) {
+    let message = error.message;
+    if (error.context) {
+      try {
+        const response = await error.context.clone().json();
+        if (response?.error) message = response.error;
+      } catch {
+        // Preserve the Functions error when its response is not JSON.
+      }
+    }
+    throw new Error(message || 'Unable to update the user password.');
+  }
+  if (!data?.updated) throw new Error('The user password could not be updated.');
+}
+
 async function updateProfile(profileData) {
   const index = profiles.value.findIndex((profile) => profile.id === profileData.id);
   if (index === -1) return null;
@@ -262,6 +287,7 @@ export function useUserProfiles() {
     roles,
     loadProfiles,
     inviteUser,
+    setUserPassword,
     updateProfile,
     setProfileActive,
     reviewRegistration,
