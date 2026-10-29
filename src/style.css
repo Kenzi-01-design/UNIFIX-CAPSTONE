@@ -520,6 +520,13 @@ textarea,
   font-weight: 700;
   color: var(--text);
 }
+.sidebar-user .user-info {
+  display: flex;
+  align-items: baseline;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+}
 .user-info .user-role {
   font-size: 11px;
   color: var(--text-3);
