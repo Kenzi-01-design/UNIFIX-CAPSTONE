@@ -87,7 +87,7 @@
             <select v-model="rwss.classification">
               <option value="Repair Works">Repair Works</option>
               <option value="Maintenance Work">Maintenance Work</option>
-              <option value="New Installation">New</option>
+              <option value="New Installation">Replace it with new</option>
               <option value="Emergency Repair">Emergency Repair</option>
               <option value="Requires Labor and Materials">Requires Labor and Materials</option>
               <option value="Requires Labor/Manpower">Requires Labor/Manpower to complete repair</option>
