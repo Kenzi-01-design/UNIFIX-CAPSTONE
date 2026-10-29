@@ -45,3 +45,33 @@ export function classifyAuthError(error) {
   if (/failed to fetch|network|fetch error|connection|timeout/.test(message)) return 'network-error';
   return 'unknown';
 }
+
+export function passwordRecoveryErrorMessage(error, redirectUrl) {
+  const message = String(error?.message || '').toLowerCase();
+  const code = String(error?.code || '').toLowerCase();
+
+  if (
+    code === 'redirect_to_url_not_allowed'
+    || /redirect.{0,40}(not allowed|allowlist|whitelist)/.test(message)
+  ) {
+    return `Password recovery is blocked because ${redirectUrl} is not an allowed Supabase redirect URL. Add this exact URL under Authentication → URL Configuration → Redirect URLs.`;
+  }
+  if (
+    code === 'over_email_send_rate_limit'
+    || error?.status === 429
+    || /email.{0,30}rate limit|too many requests/.test(message)
+  ) {
+    return 'Too many recovery email requests were made. Wait a few minutes, then try again.';
+  }
+  if (code === 'email_address_not_authorized') {
+    return 'Supabase is not authorized to send email to this address. Configure a custom SMTP provider in Supabase Auth, then try again.';
+  }
+  if (['email_provider_disabled', 'smtp_error'].includes(code) || /smtp|email provider/.test(message)) {
+    return 'Supabase could not send the recovery email. Check that the email provider is enabled and its SMTP settings are valid.';
+  }
+  if (code === 'email_address_invalid' || /invalid email/.test(message)) {
+    return 'Enter a valid university email address and try again.';
+  }
+  if (classifyAuthError(error) === 'network-error') return authStateMessage('network-error');
+  return 'The recovery email could not be sent. Check Supabase Auth email-provider and redirect-URL settings.';
+}

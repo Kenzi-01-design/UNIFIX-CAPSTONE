@@ -3,7 +3,8 @@ import {
   accountAccessState,
   authStateMessage,
   canTransitionRegistrationStatus,
-  classifyAuthError
+  classifyAuthError,
+  passwordRecoveryErrorMessage
 } from './authFlow.js';
 
 describe('account sign-in state handling', () => {
@@ -49,5 +50,26 @@ describe('registration status transitions', () => {
     ['approved', 'approved', true]
   ])('allows %s -> %s: %s', (from, to, allowed) => {
     expect(canTransitionRegistrationStatus(from, to)).toBe(allowed);
+  });
+});
+
+describe('password recovery errors', () => {
+  it('explains how to allow the recovery redirect URL', () => {
+    expect(passwordRecoveryErrorMessage(
+      { code: 'redirect_to_url_not_allowed' },
+      'https://unifix.example.edu'
+    )).toContain('https://unifix.example.edu');
+  });
+
+  it('explains email provider authorization and configuration failures', () => {
+    expect(passwordRecoveryErrorMessage({ code: 'email_address_not_authorized' }, ''))
+      .toContain('custom SMTP');
+    expect(passwordRecoveryErrorMessage({ code: 'smtp_error' }, ''))
+      .toContain('SMTP settings');
+  });
+
+  it('explains rate limits and invalid email errors', () => {
+    expect(passwordRecoveryErrorMessage({ status: 429 }, '')).toContain('Wait a few minutes');
+    expect(passwordRecoveryErrorMessage({ code: 'email_address_invalid' }, '')).toContain('valid university email');
   });
 });

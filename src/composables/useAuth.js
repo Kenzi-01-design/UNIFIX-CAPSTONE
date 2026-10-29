@@ -1,7 +1,12 @@
 import { ref, computed } from 'vue';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { hasAdminAccess } from '../lib/access.js';
-import { accountAccessState, authStateMessage, classifyAuthError } from '../lib/authFlow.js';
+import {
+  accountAccessState,
+  authStateMessage,
+  classifyAuthError,
+  passwordRecoveryErrorMessage
+} from '../lib/authFlow.js';
 
 // Private module-level state
 const _currentRole = ref('Admin');
@@ -477,10 +482,8 @@ export function useAuth() {
       redirectTo: window.location.origin
     });
     if (error) {
-      const state = classifyAuthError(error);
-      throw new Error(state === 'network-error'
-        ? authStateMessage(state)
-        : 'The password recovery email could not be sent. Check the address and try again.');
+      console.error('Password recovery email request failed.', error);
+      throw new Error(passwordRecoveryErrorMessage(error, window.location.origin));
     }
   }
 
