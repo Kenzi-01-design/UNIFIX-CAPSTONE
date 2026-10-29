@@ -4,9 +4,9 @@ import { hasAdminAccess } from '../lib/access.js';
 import {
   accountAccessState,
   authStateMessage,
-  classifyAuthError,
-  passwordRecoveryErrorMessage
+  classifyAuthError
 } from '../lib/authFlow.js';
+import { getPublicFunctionErrorMessage } from '../lib/publicFunctionErrors.js';
 
 // Private module-level state
 const _currentRole = ref('Admin');
@@ -478,13 +478,15 @@ export function useAuth() {
     if (!isSupabaseConfigured || !supabase) {
       throw new Error('Password recovery is unavailable until Supabase is configured.');
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: window.location.origin
+    const recoveryEmail = email.trim().toLowerCase();
+    const { data, error } = await supabase.functions.invoke('password-recovery', {
+      body: { email: recoveryEmail }
     });
     if (error) {
       console.error('Password recovery email request failed.', error);
-      throw new Error(passwordRecoveryErrorMessage(error, window.location.origin));
+      throw new Error(await getPublicFunctionErrorMessage('password-recovery', error));
     }
+    if (!data?.sent) throw new Error('The recovery request could not be completed. Please try again later.');
   }
 
   async function requestRegistrationReapplication(email, password) {

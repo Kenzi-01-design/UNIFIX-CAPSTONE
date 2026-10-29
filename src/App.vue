@@ -46,11 +46,17 @@
       @open-login="navigatePublicPage('login')"
     />
 
+    <PasswordRecoveryView
+      v-else-if="!isAuthenticated && publicPage === 'password-recovery'"
+      @back="navigatePublicPage('login')"
+    />
+
     <LoginView
       v-else-if="!isAuthenticated"
       show-back
       @back="navigatePublicPage('home')"
       @register="navigatePublicPage('register')"
+      @forgot-password="navigatePublicPage('password-recovery')"
       @logged-in="handleLoginSuccess"
     />
 
@@ -229,6 +235,7 @@ import MobileNavigation from './components/MobileNavigation.vue';
 
 // Views
 import LoginView from './views/LoginView.vue';
+import PasswordRecoveryView from './views/PasswordRecoveryView.vue';
 import RegisterView from './views/RegisterView.vue';
 import HomeView from './views/HomeView.vue';
 import TrackReportView from './views/TrackReportView.vue';
@@ -295,7 +302,9 @@ const routePath = window.location.pathname.replace(/\/+$/, '');
 const isFacilityStatusRoute = routePath === '/facility'
   || (routePath === '/report' && Boolean(locationPrefillId) && initialUrl.searchParams.get('new') !== '1');
 const publicPage = ref(isFacilityStatusRoute ? 'facility' : routePath === '/report' ? 'report' : 'home');
-const publicPageNames = new Set(['home', 'evaluation', 'track', 'report', 'register', 'login', 'facility']);
+const publicPageNames = new Set([
+  'home', 'evaluation', 'track', 'report', 'register', 'login', 'password-recovery', 'facility'
+]);
 const activeReportFilter = ref({});
 const activeRequestStatus = ref('');
 const isModalOpen = ref(false);

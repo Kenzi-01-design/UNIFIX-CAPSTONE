@@ -281,7 +281,7 @@
         <small v-if="authNoticeCode === 'wrong-credentials'">
           If an administrator invited you, open the invitation email and set your password first.
         </small>
-        <button type="button" @click="handlePasswordReset">
+        <button type="button" @click="$emit('forgot-password')">
           {{ authNoticeCode === 'wrong-credentials' ? 'Reset your password' : 'Forgot password?' }}
         </button>
       </div>
@@ -320,10 +320,10 @@ import { isSupabaseConfigured } from '../lib/supabase.js';
 import UiIcon from '../components/UiIcon.vue';
 
 defineProps({ showBack: Boolean });
-const emit = defineEmits(['logged-in', 'back', 'register']);
+const emit = defineEmits(['logged-in', 'back', 'register', 'forgot-password']);
 
 const {
-  login, loadSettings, sendPasswordReset,
+  login, loadSettings,
   requestRegistrationReapplication, completePasswordRecovery, activeUserName, authNotice, authNoticeCode,
   passwordRecoveryMode
 } = useAuth();
@@ -371,19 +371,6 @@ async function handleLogin() {
     if (!authNotice.value) showToast(error.message || 'Unable to sign in.', 'error');
   } finally {
     signingIn.value = false;
-  }
-}
-
-async function handlePasswordReset() {
-  if (!email.value.trim()) {
-    showToast('Enter your university email first.', 'error');
-    return;
-  }
-  try {
-    await sendPasswordReset(email.value);
-    showToast('If the address is registered, a password recovery link will be sent.', 'success');
-  } catch (error) {
-    showToast(error.message || 'Unable to send password recovery email.', 'error');
   }
 }
 

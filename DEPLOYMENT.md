@@ -74,6 +74,15 @@ supabase secrets set RESEND_API_KEY=your-resend-key
 supabase secrets set NOTIFICATION_FROM_EMAIL="UNIFIX <notifications@example.edu>"
 supabase secrets set ADMIN_APP_ORIGINS=https://unifix.example.edu
 supabase secrets set NOTIFICATION_APP_ORIGINS=https://unifix.example.edu
+supabase secrets set PASSWORD_RECOVERY_APP_ORIGINS=https://unifix.example.edu
+```
+
+Password recovery uses the verified alternate email saved in `user_preferences`
+and sends a Supabase recovery link through the configured Resend account. Deploy
+the function after applying the notification-email verification migration:
+
+```bash
+supabase functions deploy password-recovery
 ```
 
 Optional SMS settings (only if SMS is enabled):
@@ -111,6 +120,7 @@ requirements are:
 | `deliver-notification` | Supabase URL/service-role key, `NOTIFICATION_WEBHOOK_SECRET`; Resend settings for email and Semaphore settings for optional SMS |
 | `admin-create-user` | Supabase URL/service-role key, `ADMIN_APP_ORIGINS` |
 | `notification-email-verification` | Supabase URL/anon/service-role keys, Resend settings, `NOTIFICATION_APP_ORIGINS` (or its `ADMIN_APP_ORIGINS` fallback) |
+| `password-recovery` | Supabase URL/service-role key, Resend settings, `PASSWORD_RECOVERY_APP_ORIGINS` (or its `NOTIFICATION_APP_ORIGINS` fallback) |
 
 `swift-worker` also handles public and Employee evaluation submissions; its
 checked-in handler validates the evaluation payload and respondent role.

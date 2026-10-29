@@ -385,6 +385,16 @@ describe('useAuth sign-in handling', () => {
     });
   });
 
+  it('requests password recovery through the alternate verified email service', async () => {
+    mocks.functions.invoke.mockResolvedValue({ data: { sent: true }, error: null });
+    const auth = await loadAuth();
+
+    await expect(auth.sendPasswordReset(' Recovery@Gmail.com ')).resolves.toBeUndefined();
+    expect(mocks.functions.invoke).toHaveBeenCalledWith('password-recovery', {
+      body: { email: 'recovery@gmail.com' }
+    });
+  });
+
   it('does not send a client-controlled verified flag when saving notification preferences', async () => {
     mocks.auth.getSession.mockResolvedValue({
       data: { session: { user: { email: 'employee@nvsu.edu.ph' } } },
