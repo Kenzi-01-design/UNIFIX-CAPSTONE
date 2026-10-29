@@ -39,7 +39,7 @@ const roleNavigation = {
     {
       label: 'Account',
       items: [
-        { view: 'evaluation', label: 'System Evaluation', icon: 'success' },
+        { view: 'evaluation', label: 'System Evaluation', icon: 'success', primary: true },
         { view: 'profile', label: 'Profile', icon: 'reporter' },
         { view: 'settings', label: 'Settings', icon: 'settings' }
       ]

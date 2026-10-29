@@ -19,6 +19,15 @@ describe('role navigation', () => {
     for (const item of primary) expect(allViews).toContain(item.view);
   });
 
+  it('fills all four Employee mobile shortcuts with System Evaluation', () => {
+    expect(getMobilePrimaryNavigation('Employee').map((item) => item.view)).toEqual([
+      'dashboard',
+      'submit-request',
+      'my-requisitions',
+      'evaluation'
+    ]);
+  });
+
   it('carries report and request badges to desktop and mobile menu items', () => {
     const counts = { reports: 7, requests: 3 };
     const desktopItems = getRoleNavigation('Admin', counts).flatMap((group) => group.items);
