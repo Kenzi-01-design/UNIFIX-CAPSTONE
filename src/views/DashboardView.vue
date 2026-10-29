@@ -97,9 +97,9 @@
         <span><strong>Open Tasks</strong><small>View and update assigned repairs</small></span>
         <span class="quick-action-arrow">→</span>
       </button>
-      <button class="quick-action" @click="$emit('navigate', 'reports')">
-        <span class="quick-action-icon"><UiIcon name="reports" /></span>
-        <span><strong>Browse Reports</strong><small>Find reported campus issues</small></span>
+      <button class="quick-action" @click="$emit('navigate', currentRole === 'Employee' ? 'my-requisitions' : 'requests')">
+        <span class="quick-action-icon"><UiIcon name="requests" /></span>
+        <span><strong>Browse Requests</strong><small>{{ currentRole === 'Employee' ? 'View your submitted service requests' : 'Review submitted facilities requests' }}</small></span>
         <span class="quick-action-arrow">→</span>
       </button>
     </div>
