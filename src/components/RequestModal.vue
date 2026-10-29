@@ -62,7 +62,7 @@
         </button>
         <button
           v-if="hasAdminAccess(currentRole) && canReviewRequest"
-          class="btn-primary"
+          class="admin-action-btn resolve"
           type="button"
           @click="$emit('verify', request.id)"
         >
@@ -70,7 +70,7 @@
         </button>
         <button
           v-if="hasAdminAccess(currentRole) && canReviewRequest"
-          class="btn-secondary request-reject"
+          class="admin-action-btn report-reject"
           type="button"
           :disabled="rejectionReason.trim().length < 5 || rejectionReason.trim().length > 500"
           @click="rejectVerification"
@@ -134,7 +134,7 @@ function formatDate(value) {
 .request-review > strong { font-size:14px; }
 .request-review > p { margin:7px 0 12px; color:var(--text-2); font-size:12px; line-height:1.5; }
 .request-review textarea { display:block; width:100%; resize:vertical; padding:11px 12px; border:1px solid var(--border-dark); border-radius:8px; background:var(--surface); color:var(--text); font:inherit; font-size:13px; line-height:1.5; }
-.request-reject { color:var(--red); }
+
 .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
 @media (max-width:560px) {
   .request-modal-body { padding:18px; }
