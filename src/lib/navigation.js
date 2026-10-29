@@ -33,7 +33,7 @@ const roleNavigation = {
       items: [
         { view: 'dashboard', label: 'Dashboard', icon: 'dashboard', primary: true },
         { view: 'submit-request', label: 'Submit Request', icon: 'request', primary: true },
-        { view: 'my-requisitions', label: 'Requestitions', icon: 'requests', primary: true }
+        { view: 'my-requisitions', label: 'Requisitions', icon: 'requests', primary: true }
       ]
     },
     {
