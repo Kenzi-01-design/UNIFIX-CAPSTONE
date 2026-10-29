@@ -130,13 +130,17 @@
             <small>Bayombong, Nueva Vizcaya · Unit Head-GSU</small>
           </div>
 
-          <div class="form-row">
+          <div class="form-row triple">
             <div class="form-group">
               <label>Location (Building / Office) *</label>
               <select v-model="reas.location">
                 <option value="">Select Target Location...</option>
                 <option v-for="b in buildings" :key="b" :value="b">{{ b }}</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label>Room / Specific Area</label>
+              <input type="text" v-model="reas.room" placeholder="e.g., 2nd Floor, Room 204" />
             </div>
             <div class="form-group">
               <label>Service Classification *</label>
@@ -391,6 +395,7 @@ const rwss = reactive({
 // 2. REAS Form State
 const reas = reactive({
   location: '',
+  room: '',
   category: 'ELECTRICAL',
   item: '',
   customItem: '',
@@ -432,6 +437,7 @@ function clearRWSS() {
 
 function clearREAS() {
   reas.location = '';
+  reas.room = '';
   reas.item = '';
   reas.customItem = '';
   reas.brand = '';
@@ -486,7 +492,7 @@ async function submitREAS() {
   await submitRequest({
     title: `[REAS] ${reas.category === 'COOLING' ? 'Cooling' : 'Electrical'}: ${item}`,
     cat: reas.category === 'COOLING' ? 'HVAC' : 'Electrical',
-    dept: reas.location,
+    dept: reas.location + (reas.room ? ` · ${reas.room}` : ''),
     details: desc,
     requester: reas.official
   }, clearREAS, 'Electrical & AC Requisition submitted! ✅');
