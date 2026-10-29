@@ -16,7 +16,7 @@ for authentication, Postgres, Storage, and Edge Functions.
    separate optional Settings flow.
 2. For an existing project, apply every migration in
    `supabase/migrations/` in ascending filename order. The current repository
-   sequence ends at `202610160001_assistant_admin_access.sql`; do not stop at an
+   sequence ends at `202610290001_sms_password_recovery.sql`; do not stop at an
    older migration cutoff. Confirm the applied migration list against the
    project before applying anything. Migration
    `202610060016_start_tracking_codes_at_100.sql` sets the current-year
@@ -77,15 +77,17 @@ supabase secrets set NOTIFICATION_APP_ORIGINS=https://unifix.example.edu
 supabase secrets set PASSWORD_RECOVERY_APP_ORIGINS=https://unifix.example.edu
 ```
 
-Password recovery uses the verified alternate email saved in `user_preferences`
-and sends a Supabase recovery link through the configured Resend account. Deploy
-the function after applying the notification-email verification migration:
+Password recovery supports a verified alternate email recovery link and an SMS
+verification code sent to the phone number on an active, approved account. Apply
+the SMS password-recovery migration before deploying the function. Email recovery
+requires the configured Resend account; phone recovery requires the Semaphore
+settings below:
 
 ```bash
 supabase functions deploy password-recovery
 ```
 
-Optional SMS settings (only if SMS is enabled):
+SMS settings (required for phone password recovery and SMS notifications):
 
 ```bash
 supabase secrets set SEMAPHORE_API_KEY=your-semaphore-key
@@ -120,7 +122,7 @@ requirements are:
 | `deliver-notification` | Supabase URL/service-role key, `NOTIFICATION_WEBHOOK_SECRET`; Resend settings for email and Semaphore settings for optional SMS |
 | `admin-create-user` | Supabase URL/service-role key, `ADMIN_APP_ORIGINS` |
 | `notification-email-verification` | Supabase URL/anon/service-role keys, Resend settings, `NOTIFICATION_APP_ORIGINS` (or its `ADMIN_APP_ORIGINS` fallback) |
-| `password-recovery` | Supabase URL/service-role key, Resend settings, `PASSWORD_RECOVERY_APP_ORIGINS` (or its `NOTIFICATION_APP_ORIGINS` fallback) |
+| `password-recovery` | Supabase URL/service-role key, `PASSWORD_RECOVERY_APP_ORIGINS` (or its `NOTIFICATION_APP_ORIGINS` fallback); Resend settings for email recovery and Semaphore settings for phone recovery |
 
 `swift-worker` also handles public and Employee evaluation submissions; its
 checked-in handler validates the evaluation payload and respondent role.

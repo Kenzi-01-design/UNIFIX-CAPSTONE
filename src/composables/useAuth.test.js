@@ -395,6 +395,34 @@ describe('useAuth sign-in handling', () => {
     });
   });
 
+  it('requests a phone recovery code through the password recovery service', async () => {
+    mocks.functions.invoke.mockResolvedValue({
+      data: { sent: true, challengeId: 'challenge-1' },
+      error: null
+    });
+    const auth = await loadAuth();
+
+    await expect(auth.requestPhonePasswordRecovery('09171234567')).resolves.toBe('challenge-1');
+    expect(mocks.functions.invoke).toHaveBeenCalledWith('password-recovery', {
+      body: { action: 'request-phone', phone: '09171234567' }
+    });
+  });
+
+  it('submits the phone recovery code and new password to the recovery service', async () => {
+    mocks.functions.invoke.mockResolvedValue({ data: { reset: true }, error: null });
+    const auth = await loadAuth();
+
+    await expect(auth.resetPasswordWithPhoneCode('challenge-1', '123456', 'new-password')).resolves.toBeUndefined();
+    expect(mocks.functions.invoke).toHaveBeenCalledWith('password-recovery', {
+      body: {
+        action: 'reset-phone',
+        challengeId: 'challenge-1',
+        code: '123456',
+        password: 'new-password'
+      }
+    });
+  });
+
   it('does not send a client-controlled verified flag when saving notification preferences', async () => {
     mocks.auth.getSession.mockResolvedValue({
       data: { session: { user: { email: 'employee@nvsu.edu.ph' } } },

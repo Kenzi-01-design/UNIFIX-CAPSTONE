@@ -117,7 +117,7 @@ The daily job creates at most one work order per schedule per due date and advan
 
 For an existing project, apply all migrations in ascending filename order
 through the current latest migration,
-`202610160001_assistant_admin_access.sql`. See [DEPLOYMENT.md](DEPLOYMENT.md)
+`202610290001_sms_password_recovery.sql`. See [DEPLOYMENT.md](DEPLOYMENT.md)
 for the tracking-counter migration caution.
 For a new project, use the complete `supabase/schema.sql` instead of replaying
 the migration history.

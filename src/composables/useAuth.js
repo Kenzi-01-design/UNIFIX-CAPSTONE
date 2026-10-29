@@ -489,6 +489,37 @@ export function useAuth() {
     if (!data?.sent) throw new Error('The recovery request could not be completed. Please try again later.');
   }
 
+  async function requestPhonePasswordRecovery(phone) {
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Password recovery is unavailable until Supabase is configured.');
+    }
+    const { data, error } = await supabase.functions.invoke('password-recovery', {
+      body: { action: 'request-phone', phone }
+    });
+    if (error) {
+      console.error('Phone password recovery code request failed.', error);
+      throw new Error(await getPublicFunctionErrorMessage('password-recovery', error));
+    }
+    if (!data?.sent || typeof data.challengeId !== 'string') {
+      throw new Error('The recovery request could not be completed. Please try again later.');
+    }
+    return data.challengeId;
+  }
+
+  async function resetPasswordWithPhoneCode(challengeId, code, password) {
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Password recovery is unavailable until Supabase is configured.');
+    }
+    const { data, error } = await supabase.functions.invoke('password-recovery', {
+      body: { action: 'reset-phone', challengeId, code, password }
+    });
+    if (error) {
+      console.error('Phone password recovery could not be completed.', error);
+      throw new Error(await getPublicFunctionErrorMessage('password-recovery', error));
+    }
+    if (!data?.reset) throw new Error('The recovery code is invalid or expired. Request a new code and try again.');
+  }
+
   async function requestRegistrationReapplication(email, password) {
     if (!isSupabaseConfigured || !supabase) throw new Error('Re-application is unavailable.');
     suppressAuthProfileLoad = true;
@@ -765,6 +796,8 @@ export function useAuth() {
     userInitials,
     login,
     sendPasswordReset,
+    requestPhonePasswordRecovery,
+    resetPasswordWithPhoneCode,
     requestRegistrationReapplication,
     requestNotificationEmailVerification,
     verifyNotificationEmail,
