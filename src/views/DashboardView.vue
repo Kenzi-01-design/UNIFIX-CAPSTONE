@@ -67,15 +67,6 @@
           <span class="stat-label">Urgent</span>
           <div class="stat-icon"><UiIcon name="work" /></div>
         </div>
-
-        <div class="stat-card red overdue-stat" @click="$emit('navigate', 'admin')">
-          <div class="stat-header">
-            <span class="stat-label">Overdue work</span>
-            <div class="stat-icon"><UiIcon name="error" /></div>
-          </div>
-          <div class="stat-value">{{ overdueCount }}</div>
-          <div class="stat-delta down">Past target resolution time</div>
-        </div>
         <div class="stat-value">{{ urgentCount }}</div>
         <div class="stat-delta down">Needs immediate action</div>
       </div>
@@ -316,8 +307,3 @@ function isClosed(status) {
   return ['closed', 'resolved', 'action-taken'].includes(status);
 }
 </script>
-
-<style scoped>
-.report-row.overdue { border-left: 3px solid var(--red); background: var(--red-bg); }
-.overdue-stat { outline: 1px solid rgba(201, 42, 42, .18); }
-</style>
