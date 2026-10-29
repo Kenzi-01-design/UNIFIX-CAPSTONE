@@ -51,6 +51,7 @@
       </div>
 
       <footer class="modal-actions">
+        <button class="btn-secondary" type="button" @click="$emit('close')">Close</button>
         <button
           v-if="hasAdminAccess(currentRole)"
           class="btn-primary"
@@ -61,6 +62,14 @@
         </button>
         <button
           v-if="hasAdminAccess(currentRole) && canReviewRequest"
+          class="btn-primary"
+          type="button"
+          @click="$emit('verify', request.id)"
+        >
+          Verify & Close
+        </button>
+        <button
+          v-if="hasAdminAccess(currentRole) && canReviewRequest"
           class="btn-secondary request-reject"
           type="button"
           :disabled="rejectionReason.trim().length < 5 || rejectionReason.trim().length > 500"
@@ -68,15 +77,6 @@
         >
           Reject & Request Rework
         </button>
-        <button
-          v-if="hasAdminAccess(currentRole) && canReviewRequest"
-          class="btn-primary"
-          type="button"
-          @click="$emit('verify', request.id)"
-        >
-          Verify & Close
-        </button>
-        <button class="btn-secondary" type="button" @click="$emit('close')">Close</button>
       </footer>
     </section>
   </div>
@@ -134,13 +134,10 @@ function formatDate(value) {
 .request-review > strong { font-size:14px; }
 .request-review > p { margin:7px 0 12px; color:var(--text-2); font-size:12px; line-height:1.5; }
 .request-review textarea { display:block; width:100%; resize:vertical; padding:11px 12px; border:1px solid var(--border-dark); border-radius:8px; background:var(--surface); color:var(--text); font:inherit; font-size:13px; line-height:1.5; }
-.request-modal .modal-actions { flex-wrap:wrap; align-items:center; padding:16px 26px 22px; gap:10px; }
 .request-reject { color:var(--red); }
 .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
 @media (max-width:560px) {
   .request-modal-body { padding:18px; }
   .request-modal-body .modal-row { grid-template-columns:1fr; gap:5px; }
-  .request-modal .modal-actions { padding:14px 18px 18px; }
-  .request-modal .modal-actions button { flex:1 1 auto; }
 }
 </style>
