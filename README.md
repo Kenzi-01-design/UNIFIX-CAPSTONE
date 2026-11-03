@@ -117,7 +117,7 @@ The daily job creates at most one work order per schedule per due date and advan
 
 For an existing project, apply all migrations in ascending filename order
 through the current latest migration,
-`202611030001_employee_request_photos.sql`. See [DEPLOYMENT.md](DEPLOYMENT.md)
+`202611030002_facility_status_location_accuracy.sql`. See [DEPLOYMENT.md](DEPLOYMENT.md)
 for the tracking-counter migration caution.
 For a new project, use the complete `supabase/schema.sql` instead of replaying
 the migration history.

@@ -56,6 +56,7 @@
             </div>
             <h3>{{ issue.title }}</h3>
             <div class="facility-issue-meta">
+              <span v-if="issue.area">{{ issue.area }}</span>
               <span v-if="issue.risk && issue.risk !== 'low'" class="facility-issue-risk">{{ formatStatus(issue.risk) }} priority</span>
               <time>{{ issue.date || 'Date unavailable' }}</time>
             </div>
@@ -107,6 +108,7 @@ import UiIcon from '../components/UiIcon.vue';
 import { getPublicFacilityIssues, isDemoMode, isSupabaseConfigured } from '../lib/supabase.js';
 import { useReports } from '../composables/useReports.js';
 import { useRequests } from '../composables/useRequests.js';
+import { matchesFacilityLocation } from '../lib/facilityIssues.js';
 
 const props = defineProps({
   locationId: { type: String, default: '' }
@@ -124,12 +126,7 @@ const loading = ref(false);
 const error = ref('');
 const reportUrl = computed(() => `/report?location=${encodeURIComponent(props.locationId)}&new=1`);
 const hasMore = computed(() => reports.value.length < reportCount.value || requests.value.length < requestCount.value);
-
-function matchesBuilding(value, building) {
-  const location = String(value || '').trim().toLowerCase();
-  const prefix = String(building || '').trim().toLowerCase();
-  return location === prefix || location.startsWith(`${prefix} · `);
-}
+let loadGeneration = 0;
 
 function formatStatus(status) {
   return String(status || 'pending').replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -144,12 +141,12 @@ function localFacilityFeed() {
   const locations = selectedLocation ? JSON.parse(selectedLocation) : [];
   const currentFacility = locations.find((location) => location.id === props.locationId && location.isActive);
   if (!currentFacility) return null;
-  const open = (status) => !['closed', 'resolved', 'action-taken'].includes(String(status || '').toLowerCase());
+  const open = (status) => !['closed', 'resolved', 'action-taken'].includes(String(status || '').trim().toLowerCase());
   const facilityReports = localReports.value
-    .filter((item) => matchesBuilding(item.loc, currentFacility.building) && open(item.status))
-    .map((item) => ({ title: item.title, category: item.cat, status: item.status, risk: item.risk, date: item.date }));
+    .filter((item) => matchesFacilityLocation(item.loc, currentFacility) && open(item.status))
+    .map((item) => ({ title: item.title, category: item.cat, status: item.status, risk: item.risk, date: item.date, area: item.loc }));
   const facilityRequests = localRequests.value
-    .filter((item) => matchesBuilding(item.dept, currentFacility.building) && open(item.status))
+    .filter((item) => matchesFacilityLocation(item.dept, currentFacility) && open(item.status))
     .map((item) => ({ title: item.title, category: item.cat, status: item.status, risk: item.risk, date: item.date, area: item.dept }));
   return {
     facility: currentFacility,
@@ -161,18 +158,23 @@ function localFacilityFeed() {
 }
 
 async function loadIssues(append = false) {
-  if (!props.locationId || loading.value) return;
+  if (!props.locationId || (append && loading.value)) return;
+  const currentLocationId = props.locationId;
+  const generation = ++loadGeneration;
   loading.value = true;
   error.value = '';
   if (!append) {
+    facility.value = null;
     reports.value = [];
     requests.value = [];
+    reportCount.value = 0;
+    requestCount.value = 0;
   }
   try {
     let data;
     if (isSupabaseConfigured) {
       data = await getPublicFacilityIssues(
-        props.locationId,
+        currentLocationId,
         reports.value.length,
         requests.value.length,
         50
@@ -183,6 +185,7 @@ async function loadIssues(append = false) {
       throw new Error('Facility status is temporarily unavailable.');
     }
 
+    if (generation !== loadGeneration || currentLocationId !== props.locationId) return;
     if (!data?.facility) throw new Error('This facility link is invalid or the location is no longer active.');
     facility.value = data.facility;
     reports.value = append ? [...reports.value, ...(data.reports || [])] : (data.reports || []);
@@ -190,14 +193,21 @@ async function loadIssues(append = false) {
     reportCount.value = Number(data.reportCount || 0);
     requestCount.value = Number(data.requestCount || 0);
   } catch (caught) {
-    error.value = caught.message || 'Facility status could not be loaded.';
+    if (generation === loadGeneration) error.value = caught.message || 'Facility status could not be loaded.';
   } finally {
-    loading.value = false;
+    if (generation === loadGeneration) loading.value = false;
   }
 }
 
 watch(() => props.locationId, () => {
+  loadGeneration += 1;
   facility.value = null;
+  reports.value = [];
+  requests.value = [];
+  reportCount.value = 0;
+  requestCount.value = 0;
+  error.value = '';
+  loading.value = false;
   void loadIssues();
 });
 

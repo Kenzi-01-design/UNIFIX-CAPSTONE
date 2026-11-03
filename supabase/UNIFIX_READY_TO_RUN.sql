@@ -1478,6 +1478,53 @@ values
   ('Training Center')
 on conflict do nothing;
 
+create or replace function public.work_item_location_matches_facility(
+  p_work_location text,
+  p_building text,
+  p_floor text default null,
+  p_room text default null
+)
+returns boolean
+language sql
+immutable
+set search_path = pg_catalog
+as $$
+  with facility_path as (
+    select
+      lower(btrim(coalesce(p_work_location, ''))) as work_location,
+      lower(btrim(coalesce(p_building, ''))) as building,
+      nullif(lower(btrim(coalesce(p_floor, ''))), '') as floor,
+      nullif(lower(btrim(coalesce(p_room, ''))), '') as room
+  ),
+  prefixes as (
+    select
+      work_location,
+      building,
+      concat_ws(' · ', building, floor, room) as full_prefix,
+      array_remove(array[
+        building,
+        case when floor is not null then concat_ws(' · ', building, floor) end,
+        case when room is not null then concat_ws(' · ', building, floor, room) end
+      ], null) as exact_prefixes,
+      case
+        when floor is not null and room is not null then concat_ws(' · ', building, room)
+      end as room_only_prefix
+    from facility_path
+  )
+  select work_location <> ''
+    and building <> ''
+    and (
+      work_location = any(exact_prefixes)
+      or left(work_location, length(full_prefix || ' · ')) = full_prefix || ' · '
+      or (
+        room_only_prefix is not null
+        and left(work_location, length(room_only_prefix || ' · ')) = room_only_prefix || ' · '
+      )
+    )
+  from prefixes;
+$$;
+revoke all on function public.work_item_location_matches_facility(text, text, text, text) from public, anon, authenticated;
+
 create or replace function public.get_public_facility_issues(
   p_location_id uuid,
   p_report_offset integer default 0,
@@ -1492,7 +1539,6 @@ set search_path = public, pg_temp
 as $$
 declare
   facility public.locations%rowtype;
-  building_prefix text;
   safe_report_offset integer := greatest(coalesce(p_report_offset, 0), 0);
   safe_request_offset integer := greatest(coalesce(p_request_offset, 0), 0);
   safe_limit integer := greatest(1, least(coalesce(p_limit, 50), 50));
@@ -1514,21 +1560,21 @@ begin
     return null;
   end if;
 
-  building_prefix := lower(btrim(facility.building));
-
   select count(*) into report_count
   from public.reports report
-  where (lower(btrim(report.location)) = building_prefix
-    or left(lower(btrim(report.location)), length(building_prefix || ' · ')) = building_prefix || ' · ')
-    and lower(coalesce(report.status, '')) not in ('closed', 'resolved', 'action-taken');
+  where public.work_item_location_matches_facility(
+      report.location, facility.building, facility.floor, facility.room
+    )
+    and lower(btrim(coalesce(report.status, ''))) not in ('closed', 'resolved', 'action-taken');
 
   select count(*) into request_count
   from public.requests request
-  where (lower(btrim(request.department)) = building_prefix
-    or left(lower(btrim(request.department)), length(building_prefix || ' · ')) = building_prefix || ' · ')
-    and lower(coalesce(request.status, '')) not in ('closed', 'resolved', 'action-taken');
+  where public.work_item_location_matches_facility(
+      request.department, facility.building, facility.floor, facility.room
+    )
+    and lower(btrim(coalesce(request.status, ''))) not in ('closed', 'resolved', 'action-taken');
 
-  select coalesce(jsonb_agg(page.issue order by page.created_at desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(page.issue order by page.created_at desc, page.id desc), '[]'::jsonb)
   into public_reports
   from (
     select jsonb_build_object(
@@ -1536,17 +1582,19 @@ begin
       'category', report.category,
       'status', report.status,
       'risk', report.risk,
-      'date', report.report_date
-    ) as issue, report.created_at
+      'date', report.report_date,
+      'area', report.location
+    ) as issue, report.created_at, report.id
     from public.reports report
-    where (lower(btrim(report.location)) = building_prefix
-      or left(lower(btrim(report.location)), length(building_prefix || ' · ')) = building_prefix || ' · ')
-      and lower(coalesce(report.status, '')) not in ('closed', 'resolved', 'action-taken')
-    order by report.created_at desc
+    where public.work_item_location_matches_facility(
+        report.location, facility.building, facility.floor, facility.room
+      )
+      and lower(btrim(coalesce(report.status, ''))) not in ('closed', 'resolved', 'action-taken')
+    order by report.created_at desc, report.id desc
     limit safe_limit offset safe_report_offset
   ) page;
 
-  select coalesce(jsonb_agg(page.issue order by page.created_at desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(page.issue order by page.created_at desc, page.id desc), '[]'::jsonb)
   into public_requests
   from (
     select jsonb_build_object(
@@ -1556,12 +1604,13 @@ begin
       'risk', request.risk,
       'date', request.request_date,
       'area', request.department
-    ) as issue, request.created_at
+    ) as issue, request.created_at, request.id
     from public.requests request
-    where (lower(btrim(request.department)) = building_prefix
-      or left(lower(btrim(request.department)), length(building_prefix || ' · ')) = building_prefix || ' · ')
-      and lower(coalesce(request.status, '')) not in ('closed', 'resolved', 'action-taken')
-    order by request.created_at desc
+    where public.work_item_location_matches_facility(
+        request.department, facility.building, facility.floor, facility.room
+      )
+      and lower(btrim(coalesce(request.status, ''))) not in ('closed', 'resolved', 'action-taken')
+    order by request.created_at desc, request.id desc
     limit safe_limit offset safe_request_offset
   ) page;
 
