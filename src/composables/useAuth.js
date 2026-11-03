@@ -305,13 +305,13 @@ if (isSupabaseConfigured) {
 async function findProfileForUser(user) {
   let { data: profile, error } = await supabase
     .from('user_profiles')
-    .select('name,email,role,department,phone,location,is_active,registration_status,rejection_reason,auth_user_id')
+    .select('name,email,role,specialty,department,phone,location,is_active,registration_status,rejection_reason,auth_user_id')
     .eq('auth_user_id', user.id)
     .maybeSingle();
   if (!error && !profile && user.email) {
     const legacyResult = await supabase
       .from('user_profiles')
-      .select('name,email,role,department,phone,location,is_active,registration_status,rejection_reason,auth_user_id')
+      .select('name,email,role,specialty,department,phone,location,is_active,registration_status,rejection_reason,auth_user_id')
       .is('auth_user_id', null)
       .eq('email', user.email)
       .maybeSingle();

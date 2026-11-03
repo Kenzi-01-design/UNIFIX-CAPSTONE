@@ -385,7 +385,7 @@ export function useReports() {
     if (!isSupabaseConfigured) return technicians;
     const { data, error } = await supabase
       .from('user_profiles')
-      .select('name, department')
+      .select('name, specialty, department')
       .eq('role', 'Personnel')
       .eq('is_active', true)
       .eq('registration_status', 'approved')
@@ -396,7 +396,7 @@ export function useReports() {
       technicians.length,
       ...(data || []).map((profile) => ({
         name: profile.name,
-        specialty: profile.department || 'Maintenance'
+        specialty: profile.specialty || profile.department || 'Maintenance'
       }))
     );
     return technicians;
@@ -421,9 +421,13 @@ export function useReports() {
     if (!report || !technicians.length) return technicians[0] || null;
     const ranked = [...technicians]
       .map((tech) => {
-        const specialtyMatch = report.cat
-          ? report.cat.toLowerCase().includes(tech.specialty.toLowerCase())
-          : false;
+        const category = report.cat?.toLowerCase();
+        const specialty = tech.specialty.toLowerCase();
+        const matchingCategories = {
+          sewerage: ['plumbing', 'sanitation'],
+          carpentry: ['furniture', 'civil']
+        }[specialty] || [specialty];
+        const specialtyMatch = Boolean(category && matchingCategories.includes(category));
         const load = getActiveLoad(tech.name);
         return {
           tech,

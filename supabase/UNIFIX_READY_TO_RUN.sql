@@ -54,7 +54,16 @@
         name text not null,
         email text not null unique,
         role text not null check (role in ('Admin', 'Assistant', 'Employee', 'Student', 'Personnel')),
+        requested_role text not null default 'Employee'
+          constraint user_profiles_requested_role_check
+          check (requested_role in ('Employee', 'Assistant', 'Personnel')),
         department text not null default '',
+        specialty text not null default ''
+          constraint user_profiles_specialty_check
+          check (specialty in (
+            '', 'Electrical', 'Plumbing', 'Sewerage', 'Furniture', 'HVAC', 'Network',
+            'Civil', 'Carpentry', 'Security', 'Sanitation', 'Other'
+          )),
         phone text not null default '',
         location text not null default 'Main Campus',
         is_active boolean not null default true,
@@ -64,8 +73,37 @@
         updated_at timestamptz not null default now()
         );
     alter table public.user_profiles
+      add column if not exists requested_role text not null default 'Employee';
+    alter table public.user_profiles
       add column if not exists registration_status text not null default 'approved'
       check (registration_status in ('pending', 'approved', 'rejected'));
+    alter table public.user_profiles
+      add column if not exists specialty text not null default '';
+    do $$
+    begin
+      if not exists (
+        select 1 from pg_constraint
+        where conrelid = 'public.user_profiles'::regclass
+          and conname = 'user_profiles_requested_role_check'
+      ) then
+        alter table public.user_profiles
+          add constraint user_profiles_requested_role_check
+          check (requested_role in ('Employee', 'Assistant', 'Personnel'));
+      end if;
+      if not exists (
+        select 1 from pg_constraint
+        where conrelid = 'public.user_profiles'::regclass
+          and conname = 'user_profiles_specialty_check'
+      ) then
+        alter table public.user_profiles
+          add constraint user_profiles_specialty_check
+          check (specialty in (
+            '', 'Electrical', 'Plumbing', 'Sewerage', 'Furniture', 'HVAC', 'Network',
+            'Civil', 'Carpentry', 'Security', 'Sanitation', 'Other'
+          ));
+      end if;
+    end;
+    $$;
 
     -- Per-user UI preferences belong on the server too.  Keeping these separate
     -- from the identity profile makes it safe to extend them without granting
@@ -416,8 +454,24 @@
         security definer
         set search_path = public
         as $$
+        declare
+          requested_role text := case
+            when new.raw_user_meta_data ->> 'requested_role' in ('Employee', 'Assistant', 'Personnel')
+              then new.raw_user_meta_data ->> 'requested_role'
+            else 'Employee'
+          end;
+          specialty text := case
+            when new.raw_user_meta_data ->> 'specialty' in (
+              'Electrical', 'Plumbing', 'Sewerage', 'Furniture', 'HVAC', 'Network',
+              'Civil', 'Carpentry', 'Security', 'Sanitation', 'Other'
+            ) then new.raw_user_meta_data ->> 'specialty'
+            else ''
+          end;
         begin
           if new.email is not null then
+            if new.raw_user_meta_data ->> 'requested_role' = 'Personnel' and specialty = '' then
+              raise exception 'A valid work specialty is required for Personnel registration.';
+            end if;
             if exists (
               select 1
               from public.user_profiles profile
@@ -427,12 +481,14 @@
               raise exception 'A university profile already exists for this email address';
             end if;
             insert into public.user_profiles (
-              id, name, email, role, department, phone, location, is_active, registration_status
+              id, name, email, role, requested_role, specialty, department, phone, location, is_active, registration_status
             ) values (
               new.id::text,
               left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'name'), ''), 'New User'), 120),
               lower(new.email),
               'Employee',
+              requested_role,
+              specialty,
               left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'department'), ''), ''), 160),
               left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'phone'), ''), ''), 40),
               left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'location'), ''), 'Main Campus'), 160),

@@ -63,7 +63,7 @@
         <div class="user-table-wrap responsive-table-scroll responsive-table-scroll--approvals">
           <table>
             <thead>
-              <tr><th>Applicant</th><th>Requested role</th><th>Department</th><th>Contact</th><th>Confirm / assign role</th><th>Rejection reason</th><th>Review</th></tr>
+              <tr><th>Applicant</th><th>Requested role</th><th>Specialty</th><th>Department</th><th>Contact</th><th>Confirm / assign role</th><th>Rejection reason</th><th>Review</th></tr>
             </thead>
             <tbody>
               <tr v-for="user in pendingProfiles" :key="user.id">
@@ -73,6 +73,7 @@
                   <small v-if="user.reapplicationRequestedAt">Re-application requested {{ new Date(user.reapplicationRequestedAt).toLocaleString() }}</small>
                 </td>
                 <td>{{ user.requestedRole }}</td>
+                <td>{{ user.requestedRole === 'Personnel' ? user.specialty || 'Not set' : '—' }}</td>
                 <td>{{ user.department || 'Not set' }}</td>
                 <td>{{ user.phone || 'Not provided' }}</td>
                 <td>
@@ -99,7 +100,7 @@
                 </td>
               </tr>
               <tr v-if="!pendingProfiles.length">
-                <td colspan="7" class="empty-users">
+                <td colspan="8" class="empty-users">
                   {{ loadingProfiles ? 'Loading registration requests…' : 'There are no pending registration requests.' }}
                 </td>
               </tr>
@@ -163,12 +164,13 @@
         <div class="user-table-wrap responsive-table-scroll responsive-table-scroll--users">
           <table>
             <thead>
-              <tr><th>User</th><th>Role</th><th>Department</th><th>Approval</th><th>Access</th><th>Actions</th></tr>
+              <tr><th>User</th><th>Role</th><th>Specialty</th><th>Department</th><th>Approval</th><th>Access</th><th>Actions</th></tr>
             </thead>
             <tbody>
               <tr v-for="user in profiles" :key="user.id">
                 <td><strong>{{ user.name }}</strong><small>{{ user.email }}</small></td>
                 <td><span class="user-role-pill">{{ user.role }}</span></td>
+                <td>{{ user.role === 'Personnel' ? user.specialty || 'Not set' : '—' }}</td>
                 <td>{{ user.department || 'Not set' }}</td>
                 <td>{{ formatRegistrationStatus(user.registrationStatus) }}</td>
                 <td><span :class="['tag', user.isActive ? 'resolved' : 'pending']">{{ user.isActive ? 'Active' : 'Inactive' }}</span></td>
@@ -200,7 +202,7 @@
                   </button>
                 </td>
               </tr>
-              <tr v-if="!profiles.length"><td colspan="6" class="empty-users">No user profiles found.</td></tr>
+              <tr v-if="!profiles.length"><td colspan="7" class="empty-users">No user profiles found.</td></tr>
             </tbody>
           </table>
         </div>

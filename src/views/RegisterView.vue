@@ -41,6 +41,15 @@
             <option v-for="department in departments" :key="department" :value="department">{{ department }}</option>
           </select>
         </div>
+        <div v-if="form.requestedRole === 'Personnel'" class="form-group">
+          <label for="registration-specialty">Work specialty *</label>
+          <select id="registration-specialty" v-model="form.specialty" required>
+            <option value="" disabled>Select your specialty</option>
+            <option v-for="specialty in personnelSpecialties" :key="specialty" :value="specialty">
+              {{ specialtyLabel(specialty) }}
+            </option>
+          </select>
+        </div>
         <div class="form-group">
           <label for="registration-phone">Phone</label>
           <input
@@ -86,6 +95,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { REQUESTABLE_REGISTRATION_ROLES } from '../lib/registrationRoles.js';
 import { isValidRegistrationPhone, normalizeRegistrationPhone } from '../lib/registrationPhone.js';
+import { PERSONNEL_SPECIALTIES } from '../lib/personnelSpecialties.js';
 import UiIcon from '../components/UiIcon.vue';
 
 defineEmits(['back', 'open-login']);
@@ -95,6 +105,7 @@ const form = reactive({
   email: '',
   requestedRole: '',
   department: '',
+  specialty: '',
   phone: '',
   location: 'Bambang Campus',
   password: '',
@@ -102,11 +113,15 @@ const form = reactive({
 });
 watch(() => form.requestedRole, (role) => {
   if (role !== 'Employee') form.department = '';
+  if (role !== 'Personnel') form.specialty = '';
 });
 const submitting = ref(false);
 const submitted = ref(false);
 const error = ref('');
 const departments = ['CIT', 'CAS', 'COE', 'CTE'];
+const personnelSpecialties = PERSONNEL_SPECIALTIES;
+const specialtyLabels = { HVAC: 'HVAC / AC', Network: 'Network / IT', Civil: 'Structural / Civil' };
+const specialtyLabel = (specialty) => specialtyLabels[specialty] || specialty;
 const requestableRoles = REQUESTABLE_REGISTRATION_ROLES;
 // If no UX domains are configured, show the same initial default as the server migration.
 const allowedEmailDomains = (import.meta.env.VITE_ALLOWED_EMAIL_DOMAINS || 'nvsu.edu.ph')
@@ -158,6 +173,7 @@ async function submitRegistration() {
           name: form.name,
           requested_role: form.requestedRole,
           department: form.department,
+          specialty: form.requestedRole === 'Personnel' ? form.specialty : '',
           phone: form.phone,
           location: form.location
         },

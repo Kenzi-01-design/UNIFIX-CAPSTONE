@@ -58,6 +58,12 @@
         requested_role text not null default 'Employee'
           constraint user_profiles_requested_role_check
           check (requested_role in ('Employee', 'Assistant', 'Personnel')),
+        specialty text not null default ''
+          constraint user_profiles_specialty_check
+          check (specialty in (
+            '', 'Electrical', 'Plumbing', 'Sewerage', 'Furniture', 'HVAC', 'Network',
+            'Civil', 'Carpentry', 'Security', 'Sanitation', 'Other'
+          )),
         department text not null default '',
         phone text not null default '',
         location text not null default 'Main Campus',
@@ -86,6 +92,24 @@
       add column if not exists auth_user_id uuid references auth.users(id) on delete cascade;
     alter table public.user_profiles
       add column if not exists rejection_reason text;
+    alter table public.user_profiles
+      add column if not exists specialty text not null default '';
+    do $$
+    begin
+      if not exists (
+        select 1 from pg_constraint
+        where conrelid = 'public.user_profiles'::regclass
+          and conname = 'user_profiles_specialty_check'
+      ) then
+        alter table public.user_profiles
+          add constraint user_profiles_specialty_check
+          check (specialty in (
+            '', 'Electrical', 'Plumbing', 'Sewerage', 'Furniture', 'HVAC', 'Network',
+            'Civil', 'Carpentry', 'Security', 'Sanitation', 'Other'
+          ));
+      end if;
+    end;
+    $$;
     alter table public.user_profiles
       add column if not exists requested_role text not null default 'Employee'
       constraint user_profiles_requested_role_check
@@ -585,6 +609,7 @@
           and new.id = old.id
           and new.name = old.name
           and new.role = old.role
+          and new.specialty = old.specialty
           and new.department = old.department
           and new.phone = old.phone
           and new.location = old.location
@@ -633,10 +658,26 @@
         security definer
         set search_path = public
         as $$
+        declare
+          requested_role text := case
+            when new.raw_user_meta_data ->> 'requested_role' in ('Employee', 'Assistant', 'Personnel')
+              then new.raw_user_meta_data ->> 'requested_role'
+            else 'Employee'
+          end;
+          specialty text := case
+            when new.raw_user_meta_data ->> 'specialty' in (
+              'Electrical', 'Plumbing', 'Sewerage', 'Furniture', 'HVAC', 'Network',
+              'Civil', 'Carpentry', 'Security', 'Sanitation', 'Other'
+            ) then new.raw_user_meta_data ->> 'specialty'
+            else ''
+          end;
         begin
           if new.email is not null then
+            if requested_role = 'Personnel' and specialty = '' then
+              raise exception 'A valid work specialty is required for Personnel registration.';
+            end if;
             insert into public.user_profiles (
-              id, auth_user_id, name, email, role, requested_role, department, phone, location, is_active, registration_status
+              id, auth_user_id, name, email, role, requested_role, specialty, department, phone, location, is_active, registration_status
             ) values (
               new.id::text,
               new.id,
@@ -648,6 +689,7 @@
                   then new.raw_user_meta_data ->> 'requested_role'
                 else 'Employee'
               end,
+              specialty,
               left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'department'), ''), ''), 160),
               left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'phone'), ''), ''), 40),
               left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'location'), ''), 'Main Campus'), 160),
@@ -658,6 +700,7 @@
               set auth_user_id = excluded.auth_user_id,
                   role = 'Employee',
                   requested_role = excluded.requested_role,
+                  specialty = excluded.specialty,
                   is_active = false,
                   registration_status = 'pending',
                   updated_at = now()
