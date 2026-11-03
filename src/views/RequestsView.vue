@@ -60,7 +60,6 @@
 
           <div class="rc-title">{{ request.title }}</div>
           <div class="request-meta"><UiIcon name="building" :size="14" /> {{ request.dept || 'Department not specified' }}</div>
-          <p v-if="request.details" class="request-details">{{ request.details }}</p>
           <div v-if="hasAdminAccess(currentRole) && request.feedback" class="request-feedback">
             <strong>Employee feedback<span v-if="request.feedbackDate"> · {{ request.feedbackDate }}</span></strong>
             <p>{{ request.feedback }}</p>
@@ -170,7 +169,6 @@ function formatStatus(status) {
 <style scoped>
 .request-id { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-3); }
 .request-meta { display: flex; align-items: center; gap: 5px; margin-top: 4px; font-size: 11px; color: var(--text-3); }
-.request-details { margin: 8px 0 0; color: var(--text-2); font-size: 12px; line-height: 1.5; }
 .request-feedback { margin-top: 12px; padding: 11px 13px; border-left: 3px solid var(--primary); border-radius: 6px; background: var(--surface-2); color: var(--text-2); font-size: 12px; line-height: 1.5; }
 .request-feedback strong { color: var(--text); }
 .request-feedback p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }

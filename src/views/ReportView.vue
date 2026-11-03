@@ -51,7 +51,12 @@
           v-for="r in filteredReports"
           :key="r.id"
           :class="['report-card', r.risk]"
+          role="button"
+          tabindex="0"
+          :aria-label="`View report ${r.trackingCode || r.id}: ${r.title}`"
           @click="$emit('open-report', r.id)"
+          @keydown.enter.prevent="$emit('open-report', r.id)"
+          @keydown.space.prevent="$emit('open-report', r.id)"
         >
           <div class="rc-top">
             <div class="rc-cat">
@@ -199,4 +204,6 @@ function capitalize(str) {
 </script>
 
 <style scoped>
+.reports-cards > .report-card[role="button"] { cursor: pointer; }
+.reports-cards > .report-card[role="button"]:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
 </style>
