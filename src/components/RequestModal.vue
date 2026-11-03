@@ -139,6 +139,7 @@ function formatDate(value) {
 .request-modal-body .modal-row { display:grid; grid-template-columns:minmax(145px, 0.4fr) minmax(0, 1fr); align-items:center; gap:16px; padding:10px 0; border-bottom:1px solid var(--border); }
 .request-modal-body .modal-row > strong { color:var(--text-3); font-weight:600; }
 .request-modal-body .modal-row > span { min-width:0; overflow-wrap:anywhere; }
+.request-modal-body .modal-row > span.tag.submitted { padding-inline:0; }
 .request-modal-section { margin-top:20px; padding:16px; border:1px solid var(--border); border-radius:10px; background:var(--surface-2); }
 .request-modal-section > strong { color:var(--text); font-size:13px; }
 .request-details-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; margin:12px 0 0; }
