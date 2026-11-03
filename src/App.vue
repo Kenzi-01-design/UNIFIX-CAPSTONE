@@ -236,6 +236,7 @@ import MobileNavigation from './components/MobileNavigation.vue';
 
 // Views
 import LoginView from './views/LoginView.vue';
+import ForgotPasswordView from './views/ForgotPasswordView.vue';
 import RegisterView from './views/RegisterView.vue';
 import HomeView from './views/HomeView.vue';
 import TrackReportView from './views/TrackReportView.vue';
