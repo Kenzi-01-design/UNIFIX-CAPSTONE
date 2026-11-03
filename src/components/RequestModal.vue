@@ -21,7 +21,17 @@
         <div v-if="request.verifiedAt" class="modal-row"><strong>Verified</strong><span>{{ formatDate(request.verifiedAt) }}</span></div>
         <section class="request-modal-section">
           <strong>Request details</strong>
-          <p>{{ request.details || 'No additional details provided.' }}</p>
+          <dl class="request-details-grid">
+            <div
+              v-for="detail in requestDetailRows"
+              :key="detail.label"
+              class="request-detail-cell"
+              :class="{ 'request-detail-cell-wide': detail.label === 'Defect' || detail.label === 'Details' }"
+            >
+              <dt>{{ detail.label }}</dt>
+              <dd>{{ detail.value }}</dd>
+            </div>
+          </dl>
         </section>
         <section v-if="request.adminResponse" class="request-modal-section">
           <strong>Administrator response</strong>
@@ -86,6 +96,7 @@
 import { computed, ref, watch } from 'vue';
 import PhotoGallery from './PhotoGallery.vue';
 import { hasAdminAccess } from '../lib/access.js';
+import { formatRequestDetails } from '../lib/requestDetails.js';
 
 const props = defineProps({
   isOpen: { type: Boolean, default: false },
@@ -94,6 +105,7 @@ const props = defineProps({
 });
 defineEmits(['close', 'assign', 'verify', 'reject']);
 const rejectionReason = ref('');
+const requestDetailRows = computed(() => formatRequestDetails(props.request?.details));
 const canReviewRequest = computed(() => (
   props.request?.status === 'for-verification'
   && props.request?.techState === 'completed'
@@ -129,7 +141,12 @@ function formatDate(value) {
 .request-modal-body .modal-row > span { min-width:0; overflow-wrap:anywhere; }
 .request-modal-section { margin-top:20px; padding:16px; border:1px solid var(--border); border-radius:10px; background:var(--surface-2); }
 .request-modal-section > strong { color:var(--text); font-size:13px; }
-.request-modal-section p { margin:9px 0 0; color:var(--text-2); font-size:13px; line-height:1.65; white-space:pre-wrap; overflow-wrap:anywhere; }
+.request-details-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; margin:12px 0 0; }
+.request-detail-cell { min-width:0; padding:11px 12px; border:1px solid var(--border); border-radius:8px; background:var(--surface); }
+.request-detail-cell-wide { grid-column:1 / -1; }
+.request-detail-cell dt { margin-bottom:5px; color:var(--text-3); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+.request-detail-cell dd { margin:0; color:var(--text-2); font-size:13px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
+.request-modal-section > p { margin:9px 0 0; color:var(--text-2); font-size:13px; line-height:1.65; white-space:pre-wrap; overflow-wrap:anywhere; }
 .request-review { margin-top:20px; padding:16px; border:1px solid var(--border); border-radius:10px; background:var(--surface-2); }
 .request-review > strong { font-size:14px; }
 .request-review > p { margin:7px 0 12px; color:var(--text-2); font-size:12px; line-height:1.5; }
@@ -139,5 +156,7 @@ function formatDate(value) {
 @media (max-width:560px) {
   .request-modal-body { padding:18px; }
   .request-modal-body .modal-row { grid-template-columns:1fr; gap:5px; }
+  .request-details-grid { grid-template-columns:1fr; }
+  .request-detail-cell-wide { grid-column:auto; }
 }
 </style>
