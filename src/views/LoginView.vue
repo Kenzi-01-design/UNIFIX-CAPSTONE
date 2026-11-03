@@ -186,7 +186,7 @@
           </span>
         </div>
       </header>
-      <h2>Welcome!</h2>
+      <h2>Welcome</h2>
       <p class="sub">Sign in with your NVSU institutional account.</p>
       <p v-if="authNotice" class="login-auth-notice" role="alert">{{ authNotice }}</p>
       
