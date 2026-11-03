@@ -378,15 +378,14 @@ async function requestReapplication() {
 .login-form-brand small { font-size: 10px; }
 .login-form-wrap h2 { margin: 0 0 6px; }
 .login-form-wrap p.sub { margin: 0 0 20px; }
-.login-role-selection { margin: 0 0 16px; }
+.login-role-selection { margin: 0 0 12px; }
 .login-role-selection > label { margin-bottom: 8px; }
 .login-role-selection .role-tabs { gap: 8px; margin: 0; }
 .login-role-selection .role-tab { min-height: 58px; padding: 8px 6px; }
-.login-role-hint { display: block; margin-top: 8px; color: var(--text-3); line-height: 1.4; }
 .login-form-wrap > .form-group { margin-bottom: 14px; }
 .login-form-wrap .form-group label { margin-bottom: 5px; }
 .login-form-wrap .form-group input { padding-block: 10px; }
-.login-form-wrap .login-password-help { margin-bottom: 16px; }
+.login-form-wrap .login-password-help { margin-bottom: 12px; }
 .login-form-wrap > .btn-primary { width: 100%; min-height: 48px; }
 .login-register-link { margin:16px 0 0; color:var(--text-2); text-align:center; font-size:13px; }
 .login-register-link button { padding:0; border:0; background:none; color:var(--primary); font:inherit; font-weight:700; cursor:pointer; }
@@ -395,17 +394,17 @@ async function requestReapplication() {
 .role-hint { display:block; margin-top:8px; color:var(--text-3); }
 .login-password-help { display:grid; justify-items:end; gap:6px; margin:0 0 24px; }
 .login-password-help small { color:var(--text-3); text-align:right; line-height:1.4; }
-.login-password-help button { padding:0; border:0; background:none; color:var(--primary); font:inherit; font-weight:700; cursor:pointer; }
+.login-password-help button { padding:0; border:0; background:none; color:var(--primary); font:inherit; font-size:12px; font-weight:700; line-height:1.4; cursor:pointer; }
 .login-state-action { display:grid; gap:8px; margin:0 0 18px; }
 .login-state-action .btn-secondary { width:100%; }
 .login-state-action small { color:var(--text-3); line-height:1.5; }
 @media (min-width: 768px) and (max-height: 760px) {
   .login-form-header { margin-bottom: 14px; }
   .login-form-wrap p.sub { margin-bottom: 14px; }
-  .login-role-selection { margin-bottom: 12px; }
+  .login-role-selection { margin-bottom: 10px; }
   .login-role-selection .role-tab { min-height: 52px; padding-block: 6px; }
   .login-form-wrap > .form-group { margin-bottom: 10px; }
-  .login-form-wrap .login-password-help { margin-bottom: 12px; }
+  .login-form-wrap .login-password-help { margin-bottom: 8px; }
   .login-support { margin-top: 10px; }
 }
 
@@ -413,11 +412,11 @@ async function requestReapplication() {
   .login-form-header { margin-bottom: 16px; }
   .login-form-wrap p.sub { margin-bottom: 16px; }
   .login-form-wrap { justify-content: flex-start; }
-  .login-role-selection { margin-bottom: 12px; }
+  .login-role-selection { margin-bottom: 10px; }
   .login-role-selection .role-tabs { gap: 6px; }
   .login-role-selection .role-tab { flex-direction: row; gap: 6px; min-height: 48px; padding: 6px 4px; }
   .login-form-wrap > .form-group { margin-bottom: 12px; }
-  .login-form-wrap .login-password-help { margin-bottom: 12px; }
+  .login-form-wrap .login-password-help { margin-bottom: 8px; }
   .login-form-wrap .login-register-link { margin-top: 12px; }
   .login-form-wrap .login-support { margin-top: 10px; }
 }
