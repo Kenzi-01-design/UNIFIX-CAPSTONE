@@ -103,7 +103,7 @@ const props = defineProps({
   request: { type: Object, default: null },
   currentRole: { type: String, default: 'Admin' }
 });
-defineEmits(['close', 'assign', 'verify', 'reject']);
+const emit = defineEmits(['close', 'assign', 'verify', 'reject']);
 const rejectionReason = ref('');
 const requestDetailRows = computed(() => formatRequestDetails(props.request?.details));
 const canReviewRequest = computed(() => (
