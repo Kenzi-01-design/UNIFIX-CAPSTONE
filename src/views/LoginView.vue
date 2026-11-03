@@ -232,7 +232,6 @@
             <UiIcon name="tasks" :size="20" /><span>Personnel</span>
           </button>
         </div>
-        <small class="login-role-hint">Your access is determined by the role assigned to your verified university account.</small>
       </div>
 
       <div class="form-group">
