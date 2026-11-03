@@ -96,8 +96,12 @@
                 </div>
 
                 <div class="rc-title">{{ r.title }}</div>
-                <div :class="['task-stage', r.techState]">
-                  {{ getNextStepLabel(r.techState) }}
+                <div :class="['task-stage', r.techState, { 'task-stage-rework': r.kind === 'request' && r.status === 'in-progress' && r.rejectionReason }]">
+                  {{ r.kind === 'request' && r.status === 'in-progress' && r.rejectionReason ? 'Rework required' : getNextStepLabel(r.techState) }}
+                </div>
+                <div v-if="r.kind === 'request' && r.status === 'in-progress' && r.rejectionReason" class="request-rework-notice" role="status">
+                  <strong>Rework requested</strong>
+                  <span>{{ r.rejectionReason }}</span>
                 </div>
                 <div class="rc-location"><UiIcon name="location" :size="15" /> {{ r.loc }}</div>
                 <PhotoGallery :attachments="r.photoAttachments || []" :title="r.title" />
@@ -332,4 +336,7 @@ function capitalize(str) {
 
 <style scoped>
 .task-deadline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.request-rework-notice { display:flex; flex-direction:column; gap:4px; margin:10px 18px 0; padding:10px 12px; border:1px solid var(--red); border-radius:8px; background:var(--red-bg); color:var(--red); font-size:12px; line-height:1.5; }
+.request-rework-notice span { color:var(--text-2); overflow-wrap:anywhere; white-space:pre-wrap; }
+.task-stage-rework { color:var(--red); }
 </style>
