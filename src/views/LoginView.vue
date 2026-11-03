@@ -264,7 +264,7 @@
         <small v-if="authNoticeCode === 'wrong-credentials'">
           If you were invited, use the invitation email to set your first password. For password updates, visit the campus office and ask an Admin.
         </small>
-        <small v-else>Forgot your password? Visit the campus office for assistance from an Admin.</small>
+        <button type="button" @click="$emit('forgot-password')">Forgot password?</button>
       </div>
 
       <button class="btn-primary" :disabled="signingIn" @click="handleLogin">
@@ -300,7 +300,7 @@ import { isSupabaseConfigured } from '../lib/supabase.js';
 import UiIcon from '../components/UiIcon.vue';
 
 defineProps({ showBack: Boolean });
-const emit = defineEmits(['logged-in', 'back', 'register']);
+const emit = defineEmits(['logged-in', 'back', 'register', 'forgot-password']);
 
 const {
   login, loadSettings,
@@ -395,6 +395,7 @@ async function requestReapplication() {
 .role-hint { display:block; margin-top:8px; color:var(--text-3); }
 .login-password-help { display:grid; justify-items:end; gap:6px; margin:0 0 24px; }
 .login-password-help small { color:var(--text-3); text-align:right; line-height:1.4; }
+.login-password-help button { padding:0; border:0; background:none; color:var(--primary); font:inherit; font-weight:700; cursor:pointer; }
 .login-state-action { display:grid; gap:8px; margin:0 0 18px; }
 .login-state-action .btn-secondary { width:100%; }
 .login-state-action small { color:var(--text-3); line-height:1.5; }

@@ -46,11 +46,17 @@
       @open-login="navigatePublicPage('login')"
     />
 
+    <ForgotPasswordView
+      v-else-if="!isAuthenticated && publicPage === 'forgot-password'"
+      @back="navigatePublicPage('login')"
+    />
+
     <LoginView
       v-else-if="!isAuthenticated"
       show-back
       @back="navigatePublicPage('home')"
       @register="navigatePublicPage('register')"
+      @forgot-password="navigatePublicPage('forgot-password')"
       @logged-in="handleLoginSuccess"
     />
 
@@ -295,9 +301,13 @@ const locationPrefillId = initialUrl.searchParams.get('location') || '';
 const routePath = window.location.pathname.replace(/\/+$/, '');
 const isFacilityStatusRoute = routePath === '/facility'
   || (routePath === '/report' && Boolean(locationPrefillId) && initialUrl.searchParams.get('new') !== '1');
-const publicPage = ref(isFacilityStatusRoute ? 'facility' : routePath === '/report' ? 'report' : 'home');
+const publicPage = ref(isFacilityStatusRoute
+  ? 'facility'
+  : routePath === '/report'
+    ? 'report'
+    : routePath === '/forgot-password' ? 'forgot-password' : 'home');
 const publicPageNames = new Set([
-  'home', 'evaluation', 'track', 'report', 'register', 'login', 'facility'
+  'home', 'evaluation', 'track', 'report', 'register', 'login', 'facility', 'forgot-password'
 ]);
 const activeReportFilter = ref({});
 const activeRequestStatus = ref('');
@@ -508,7 +518,11 @@ function restoreNavigationFromHistory(event) {
   }
   publicPage.value = publicPageNames.has(state.unifixPublicPage)
     ? state.unifixPublicPage
-    : isFacilityStatusRoute ? 'facility' : routePath === '/report' ? 'report' : 'home';
+    : isFacilityStatusRoute
+      ? 'facility'
+      : routePath === '/report'
+        ? 'report'
+        : routePath === '/forgot-password' ? 'forgot-password' : 'home';
 }
 
 function navigateTo(view) {
