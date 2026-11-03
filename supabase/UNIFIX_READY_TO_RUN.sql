@@ -1995,9 +1995,21 @@ begin
     end if;
   end if;
 
-  if jsonb_typeof(coalesce(new.photo_attachments, '[]'::jsonb)) <> 'array'
-    or jsonb_array_length(coalesce(new.photo_attachments, '[]'::jsonb)) > 3 then
-    raise exception 'Attach no more than three valid photos';
+  if jsonb_typeof(coalesce(new.photo_attachments, '[]'::jsonb)) <> 'array' then
+    raise exception 'Photo attachments must be a list';
+  end if;
+  if jsonb_array_length(coalesce(new.photo_attachments, '[]'::jsonb)) > 6
+    or (
+      select count(*)
+      from jsonb_array_elements(coalesce(new.photo_attachments, '[]'::jsonb)) as photos(photo)
+      where coalesce(photo ->> 'phase', 'before') <> 'after'
+    ) > 3
+    or (
+      select count(*)
+      from jsonb_array_elements(coalesce(new.photo_attachments, '[]'::jsonb)) as photos(photo)
+      where photo ->> 'phase' = 'after'
+    ) > 3 then
+    raise exception 'Attach no more than three photos per work phase (six total)';
   end if;
   return new;
 end;
@@ -2119,6 +2131,24 @@ create policy "Staff can read report photos" on storage.objects
           )
         )
       )
+    )
+  );
+
+drop policy if exists "Employees can read photos for own requests" on storage.objects;
+create policy "Employees can read photos for own requests" on storage.objects
+  for select to authenticated
+  using (
+    bucket_id = 'report-photos'
+    and public.current_user_role() = 'Employee'
+    and (storage.foldername(name))[2] = 'requests'
+    and exists (
+      select 1
+      from public.requests request
+      where request.id in (
+        replace((storage.foldername(name))[3], '%23', '#'),
+        '#' || replace((storage.foldername(name))[3], '%23', '#')
+      )
+      and lower(request.requester_email) = lower(auth.jwt() ->> 'email')
     )
   );
 

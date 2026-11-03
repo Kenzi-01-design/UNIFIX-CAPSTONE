@@ -1,5 +1,5 @@
 begin;
-select plan(33);
+select plan(38);
 
 insert into public.user_profiles (id, name, email, role, department)
 values
@@ -30,7 +30,8 @@ values
 insert into public.requests (id, title, category, department, details, requester, requester_email, request_date, assigned_personnel, assigned_to, technician_state)
 values
   ('phase4-rls-other-request', 'RLS other request fixture', 'Other', 'Other Department', 'A sample request for isolation testing.', 'Other Employee', 'other-employee@nvsu.edu.ph', 'Oct 05, 2026', '[]'::jsonb, null, 'unassigned'),
-  ('phase4-rls-assigned-request', 'RLS assigned request fixture', 'Other', 'Testing', 'A sample assigned request for personnel workflow testing.', 'Other Employee', 'other-employee@nvsu.edu.ph', 'Oct 05, 2026', '["Juan dela Cruz"]'::jsonb, 'Juan dela Cruz', 'assigned');
+  ('phase4-rls-assigned-request', 'RLS assigned request fixture', 'Other', 'Testing', 'A sample assigned request for personnel workflow testing.', 'Other Employee', 'other-employee@nvsu.edu.ph', 'Oct 05, 2026', '["Juan dela Cruz"]'::jsonb, 'Juan dela Cruz', 'assigned'),
+  ('phase4-rls-own-photo-request', 'RLS own photo request fixture', 'Other', 'Testing', 'A sample request with photos uploaded by assigned personnel.', 'Prof. Reyes', 'prof.reyes@nvsu.edu.ph', 'Oct 05, 2026', '["Juan dela Cruz"]'::jsonb, 'Juan dela Cruz', 'assigned');
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -52,6 +53,12 @@ update public.user_profiles
 set role = 'Personnel', requested_role = 'Personnel',
     is_active = true, registration_status = 'approved'
 where auth_user_id = 'a6050000-0000-4000-8000-000000000001';
+
+insert into storage.objects (bucket_id, name, owner_id, metadata)
+values
+  ('report-photos', 'a6050000-0000-4000-8000-000000000001/requests/phase4-rls-own-photo-request/before/before.jpg', 'a6050000-0000-4000-8000-000000000001', '{"size":12,"mimetype":"image/jpeg"}'::jsonb),
+  ('report-photos', 'a6050000-0000-4000-8000-000000000001/requests/phase4-rls-own-photo-request/after/after.jpg', 'a6050000-0000-4000-8000-000000000001', '{"size":12,"mimetype":"image/jpeg"}'::jsonb),
+  ('report-photos', 'a6050000-0000-4000-8000-000000000001/requests/phase4-rls-other-request/before/other.jpg', 'a6050000-0000-4000-8000-000000000001', '{"size":12,"mimetype":"image/jpeg"}'::jsonb);
 
 insert into public.reports (
   id, title, description, category, location, reporter, report_date,
@@ -83,6 +90,21 @@ select set_config('request.jwt.claims', '{"role":"authenticated","sub":"a6050000
 select is((select count(*) from public.reports where id = 'phase4-rls-own-report'), 1::bigint, 'Employees can read their own report');
 select is((select count(*) from public.reports where id = 'phase4-rls-assigned-report'), 0::bigint, 'Employees cannot read another reporter''s report');
 select is((select count(*) from public.requests where id = 'phase4-rls-other-request'), 0::bigint, 'Employees cannot read another requester''s request');
+select is(
+  (select count(*) from storage.objects where name = 'a6050000-0000-4000-8000-000000000001/requests/phase4-rls-own-photo-request/before/before.jpg'),
+  1::bigint,
+  'Employees can read before-work photos for their own requests'
+);
+select is(
+  (select count(*) from storage.objects where name = 'a6050000-0000-4000-8000-000000000001/requests/phase4-rls-own-photo-request/after/after.jpg'),
+  1::bigint,
+  'Employees can read after-work photos uploaded by assigned personnel'
+);
+select is(
+  (select count(*) from storage.objects where name = 'a6050000-0000-4000-8000-000000000001/requests/phase4-rls-other-request/before/other.jpg'),
+  0::bigint,
+  'Employees cannot read photos for another employee''s request'
+);
 insert into public.requests (
   id, title, category, department, details, requester, request_date, assigned_personnel
 ) values (
@@ -93,6 +115,34 @@ select is(
   (select requester from public.requests where id = 'phase4-rls-own-new-request'),
   'Prof. Reyes',
   'Request submissions use the authenticated Employee profile name'
+);
+select lives_ok(
+  $$insert into public.requests (
+    id, title, category, department, details, requester, request_date, photo_attachments
+  ) values (
+    'phase4-rls-six-photos', 'Six photo request fixture', 'Other', 'Testing',
+    'A request with separate before and after photos.', 'Prof. Reyes', 'Oct 05, 2026',
+    jsonb_build_array(
+      jsonb_build_object('phase', 'before'), jsonb_build_object('phase', 'before'),
+      jsonb_build_object('phase', 'before'), jsonb_build_object('phase', 'after'),
+      jsonb_build_object('phase', 'after'), jsonb_build_object('phase', 'after')
+    )
+  )$$,
+  'Requests can store up to three before-work and three after-work photos'
+);
+select throws_ok(
+  $$insert into public.requests (
+    id, title, category, department, details, requester, request_date, photo_attachments
+  ) values (
+    'phase4-rls-four-before-photos', 'Too many before photos fixture', 'Other', 'Testing',
+    'A request with too many before photos.', 'Prof. Reyes', 'Oct 05, 2026',
+    jsonb_build_array(
+      jsonb_build_object('phase', 'before'), jsonb_build_object('phase', 'before'),
+      jsonb_build_object('phase', 'before'), jsonb_build_object('phase', 'before')
+    )
+  )$$,
+  'P0001',
+  'Database enforces the per-phase photo limit'
 );
 reset role;
 

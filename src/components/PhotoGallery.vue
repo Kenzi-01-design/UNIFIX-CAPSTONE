@@ -118,15 +118,20 @@ watch(
     }
     loading.value = true;
     try {
-      const resolved = await Promise.all(attachments.map(async (attachment, index) => ({
+      const results = await Promise.allSettled(attachments.map(async (attachment, index) => ({
         key: attachment.path || `${attachment.name || 'photo'}-${index}`,
         phase: attachment.phase || 'before',
         name: attachment.name || '',
         url: await resolvePhotoUrl(attachment)
       })));
-      if (currentGeneration === generation) photos.value = resolved;
-    } catch (resolveError) {
-      if (currentGeneration === generation) error.value = resolveError.message || 'Unable to load attached photos.';
+      if (currentGeneration !== generation) return;
+      photos.value = results
+        .filter((result) => result.status === 'fulfilled')
+        .map((result) => result.value);
+      const failedPhoto = results.find((result) => result.status === 'rejected');
+      if (failedPhoto) {
+        error.value = failedPhoto.reason?.message || 'Unable to load one or more attached photos.';
+      }
     } finally {
       if (currentGeneration === generation) loading.value = false;
     }
