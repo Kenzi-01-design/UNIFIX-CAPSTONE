@@ -1,5 +1,5 @@
 begin;
-select plan(6);
+select plan(7);
 
 insert into public.locations (id, building, floor, room, is_active)
 values
@@ -36,13 +36,26 @@ select set_config('request.jwt.claims', '{"role":"anon"}', true);
 
 select is(
   jsonb_array_length((public.get_public_facility_issues('a6100000-0000-4000-8000-000000000001', 0, 0, 50))->'reports'),
-  1,
-  'Public facility feed includes current reports and excludes completed reports'
+  2,
+  'Public facility feed includes current and completed reports'
 );
 select is(
   jsonb_array_length((public.get_public_facility_issues('a6100000-0000-4000-8000-000000000001', 0, 0, 50))->'requests'),
-  1,
-  'Public facility feed includes current requests and excludes completed requests'
+  2,
+  'Public facility feed includes current and completed requests'
+);
+select ok(
+  exists (
+    select 1
+    from jsonb_array_elements(public.get_public_facility_issues('a6100000-0000-4000-8000-000000000001', 0, 0, 50)->'reports') as issues(issue)
+    where issue ->> 'status' = 'resolved'
+  )
+  and exists (
+    select 1
+    from jsonb_array_elements(public.get_public_facility_issues('a6100000-0000-4000-8000-000000000001', 0, 0, 50)->'requests') as requests(request)
+    where request ->> 'status' = 'action-taken'
+  ),
+  'Public facility feed preserves completed work statuses'
 );
 select is(
   jsonb_array_length((public.get_public_facility_issues('a6100000-0000-4000-8000-000000000003', 0, 0, 50))->'reports'),

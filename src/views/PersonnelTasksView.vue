@@ -109,7 +109,7 @@
 
                 <div style="padding:12px 18px 0; display:flex; gap:10px; flex-wrap:wrap">
                   <PhotoPicker
-                    v-if="['accepted', 'started'].includes(r.techState)"
+                    v-if="r.techState === 'started'"
                     :model-value="completionPhotos[r.id] || []"
                     :max-photos="3"
                     label="Required after photos"

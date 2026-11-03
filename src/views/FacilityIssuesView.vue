@@ -14,7 +14,7 @@
       <p v-if="facility" class="facility-public-location">
         {{ [facility.floor, facility.room].filter(Boolean).join(' · ') || 'Nueva Vizcaya State University' }}
       </p>
-      <p>See active maintenance reports and service requests for this facility.</p>
+      <p>See reported issues, service requests, and completed maintenance for this facility.</p>
       <a v-if="facility" class="btn-primary facility-report-link" :href="reportUrl">
         Report an issue here
       </a>
@@ -28,13 +28,13 @@
       </button>
     </section>
     <template v-else-if="facility">
-      <section class="facility-public-summary" aria-label="Active issue totals">
+      <section class="facility-public-summary" aria-label="Facility history totals">
         <article>
-          <span>Open reports</span>
+          <span>Reports recorded</span>
           <strong>{{ reportCount }}</strong>
         </article>
         <article>
-          <span>Open requests</span>
+          <span>Requests recorded</span>
           <strong>{{ requestCount }}</strong>
         </article>
       </section>
@@ -43,12 +43,12 @@
         <section class="facility-issue-section">
           <header>
             <div>
-              <h2>Current reports</h2>
-              <p>Issues reported in this building</p>
+              <h2>Reports at this facility</h2>
+              <p>Open and completed facility issues</p>
             </div>
             <span class="facility-issue-count">{{ reportCount }}</span>
           </header>
-          <div v-if="!reports.length" class="facility-issue-empty">No active reports for this facility.</div>
+          <div v-if="!reports.length" class="facility-issue-empty">No reports have been recorded for this facility.</div>
           <article v-for="(issue, index) in reports" :key="`${issue.title}-${issue.date}-${index}`" class="facility-issue-card">
             <div class="facility-issue-card-top">
               <span class="facility-issue-category">{{ issue.category || 'General' }}</span>
@@ -66,12 +66,12 @@
         <section class="facility-issue-section">
           <header>
             <div>
-              <h2>Current service requests</h2>
-              <p>Requests associated with this building</p>
+              <h2>Service requests at this facility</h2>
+              <p>Open and completed service requests</p>
             </div>
             <span class="facility-issue-count">{{ requestCount }}</span>
           </header>
-          <div v-if="!requests.length" class="facility-issue-empty">No active service requests for this facility.</div>
+          <div v-if="!requests.length" class="facility-issue-empty">No service requests have been recorded for this facility.</div>
           <article v-for="(issue, index) in requests" :key="`${issue.title}-${issue.date}-${index}`" class="facility-issue-card">
             <div class="facility-issue-card-top">
               <span class="facility-issue-category">{{ issue.category || 'General' }}</span>
@@ -141,12 +141,11 @@ function localFacilityFeed() {
   const locations = selectedLocation ? JSON.parse(selectedLocation) : [];
   const currentFacility = locations.find((location) => location.id === props.locationId && location.isActive);
   if (!currentFacility) return null;
-  const open = (status) => !['closed', 'resolved', 'action-taken'].includes(String(status || '').trim().toLowerCase());
   const facilityReports = localReports.value
-    .filter((item) => matchesFacilityLocation(item.loc, currentFacility) && open(item.status))
+    .filter((item) => matchesFacilityLocation(item.loc, currentFacility))
     .map((item) => ({ title: item.title, category: item.cat, status: item.status, risk: item.risk, date: item.date, area: item.loc }));
   const facilityRequests = localRequests.value
-    .filter((item) => matchesFacilityLocation(item.dept, currentFacility) && open(item.status))
+    .filter((item) => matchesFacilityLocation(item.dept, currentFacility))
     .map((item) => ({ title: item.title, category: item.cat, status: item.status, risk: item.risk, date: item.date, area: item.dept }));
   return {
     facility: currentFacility,

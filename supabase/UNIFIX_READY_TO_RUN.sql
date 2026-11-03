@@ -1564,15 +1564,13 @@ begin
   from public.reports report
   where public.work_item_location_matches_facility(
       report.location, facility.building, facility.floor, facility.room
-    )
-    and lower(btrim(coalesce(report.status, ''))) not in ('closed', 'resolved', 'action-taken');
+    );
 
   select count(*) into request_count
   from public.requests request
   where public.work_item_location_matches_facility(
       request.department, facility.building, facility.floor, facility.room
-    )
-    and lower(btrim(coalesce(request.status, ''))) not in ('closed', 'resolved', 'action-taken');
+    );
 
   select coalesce(jsonb_agg(page.issue order by page.created_at desc, page.id desc), '[]'::jsonb)
   into public_reports
@@ -1589,7 +1587,6 @@ begin
     where public.work_item_location_matches_facility(
         report.location, facility.building, facility.floor, facility.room
       )
-      and lower(btrim(coalesce(report.status, ''))) not in ('closed', 'resolved', 'action-taken')
     order by report.created_at desc, report.id desc
     limit safe_limit offset safe_report_offset
   ) page;
@@ -1609,7 +1606,6 @@ begin
     where public.work_item_location_matches_facility(
         request.department, facility.building, facility.floor, facility.room
       )
-      and lower(btrim(coalesce(request.status, ''))) not in ('closed', 'resolved', 'action-taken')
     order by request.created_at desc, request.id desc
     limit safe_limit offset safe_request_offset
   ) page;
