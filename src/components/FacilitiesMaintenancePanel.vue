@@ -54,6 +54,14 @@
             <button class="btn-secondary" type="button" @click="toggleLocation(location)">
               {{ location.isActive ? 'Deactivate' : 'Activate' }}
             </button>
+            <button
+              class="btn-secondary"
+              type="button"
+              :disabled="deletingLocationId === location.id"
+              @click="removeLocation(location)"
+            >
+              {{ deletingLocationId === location.id ? 'Deleting…' : 'Delete' }}
+            </button>
           </article>
         </div>
       </div>
@@ -153,6 +161,7 @@ const qrCodes = ref({});
 const qrLoading = ref(false);
 const saving = ref(false);
 const generating = ref(false);
+const deletingLocationId = ref('');
 const locationError = ref('');
 const scheduleError = ref('');
 const locationBuildingInput = ref(null);
@@ -169,7 +178,7 @@ const scheduleForm = reactive({
   defaultAssignee: ''
 });
 const checklistText = ref('');
-const { locations, activeLocations, loading: locationLoading, loadError: locationLoadError, loadLocations, addLocation, updateLocation, setLocationActive, toLocationLabel } = useLocations();
+const { locations, activeLocations, loading: locationLoading, loadError: locationLoadError, loadLocations, addLocation, updateLocation, setLocationActive, deleteLocation, toLocationLabel } = useLocations();
 const { schedules, loading: schedulesLoading, loadError: schedulesLoadError, loadSchedules, addSchedule, updateSchedule, setScheduleActive, generateDueWorkOrders } = useMaintenanceSchedules();
 const { technicians } = useReports();
 const { showToast } = useToast();
@@ -262,6 +271,26 @@ async function toggleLocation(location) {
     showToast(`${locationLabel(location)} ${location.isActive ? 'activated' : 'deactivated'}.`, 'success');
   } catch (error) {
     locationError.value = error.message || 'The location could not be updated.';
+  }
+}
+
+async function removeLocation(location) {
+  const label = locationLabel(location);
+  const confirmed = window.confirm(
+    `Permanently delete ${label}? Reports and requests will be kept, but maintenance schedules will be detached from this location. This cannot be undone.`
+  );
+  if (!confirmed) return;
+
+  deletingLocationId.value = location.id;
+  locationError.value = '';
+  try {
+    await deleteLocation(location.id);
+    if (locationForm.id === location.id) resetLocationForm();
+    showToast(`${label} deleted.`, 'success');
+  } catch (error) {
+    locationError.value = error.message || 'The location could not be deleted.';
+  } finally {
+    deletingLocationId.value = '';
   }
 }
 
