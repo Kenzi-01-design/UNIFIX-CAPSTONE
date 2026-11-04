@@ -14,7 +14,7 @@
         <div class="panel-header">
           <span class="panel-title">{{ locationForm.id ? `Editing ${locationForm.building}` : 'Manage facility locations' }}</span>
           <button class="btn-secondary" type="button" :disabled="qrLoading || !activeLocations.length" @click="printQrSheets">
-            {{ qrLoading ? 'Preparing…' : 'Print QR sheets' }}
+            {{ qrLoading ? 'Preparing…' : 'Print all facility signs' }}
           </button>
         </div>
         <form class="facility-form" @submit.prevent="createLocation">
@@ -51,6 +51,14 @@
               </div>
             </div>
             <button class="btn-secondary" type="button" @click="editLocation(location)">Edit</button>
+            <button
+              class="btn-secondary"
+              type="button"
+              :disabled="!location.isActive || qrLoading || !qrCodes[location.id]"
+              @click="printFacilitySign(location)"
+            >
+              Print sign
+            </button>
             <button class="btn-secondary" type="button" @click="toggleLocation(location)">
               {{ location.isActive ? 'Deactivate' : 'Activate' }}
             </button>
@@ -300,29 +308,73 @@ function escapeHtml(value) {
   })[character]);
 }
 
-function printQrSheets() {
-  if (!activeLocations.value.length || !Object.keys(qrCodes.value).length) {
+function printFacilitySign(location) {
+  if (!location.isActive || !qrCodes.value[location.id]) {
     locationError.value = 'There are no generated QR codes to print yet.';
     return;
   }
+
+  printFacilitySigns([location]);
+}
+
+function printQrSheets() {
+  if (!activeLocations.value.length || !activeLocations.value.every((location) => qrCodes.value[location.id])) {
+    locationError.value = 'Facility QR codes are still being generated. Try again when they are ready.';
+    return;
+  }
+
+  printFacilitySigns(activeLocations.value);
+}
+
+function printFacilitySigns(facilities) {
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
     locationError.value = 'The print window was blocked. Allow pop-ups and try again.';
     return;
   }
   printWindow.opener = null;
-  const cards = activeLocations.value.map((location) => `
-    <article><img src="${qrCodes.value[location.id]}" alt="QR code">
-      <h2>${escapeHtml(locationLabel(location))}</h2>
-      <small>Scan to view current issues or report a new one</small>
-      <small>${escapeHtml(facilityStatusUrl(location))}</small>
+  const signs = facilities.map((location) => `
+    <article class="sign">
+      <header class="brand">
+        <div class="brand-mark">U</div>
+        <div><strong>UNIFIX</strong><span>CAMPUS FACILITY CARE</span></div>
+      </header>
+      <p class="eyebrow">FACILITY ASSISTANCE</p>
+      <h1>Report a facility issue</h1>
+      <p class="facility-name">${escapeHtml(locationLabel(location))}</p>
+      <p class="intro">Scan the QR code to view current issues or submit a report.</p>
+      <div class="qr-frame"><img src="${escapeHtml(qrCodes.value[location.id])}" alt="QR code for ${escapeHtml(locationLabel(location))}"></div>
+      <p class="scan-label">SCAN HERE</p>
+      <ol class="steps">
+        <li><b>1</b><span>Scan the code</span></li>
+        <li><b>2</b><span>Describe the issue</span></li>
+        <li><b>3</b><span>Add a photo and submit</span></li>
+      </ol>
+      <footer>Helping keep our campus safe, comfortable, and working.</footer>
     </article>`).join('');
-  printWindow.document.write(`<!doctype html><html><head><title>UNIFIX Facility QR Codes</title><style>
-    body{font:12px Arial,sans-serif;margin:12mm}.sheet{display:grid;grid-template-columns:repeat(3,1fr);gap:10mm}
-    article{border:1px solid #bbc9bf;border-radius:6px;padding:8mm;text-align:center;break-inside:avoid}
-    img{width:38mm;height:38mm}h2{font-size:13px;margin:5px 0}small{display:block;color:#52635a;overflow-wrap:anywhere;margin-top:3px}
-    @page{size:A4;margin:12mm}@media print{body{margin:0}}
-    </style></head><body><main class="sheet">${cards}</main><script>window.onload=()=>window.print()<\/script></body></html>`);
+  printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>UNIFIX Facility Signs</title><style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#eef2ef;color:#1a1f36;font:14px/1.45 Arial,Helvetica,sans-serif}
+    .sign{position:relative;display:flex;flex-direction:column;align-items:center;width:100%;min-height:190mm;padding:10mm 12mm 8mm;overflow:hidden;background:#fff;text-align:center;break-after:page}
+    .sign:last-child{break-after:auto}
+    .brand{display:flex;align-items:center;gap:10px;align-self:flex-start;color:#0f6b3d;text-align:left}
+    .brand-mark{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:#0f6b3d;color:#fff;font-size:23px;font-weight:800}
+    .brand strong,.brand span{display:block}.brand strong{font-size:19px;letter-spacing:1.5px}.brand span{font-size:8px;font-weight:700;letter-spacing:1px}
+    .eyebrow{margin:13mm 0 2mm;color:#9e7400;font-size:9px;font-weight:800;letter-spacing:2px}
+    h1{max-width:125mm;margin:0;color:#0a4f2d;font-size:25px;line-height:1.1;text-transform:uppercase}
+    .facility-name{margin:4mm 0 0;color:#1a1f36;font-size:19px;font-weight:700}
+    .intro{max-width:105mm;margin:2mm 0 5mm;color:#4a5568;font-size:12px}
+    .qr-frame{display:grid;place-items:center;width:76mm;height:76mm;padding:4mm;border:1.5px solid #dce8df;border-radius:5mm;background:#fff}
+    .qr-frame img{display:block;width:100%;height:100%;object-fit:contain}
+    .scan-label{margin:2mm 0 4mm;color:#0f6b3d;font-size:10px;font-weight:800;letter-spacing:2px}
+    .steps{display:grid;gap:2mm;width:100%;max-width:105mm;margin:0;padding:0;list-style:none;text-align:left}
+    .steps li{display:flex;align-items:center;gap:3mm;color:#1a1f36;font-size:11px}
+    .steps b{display:grid;place-items:center;width:7mm;height:7mm;border-radius:50%;background:#e9f6ee;color:#0f6b3d;font-size:10px}
+    footer{margin-top:auto;padding-top:5mm;color:#6f7e75;font-size:9px}
+    @page{size:A5 portrait;margin:0}
+    @media screen{body{padding:12px}.sign{max-width:148mm;min-height:210mm;margin:0 auto 12px;box-shadow:0 2px 12px #0002}}
+    @media print{body{background:#fff}.sign{min-height:210mm}}
+    </style></head><body>${signs}<script>window.onload=()=>window.print()<\/script></body></html>`);
   printWindow.document.close();
 }
 
