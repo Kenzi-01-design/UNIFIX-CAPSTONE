@@ -333,12 +333,23 @@ function printFacilitySigns(facilities) {
     return;
   }
   printWindow.opener = null;
+  const sealUrl = new URL('/nvsu-seal.png', window.location.origin).href;
   const signs = facilities.map((location) => `
     <article class="sign">
       <header class="brand">
-        <div class="brand-mark">U</div>
+        <div class="brand-mark" role="img" aria-label="UNIFIX and NVSU logo">
+          <svg viewBox="0 0 48 48" aria-hidden="true">
+            <path d="M24 3.5 42 10v12.8c0 10.3-6.9 18-18 22.2C12.9 40.8 6 33.1 6 22.8V10l18-6.5Z" fill="#0F6B3D"/>
+            <path d="M12.5 19.5h8v-4h7v4h8v15h-23v-15Z" fill="#FFFDF7"/>
+            <path d="M16 23h3v3h-3zm6 0h3v3h-3zm6 0h3v3h-3zM22 29h5v5h-5z" fill="#0F6B3D"/>
+            <circle cx="35.5" cy="34.5" r="8" fill="#DEA510" stroke="#FFFDF7" stroke-width="2"/>
+            <path d="m31.8 34.4 2.4 2.4 5-5.1" fill="none" stroke="#0A4F2D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <img src="${escapeHtml(sealUrl)}" alt="">
+        </div>
         <div><strong>UNIFIX</strong><span>CAMPUS FACILITY CARE</span></div>
       </header>
+      <div class="gold-rule"><span></span><i></i><span></span></div>
       <p class="eyebrow">FACILITY ASSISTANCE</p>
       <h1>Report a facility issue</h1>
       <p class="facility-name">${escapeHtml(locationLabel(location))}</p>
@@ -346,11 +357,23 @@ function printFacilitySigns(facilities) {
       <div class="qr-frame"><img src="${escapeHtml(qrCodes.value[location.id])}" alt="QR code for ${escapeHtml(locationLabel(location))}"></div>
       <p class="scan-label">SCAN HERE</p>
       <ol class="steps">
-        <li><b>1</b><span>Scan the code</span></li>
-        <li><b>2</b><span>Describe the issue</span></li>
-        <li><b>3</b><span>Add a photo and submit</span></li>
+        <li>
+          <b>1</b>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M10 6h4M11 18h2"/></svg>
+          <span>Scan the code</span>
+        </li>
+        <li>
+          <b>2</b>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
+          <span>Describe the issue</span>
+        </li>
+        <li>
+          <b>3</b>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h-4l-2 2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3Z"/><circle cx="12" cy="13" r="3"/></svg>
+          <span>Add a photo and submit</span>
+        </li>
       </ol>
-      <footer>Helping keep our campus safe, comfortable, and working.</footer>
+      <footer><span class="footer-icon">✓</span> Helping keep our campus safe, comfortable, and working.</footer>
     </article>`).join('');
   printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>UNIFIX Facility Signs</title><style>
     *{box-sizing:border-box}
@@ -358,8 +381,12 @@ function printFacilitySigns(facilities) {
     .sign{position:relative;display:flex;flex-direction:column;align-items:center;width:100%;min-height:190mm;padding:10mm 12mm 8mm;overflow:hidden;background:#fff;text-align:center;break-after:page}
     .sign:last-child{break-after:auto}
     .brand{display:flex;align-items:center;gap:10px;align-self:flex-start;color:#0f6b3d;text-align:left}
-    .brand-mark{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:#0f6b3d;color:#fff;font-size:23px;font-weight:800}
+    .brand-mark{position:relative;display:block;width:40px;height:40px;flex:none}
+    .brand-mark svg{display:block;width:100%;height:100%}
+    .brand-mark img{position:absolute;right:-2px;bottom:-1px;width:23px;height:23px;border:2px solid #fff;border-radius:50%;background:#fff;object-fit:cover}
     .brand strong,.brand span{display:block}.brand strong{font-size:19px;letter-spacing:1.5px}.brand span{font-size:8px;font-weight:700;letter-spacing:1px}
+    .gold-rule{display:flex;align-items:center;gap:2mm;width:100%;margin-top:5mm}
+    .gold-rule span{height:.35mm;flex:1;background:#e6d7a8}.gold-rule i{width:2mm;height:2mm;transform:rotate(45deg);background:#dea510}
     .eyebrow{margin:13mm 0 2mm;color:#9e7400;font-size:9px;font-weight:800;letter-spacing:2px}
     h1{max-width:125mm;margin:0;color:#0a4f2d;font-size:25px;line-height:1.1;text-transform:uppercase}
     .facility-name{margin:4mm 0 0;color:#1a1f36;font-size:19px;font-weight:700}
@@ -370,7 +397,9 @@ function printFacilitySigns(facilities) {
     .steps{display:grid;gap:2mm;width:100%;max-width:105mm;margin:0;padding:0;list-style:none;text-align:left}
     .steps li{display:flex;align-items:center;gap:3mm;color:#1a1f36;font-size:11px}
     .steps b{display:grid;place-items:center;width:7mm;height:7mm;border-radius:50%;background:#e9f6ee;color:#0f6b3d;font-size:10px}
-    footer{margin-top:auto;padding-top:5mm;color:#6f7e75;font-size:9px}
+    .steps svg{width:5mm;height:5mm;fill:none;stroke:#0f6b3d;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+    footer{display:flex;align-items:center;gap:2mm;margin-top:auto;padding-top:5mm;color:#6f7e75;font-size:9px}
+    .footer-icon{display:grid;place-items:center;width:5mm;height:5mm;border-radius:50%;background:#e9f6ee;color:#0f6b3d;font-size:9px;font-weight:800}
     @page{size:A5 portrait;margin:0}
     @media screen{body{padding:12px}.sign{max-width:148mm;min-height:210mm;margin:0 auto 12px;box-shadow:0 2px 12px #0002}}
     @media print{body{background:#fff}.sign{min-height:210mm}}
