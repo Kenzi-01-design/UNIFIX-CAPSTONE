@@ -2,6 +2,7 @@
   <div id="app">
     <!-- Toast Feedback Overlay -->
     <ToastContainer :toasts="toasts" />
+    <PwaInstallPrompt :has-mobile-navigation="isAuthenticated" />
 
     <FacilityIssuesView
       v-if="publicPage === 'facility'"
@@ -233,6 +234,7 @@ import ReportModal from './components/ReportModal.vue';
 import RequestModal from './components/RequestModal.vue';
 import ToastContainer from './components/ToastContainer.vue';
 import MobileNavigation from './components/MobileNavigation.vue';
+import PwaInstallPrompt from './components/PwaInstallPrompt.vue';
 
 // Views
 import LoginView from './views/LoginView.vue';

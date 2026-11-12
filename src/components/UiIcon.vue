@@ -6,7 +6,7 @@
 import { computed } from 'vue';
 import {
   ArrowLeft, ArrowRight, ArrowUpRight, Bell, BookOpen, BriefcaseBusiness, Building2, ChartNoAxesCombined, CheckCircle2, CircleAlert, CircleHelp,
-  ClipboardList, Droplets, FileText, FolderKanban, Hammer, HardHat, House,
+  ClipboardList, Download, Droplets, FileText, FolderKanban, Hammer, HardHat, House,
   Landmark, Lightbulb, LogOut, MapPin, Menu, Network, Package, Plus, ShieldCheck, Sparkles, X,
   UserRound, UsersRound, Wrench, Zap
 } from '@lucide/vue';
@@ -26,7 +26,7 @@ const icons = {
   furniture: BriefcaseBusiness, hvac: Sparkles, network: Network, civil: Landmark,
   security: ShieldCheck, sanitation: Sparkles, other: Package, activity: FolderKanban,
   analytics: ChartNoAxesCombined, work: Hammer
-  ,success: CheckCircle2, error: CircleAlert, info: CircleHelp, logout: LogOut, zap: Zap,
+  ,download: Download, success: CheckCircle2, error: CircleAlert, info: CircleHelp, logout: LogOut, zap: Zap,
   menu: Menu, close: X, 'arrow-left': ArrowLeft, 'arrow-right': ArrowRight, 'arrow-up-right': ArrowUpRight,
   sparkles: Sparkles
 };
