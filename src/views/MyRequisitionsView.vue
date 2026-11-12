@@ -2,7 +2,7 @@
   <div class="view active" id="view-my-requisitions">
     <div class="panel requisitions-panel">
       <div class="panel-header">
-        <span class="panel-title">Requestitions</span>
+        <span class="panel-title">Requisitions</span>
         <span class="panel-action">{{ myRequests.length }} records</span>
       </div>
 

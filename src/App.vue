@@ -327,7 +327,7 @@ const viewTitles = {
   dashboard: 'Dashboard',
   submit: 'Submit Report',
   'submit-request': 'Submit Requisition',
-  'my-requisitions': 'Requestitions',
+  'my-requisitions': 'Requisitions',
   'activity-log': 'Activity & Request History',
   'user-management': 'User Management',
   reports: 'Reports Overview',
