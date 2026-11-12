@@ -67,7 +67,7 @@ defineEmits(['open-report', 'open-login', 'open-track', 'open-evaluation']);
 .hero-copy-block h1 em { text-decoration: underline; text-decoration-color: rgba(192,138,0,.55); text-decoration-thickness: 3px; text-underline-offset: 7px; }
 .hero-tab:hover { border-color: var(--accent); background: var(--accent-bg); color: var(--primary-dark); }
 .report-tab:hover { border-color: var(--primary-dark); background: var(--primary-dark); color: #fff; }
-.evaluation-tab { border-color: rgba(192,138,0,.4); color: var(--primary-dark); }
+.evaluation-tab { border-color: var(--border-dark); color: var(--primary-dark); }
 .hero-cta { transition: color var(--transition), border-color var(--transition); }
 .hero-cta:hover { border-bottom-color: var(--accent); color: var(--accent); }
 .building-icon { color: var(--primary-dark); }
