@@ -2,65 +2,47 @@ import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { getEvaluationSubmissionErrorMessage } from '../lib/evaluationErrors.js';
 
 export const UTAUT_CONSTRUCTS = Object.freeze({
-  performanceExpectancy: {
-    label: 'Performance Expectancy (PE)',
-    description: 'The degree to which you believe using the system helps you perform your tasks better.'
-  },
-  effortExpectancy: {
-    label: 'Effort Expectancy (EE)',
-    description: 'The degree of ease associated with using the system.'
-  },
-  socialInfluence: {
-    label: 'Social Influence (SI)',
-    description: 'The degree to which you perceive that important others believe you should use the system.'
-  },
-  facilitatingConditions: {
-    label: 'Facilitating Conditions (FC)',
-    description: 'The degree to which you believe organizational and technical support exists for using the system.'
-  },
-  behavioralIntention: {
-    label: 'Behavioral Intention (BI)',
-    description: 'The degree to which you intend to keep using the system.'
-  },
-  useBehavior: {
-    label: 'Use Behavior (UB)',
-    description: 'Your actual use of the system.'
-  }
+  performanceExpectancy: 'Performance Expectancy',
+  effortExpectancy: 'Effort Expectancy',
+  socialInfluence: 'Social Influence',
+  facilitatingConditions: 'Facilitating Conditions',
+  behavioralIntention: 'Behavioral Intention',
+  useBehavior: 'Use Behavior'
 });
 
 export const UTAUT_QUESTIONS = Object.freeze({
   performanceExpectancy: [
-    { code: 'PE1', statement: 'I find the system useful in my work or studies.' },
-    { code: 'PE2', statement: 'Using the system helps me accomplish tasks more quickly.' },
-    { code: 'PE3', statement: 'Using the system increases my productivity.' },
-    { code: 'PE4', statement: 'Using the system improves the quality of my output.' }
+    'I find the system useful in my work or studies.',
+    'Using the system helps me accomplish tasks more quickly.',
+    'Using the system increases my productivity.',
+    'Using the system improves the quality of my output.'
   ],
   effortExpectancy: [
-    { code: 'EE1', statement: 'My interaction with the system is clear and understandable.' },
-    { code: 'EE2', statement: 'It was easy for me to become skillful at using the system.' },
-    { code: 'EE3', statement: 'I find the system easy to use.' },
-    { code: 'EE4', statement: 'Learning to operate the system is easy for me.' }
+    'My interaction with the system is clear and understandable.',
+    'It was easy for me to become skillful at using the system.',
+    'I find the system easy to use.',
+    'Learning to operate the system is easy for me.'
   ],
   socialInfluence: [
-    { code: 'SI1', statement: 'People who are important to me think that I should use the system.' },
-    { code: 'SI2', statement: 'People who influence my behavior think that I should use the system.' },
-    { code: 'SI3', statement: 'My supervisors or teachers have been helpful in my use of the system.' },
-    { code: 'SI4', statement: 'In general, my institution has supported the use of the system.' }
+    'People who are important to me think that I should use the system.',
+    'People who influence my behavior think that I should use the system.',
+    'My supervisors or teachers have been helpful in my use of the system.',
+    'In general, my institution has supported the use of the system.'
   ],
   facilitatingConditions: [
-    { code: 'FC1', statement: 'I have the resources necessary to use the system (device, internet, account access).' },
-    { code: 'FC2', statement: 'I have the knowledge necessary to use the system.' },
-    { code: 'FC3', statement: 'The system is compatible with other systems I use.' },
-    { code: 'FC4', statement: 'A specific person or group is available to help me with difficulties using the system.' }
+    'I have the resources necessary to use the system (device, internet, account access).',
+    'I have the knowledge necessary to use the system.',
+    'The system is compatible with other systems I use.',
+    'A specific person or group is available to help me with difficulties using the system.'
   ],
   behavioralIntention: [
-    { code: 'BI1', statement: 'I intend to use the system in the coming months.' },
-    { code: 'BI2', statement: 'I predict I will use the system in the coming months.' },
-    { code: 'BI3', statement: 'I plan to use the system in the coming months.' }
+    'I intend to use the system in the coming months.',
+    'I predict I will use the system in the coming months.',
+    'I plan to use the system in the coming months.'
   ],
   useBehavior: [
-    { code: 'UB1', statement: 'I use the system regularly for the tasks it supports.' },
-    { code: 'UB2', statement: 'I rely on the system to complete those tasks.' }
+    'I use the system regularly for the tasks it supports.',
+    'I rely on the system to complete those tasks.'
   ]
 });
 

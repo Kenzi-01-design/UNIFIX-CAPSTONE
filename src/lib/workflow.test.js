@@ -41,14 +41,7 @@ describe('work verification transitions', () => {
 
     describe('UTAUT construct summaries', () => {
       it('includes the specified items for all six constructs', () => {
-        expect(Object.values(UTAUT_QUESTIONS).map((questions) => questions.map(({ code }) => code))).toEqual([
-          ['PE1', 'PE2', 'PE3', 'PE4'],
-          ['EE1', 'EE2', 'EE3', 'EE4'],
-          ['SI1', 'SI2', 'SI3', 'SI4'],
-          ['FC1', 'FC2', 'FC3', 'FC4'],
-          ['BI1', 'BI2', 'BI3'],
-          ['UB1', 'UB2']
-        ]);
+        expect(Object.values(UTAUT_QUESTIONS).map((questions) => questions.length)).toEqual([4, 4, 4, 4, 3, 2]);
       });
 
       it('calculates a 1–5 mean for each construct', () => {
