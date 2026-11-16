@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork, isAssignedToPersonnel } from './workflow.js';
 import { validateReportInput, validateRequestInput } from './validation.js';
-import { calculateUtautMeans } from '../composables/useEvaluation.js';
+import { calculateUtautMeans, UTAUT_QUESTIONS } from '../composables/useEvaluation.js';
 
 describe('work verification transitions', () => {
   const startedAssignment = {
@@ -40,29 +40,51 @@ describe('work verification transitions', () => {
     });
 
     describe('UTAUT construct summaries', () => {
+      it('includes the specified items for all six constructs', () => {
+        expect(Object.values(UTAUT_QUESTIONS).map((questions) => questions.map(({ code }) => code))).toEqual([
+          ['PE1', 'PE2', 'PE3', 'PE4'],
+          ['EE1', 'EE2', 'EE3', 'EE4'],
+          ['SI1', 'SI2', 'SI3', 'SI4'],
+          ['FC1', 'FC2', 'FC3', 'FC4'],
+          ['BI1', 'BI2', 'BI3'],
+          ['UB1', 'UB2']
+        ]);
+      });
+
       it('calculates a 1–5 mean for each construct', () => {
         expect(calculateUtautMeans({
-          performanceExpectancy: [1, 3, 5],
-          effortExpectancy: [2, 2, 2],
-          socialInfluence: [3, 3, 3],
-          facilitatingConditions: [4, 4, 4],
-          behavioralIntention: [1, 2, 3]
+          performanceExpectancy: [1, 3, 5, 3],
+          effortExpectancy: [2, 2, 2, 2],
+          socialInfluence: [3, 3, 3, 3],
+          facilitatingConditions: [4, 4, 4, 4],
+          behavioralIntention: [1, 2, 3],
+          useBehavior: [4, 5]
         })).toEqual({
           performanceExpectancy: 3,
           effortExpectancy: 2,
           socialInfluence: 3,
           facilitatingConditions: 4,
-          behavioralIntention: 2
+          behavioralIntention: 2,
+          useBehavior: 4.5
         });
       });
 
       it('rejects incomplete or out-of-range construct answers', () => {
         expect(() => calculateUtautMeans({
-          performanceExpectancy: [1, 3, 5],
+          performanceExpectancy: [1, 3, 5, 3],
           effortExpectancy: [2, 2],
-          socialInfluence: [3, 3, 3],
-          facilitatingConditions: [4, 4, 4],
-          behavioralIntention: [1, 2, 3]
+          socialInfluence: [3, 3, 3, 3],
+          facilitatingConditions: [4, 4, 4, 4],
+          behavioralIntention: [1, 2, 3],
+          useBehavior: [4, 5]
+        })).toThrow(/UTAUT requires/);
+        expect(() => calculateUtautMeans({
+          performanceExpectancy: [1, 3, 5, 3],
+          effortExpectancy: [2, 2, 2, 2],
+          socialInfluence: [3, 3, 3, 3],
+          facilitatingConditions: [4, 4, 4, 4],
+          behavioralIntention: [1, 2, 3],
+          useBehavior: [4, 6]
         })).toThrow(/UTAUT requires/);
       });
     });

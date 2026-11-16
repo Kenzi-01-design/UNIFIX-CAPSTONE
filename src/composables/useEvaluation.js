@@ -2,38 +2,65 @@ import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { getEvaluationSubmissionErrorMessage } from '../lib/evaluationErrors.js';
 
 export const UTAUT_CONSTRUCTS = Object.freeze({
-  performanceExpectancy: 'Performance expectancy',
-  effortExpectancy: 'Effort expectancy',
-  socialInfluence: 'Social influence',
-  facilitatingConditions: 'Facilitating conditions',
-  behavioralIntention: 'Behavioral intention'
+  performanceExpectancy: {
+    label: 'Performance Expectancy (PE)',
+    description: 'The degree to which you believe using the system helps you perform your tasks better.'
+  },
+  effortExpectancy: {
+    label: 'Effort Expectancy (EE)',
+    description: 'The degree of ease associated with using the system.'
+  },
+  socialInfluence: {
+    label: 'Social Influence (SI)',
+    description: 'The degree to which you perceive that important others believe you should use the system.'
+  },
+  facilitatingConditions: {
+    label: 'Facilitating Conditions (FC)',
+    description: 'The degree to which you believe organizational and technical support exists for using the system.'
+  },
+  behavioralIntention: {
+    label: 'Behavioral Intention (BI)',
+    description: 'The degree to which you intend to keep using the system.'
+  },
+  useBehavior: {
+    label: 'Use Behavior (UB)',
+    description: 'Your actual use of the system.'
+  }
 });
 
 export const UTAUT_QUESTIONS = Object.freeze({
   performanceExpectancy: [
-    'Using UNIFIX helps me accomplish what I need to do more quickly.',
-    'Using UNIFIX improves my effectiveness when reporting or managing maintenance needs.',
-    'UNIFIX is useful for my interactions with the institution.'
+    { code: 'PE1', statement: 'I find the system useful in my work or studies.' },
+    { code: 'PE2', statement: 'Using the system helps me accomplish tasks more quickly.' },
+    { code: 'PE3', statement: 'Using the system increases my productivity.' },
+    { code: 'PE4', statement: 'Using the system improves the quality of my output.' }
   ],
   effortExpectancy: [
-    'Learning to use UNIFIX is easy for me.',
-    'It is easy for me to become skillful at using UNIFIX.',
-    'I find UNIFIX easy to use.'
+    { code: 'EE1', statement: 'My interaction with the system is clear and understandable.' },
+    { code: 'EE2', statement: 'It was easy for me to become skillful at using the system.' },
+    { code: 'EE3', statement: 'I find the system easy to use.' },
+    { code: 'EE4', statement: 'Learning to operate the system is easy for me.' }
   ],
   socialInfluence: [
-    'People who influence my work think I should use UNIFIX.',
-    'People important to me support my use of UNIFIX.',
-    'My institution encourages the use of UNIFIX for maintenance-related tasks.'
+    { code: 'SI1', statement: 'People who are important to me think that I should use the system.' },
+    { code: 'SI2', statement: 'People who influence my behavior think that I should use the system.' },
+    { code: 'SI3', statement: 'My supervisors or teachers have been helpful in my use of the system.' },
+    { code: 'SI4', statement: 'In general, my institution has supported the use of the system.' }
   ],
   facilitatingConditions: [
-    'I have the resources needed to use UNIFIX.',
-    'I have the knowledge needed to use UNIFIX.',
-    'UNIFIX is compatible with the devices and systems I use.'
+    { code: 'FC1', statement: 'I have the resources necessary to use the system (device, internet, account access).' },
+    { code: 'FC2', statement: 'I have the knowledge necessary to use the system.' },
+    { code: 'FC3', statement: 'The system is compatible with other systems I use.' },
+    { code: 'FC4', statement: 'A specific person or group is available to help me with difficulties using the system.' }
   ],
   behavioralIntention: [
-    'I intend to use UNIFIX when I need to report or follow up on a maintenance issue.',
-    'I expect to continue using UNIFIX in the future.',
-    'I will make an effort to use UNIFIX in my work or interactions with the institution.'
+    { code: 'BI1', statement: 'I intend to use the system in the coming months.' },
+    { code: 'BI2', statement: 'I predict I will use the system in the coming months.' },
+    { code: 'BI3', statement: 'I plan to use the system in the coming months.' }
+  ],
+  useBehavior: [
+    { code: 'UB1', statement: 'I use the system regularly for the tasks it supports.' },
+    { code: 'UB2', statement: 'I rely on the system to complete those tasks.' }
   ]
 });
 
@@ -59,7 +86,7 @@ export const ISO_QUESTIONS = Object.freeze({
   portability: 'I can use UNIFIX across the devices and environments available to me.'
 });
 
-const STORAGE_KEY = 'unifix-anonymous-evaluation-v2';
+const STORAGE_KEY = 'unifix-anonymous-evaluation-v3';
 
 function validateSubmission(submission) {
   const utautKeys = Object.keys(UTAUT_CONSTRUCTS);
@@ -86,7 +113,7 @@ export function calculateUtautMeans(answers) {
     || keys.some((key) => !Array.isArray(answers[key])
       || answers[key].length !== UTAUT_QUESTIONS[key].length
       || answers[key].some((answer) => !Number.isInteger(answer) || answer < 1 || answer > 5))) {
-    throw new Error('UTAUT requires three answers per construct using the 1–5 scale.');
+    throw new Error('UTAUT requires all listed answers using the 1–5 scale.');
   }
   return Object.fromEntries(keys.map((key) => [
     key,

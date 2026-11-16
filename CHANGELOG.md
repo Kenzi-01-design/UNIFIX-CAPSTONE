@@ -25,4 +25,5 @@
 - Added the installable PWA shell, offline fallback, and IndexedDB-backed public report drafts that require connectivity and CAPTCHA verification before submission.
 - Added rate-limited anonymous SUS and ISO/IEC 25010 surveys, an Admin-only aggregate results view, and CSV export.
 - Replaced the SUS questionnaire with UTAUT constructs and aggregate construct means while retaining ISO/IEC 25010 evaluation.
+- Expanded the UTAUT questionnaire to include all six constructs and items PE1 through UB2.
 - Added Vitest checks for SLA calculations and work-status transitions, a pgTAP RLS test suite, tighter assigned-personnel report reads, client secret scanning, security headers, and deployment guides.

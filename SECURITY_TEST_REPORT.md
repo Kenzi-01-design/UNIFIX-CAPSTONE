@@ -2,7 +2,7 @@
 
 | Test case | Expected | Actual | Result |
 | --- | --- | --- | --- |
-| Unit tests (`pnpm test`) | Workflow, validation, and UTAUT construct-summary tests pass | 108 tests passed | PASS |
+| Unit tests (`pnpm test`) | Workflow, validation, and UTAUT construct-summary tests pass | 109 tests passed | PASS |
 | Production build (`pnpm build`) | Frontend compiles without build errors | Build completed; views were split into lazy-loaded chunks | PASS |
 | Client credential scan (`pnpm security:check`) | No service-role key reference or service-role JWT in source or bundle | No service-role credential found | PASS |
 | Phase 4 SQL parity | Migration matches the Phase 4 block in `supabase/schema.sql` | Exact normalized text match | PASS |

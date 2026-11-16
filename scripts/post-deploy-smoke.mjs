@@ -112,11 +112,12 @@ if (process.env.SMOKE_TEST_WRITES === 'true') {
     respondentRole: 'Public',
     submissionKey: crypto.randomUUID(),
     utautAnswers: {
-      performanceExpectancy: [4, 4, 4],
-      effortExpectancy: [4, 4, 4],
-      socialInfluence: [4, 4, 4],
-      facilitatingConditions: [4, 4, 4],
-      behavioralIntention: [4, 4, 4]
+      performanceExpectancy: [4, 4, 4, 4],
+      effortExpectancy: [4, 4, 4, 4],
+      socialInfluence: [4, 4, 4, 4],
+      facilitatingConditions: [4, 4, 4, 4],
+      behavioralIntention: [4, 4, 4],
+      useBehavior: [4, 4]
     },
     isoAnswers: {
       functionalSuitability: 4,

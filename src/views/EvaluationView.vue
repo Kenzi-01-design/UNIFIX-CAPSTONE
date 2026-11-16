@@ -24,8 +24,8 @@
           <section class="evaluation-result-card">
             <h2>UTAUT construct means</h2>
             <p class="result-caption">Mean response on a 1–5 agreement scale</p>
-            <div v-for="(label, key) in UTAUT_CONSTRUCTS" :key="key" class="mean-row">
-              <span>{{ label }}</span>
+            <div v-for="(construct, key) in UTAUT_CONSTRUCTS" :key="key" class="mean-row">
+              <span>{{ construct.label }}</span>
               <div class="mean-track"><i :style="{ width: `${(summary.utautMeans?.[key] || 0) * 20}%` }"></i></div>
               <strong>{{ summary.utautMeans?.[key] ?? '—' }}</strong>
             </div>
@@ -71,12 +71,13 @@
           <h2>UTAUT technology acceptance questions</h2>
           <p>Rate each statement from Strongly disagree (1) to Strongly agree (5).</p>
           <div v-for="(questions, construct) in UTAUT_QUESTIONS" :key="construct">
-            <h3>{{ UTAUT_CONSTRUCTS[construct] }}</h3>
-            <fieldset v-for="(question, index) in questions" :key="question" class="evaluation-question">
-              <legend>{{ question }}</legend>
+            <h3>{{ UTAUT_CONSTRUCTS[construct].label }}</h3>
+            <p>{{ UTAUT_CONSTRUCTS[construct].description }}</p>
+            <fieldset v-for="(question, index) in questions" :key="question.code" class="evaluation-question">
+              <legend><strong>{{ question.code }}.</strong> {{ question.statement }}</legend>
               <div class="rating-options">
                 <label v-for="rating in ratings" :key="rating">
-                  <input v-model.number="utautAnswers[construct][index]" type="radio" :name="`utaut-${construct}-${index}`" :value="rating" required />
+                  <input v-model.number="utautAnswers[construct][index]" type="radio" :name="`utaut-${question.code}`" :value="rating" required />
                   <span>{{ rating }}</span>
                 </label>
               </div>
@@ -179,7 +180,7 @@ function exportCsv() {
   const lines = [
     ['Measure', 'Value'],
     ['Respondent count', summary.value.responseCount],
-    ...Object.entries(UTAUT_CONSTRUCTS).map(([key, label]) => [label, summary.value.utautMeans?.[key] ?? '']),
+    ...Object.entries(UTAUT_CONSTRUCTS).map(([key, construct]) => [construct.label, summary.value.utautMeans?.[key] ?? '']),
     ...Object.entries(ISO_CHARACTERISTICS).map(([key, label]) => [label, summary.value.isoMeans?.[key] ?? '']),
     ...Object.entries(summary.value.respondentsByRole || {}).map(([role, count]) => [`Respondents · ${role}`, count])
   ];

@@ -10,10 +10,14 @@ const isoCharacteristics = [
   'functionalSuitability', 'performanceEfficiency', 'compatibility', 'usability',
   'reliability', 'security', 'maintainability', 'portability'
 ];
-const utautConstructs = [
-  'performanceExpectancy', 'effortExpectancy', 'socialInfluence',
-  'facilitatingConditions', 'behavioralIntention'
-];
+const utautQuestionCounts: Record<string, number> = {
+  performanceExpectancy: 4,
+  effortExpectancy: 4,
+  socialInfluence: 4,
+  facilitatingConditions: 4,
+  behavioralIntention: 3,
+  useBehavior: 2
+};
 
 function corsHeaders(origin: string) {
   const headers: Record<string, string> = {
@@ -34,9 +38,9 @@ function validAnswers(payload: any) {
   return payload.utautAnswers
     && typeof payload.utautAnswers === 'object'
     && !Array.isArray(payload.utautAnswers)
-    && Object.keys(payload.utautAnswers).length === utautConstructs.length
-    && utautConstructs.every((key) => Array.isArray(payload.utautAnswers[key])
-      && payload.utautAnswers[key].length === 3
+    && Object.keys(payload.utautAnswers).length === Object.keys(utautQuestionCounts).length
+    && Object.entries(utautQuestionCounts).every(([key, count]) => Array.isArray(payload.utautAnswers[key])
+      && payload.utautAnswers[key].length === count
       && payload.utautAnswers[key].every((answer: unknown) => Number.isInteger(answer) && answer >= 1 && answer <= 5))
     && payload.isoAnswers
     && typeof payload.isoAnswers === 'object'
