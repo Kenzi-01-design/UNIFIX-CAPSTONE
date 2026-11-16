@@ -10,6 +10,10 @@ const isoCharacteristics = [
   'functionalSuitability', 'performanceEfficiency', 'compatibility', 'usability',
   'reliability', 'security', 'maintainability', 'portability'
 ];
+const utautConstructs = [
+  'performanceExpectancy', 'effortExpectancy', 'socialInfluence',
+  'facilitatingConditions', 'behavioralIntention'
+];
 
 function corsHeaders(origin: string) {
   const headers: Record<string, string> = {
@@ -27,9 +31,13 @@ function response(origin: string, body: Record<string, unknown>, status = 200) {
 }
 
 function validAnswers(payload: any) {
-  return Array.isArray(payload.susAnswers)
-    && payload.susAnswers.length === 10
-    && payload.susAnswers.every((answer: unknown) => Number.isInteger(answer) && answer >= 1 && answer <= 5)
+  return payload.utautAnswers
+    && typeof payload.utautAnswers === 'object'
+    && !Array.isArray(payload.utautAnswers)
+    && Object.keys(payload.utautAnswers).length === utautConstructs.length
+    && utautConstructs.every((key) => Array.isArray(payload.utautAnswers[key])
+      && payload.utautAnswers[key].length === 3
+      && payload.utautAnswers[key].every((answer: unknown) => Number.isInteger(answer) && answer >= 1 && answer <= 5))
     && payload.isoAnswers
     && typeof payload.isoAnswers === 'object'
     && !Array.isArray(payload.isoAnswers)
@@ -159,7 +167,7 @@ Deno.serve(async (request) => {
     const { error } = await admin.from('evaluation_responses').insert({
       submission_key: payload.submissionKey,
       respondent_role: payload.respondentRole,
-      sus_answers: payload.susAnswers,
+      utaut_answers: payload.utautAnswers,
       iso_answers: payload.isoAnswers
     });
     if (error) {

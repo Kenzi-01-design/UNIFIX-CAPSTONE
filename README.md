@@ -149,7 +149,7 @@ The database policies require Supabase Auth and match authenticated email addres
 ### Phase 4 quality, security, and evaluation
 
 - The app is installable as a PWA, caches its application shell after the first online visit, and shows an offline fallback. Public report drafts (including compressed photo files) can be saved in IndexedDB on the device. Drafts are restored on reconnect but are **not silently submitted**: users must review the content, reconnect, and complete Turnstile verification before sending.
-- Anonymous SUS and ISO/IEC 25010 evaluation is available from the public home page and signed-in navigation. The survey stores only ratings and a respondent-selected role. No name, email, or account identifier is saved. Public writes go through a size-limited, origin-checked Edge Function with database-backed rate limiting; the Admin/Assistant results page returns aggregates only.
+- Anonymous UTAUT and ISO/IEC 25010 evaluation is available from the public home page and signed-in navigation. UTAUT measures performance expectancy, effort expectancy, social influence, facilitating conditions, and behavioral intention on a 1–5 agreement scale. The survey stores only ratings and a respondent-selected role. No name, email, or account identifier is saved. Public writes go through a size-limited, origin-checked Edge Function with database-backed rate limiting; the Admin/Assistant results page returns aggregates only.
 - Personnel report reads are restricted to reports assigned to them or reports they personally submitted. New evaluation responses have RLS enabled and cannot be read directly by any client role.
 - Vitest covers report/request verification transitions. The pgTAP RLS suite is in `supabase/tests/phase4_rls.test.sql`. Run `pnpm test` for unit tests and `pnpm test:rls` against a local/staging Supabase instance.
 - `pnpm security:check` scans the built frontend bundle for a service-role environment reference or JWT. `vercel.json`, `public/_headers`, and `public/_redirects` configure deployment security headers and SPA routing.
@@ -291,7 +291,7 @@ erDiagram
     uuid id PK
     uuid submission_key UK
     text respondent_role
-    smallint sus_answers_array
+    jsonb utaut_answers
     jsonb iso_answers
   }
 ```

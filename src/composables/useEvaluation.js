@@ -1,18 +1,41 @@
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js';
 import { getEvaluationSubmissionErrorMessage } from '../lib/evaluationErrors.js';
 
-export const SUS_QUESTIONS = [
-  'I think that I would like to use this system frequently.',
-  'I found the system unnecessarily complex.',
-  'I thought the system was easy to use.',
-  'I think that I would need the support of a technical person to be able to use this system.',
-  'I found the various functions in this system were well integrated.',
-  'I thought there was too much inconsistency in this system.',
-  'I would imagine that most people would learn to use this system very quickly.',
-  'I found the system very cumbersome to use.',
-  'I felt very confident using the system.',
-  'I needed to learn a lot of things before I could get going with this system.'
-];
+export const UTAUT_CONSTRUCTS = Object.freeze({
+  performanceExpectancy: 'Performance expectancy',
+  effortExpectancy: 'Effort expectancy',
+  socialInfluence: 'Social influence',
+  facilitatingConditions: 'Facilitating conditions',
+  behavioralIntention: 'Behavioral intention'
+});
+
+export const UTAUT_QUESTIONS = Object.freeze({
+  performanceExpectancy: [
+    'Using UNIFIX helps me accomplish what I need to do more quickly.',
+    'Using UNIFIX improves my effectiveness when reporting or managing maintenance needs.',
+    'UNIFIX is useful for my interactions with the institution.'
+  ],
+  effortExpectancy: [
+    'Learning to use UNIFIX is easy for me.',
+    'It is easy for me to become skillful at using UNIFIX.',
+    'I find UNIFIX easy to use.'
+  ],
+  socialInfluence: [
+    'People who influence my work think I should use UNIFIX.',
+    'People important to me support my use of UNIFIX.',
+    'My institution encourages the use of UNIFIX for maintenance-related tasks.'
+  ],
+  facilitatingConditions: [
+    'I have the resources needed to use UNIFIX.',
+    'I have the knowledge needed to use UNIFIX.',
+    'UNIFIX is compatible with the devices and systems I use.'
+  ],
+  behavioralIntention: [
+    'I intend to use UNIFIX when I need to report or follow up on a maintenance issue.',
+    'I expect to continue using UNIFIX in the future.',
+    'I will make an effort to use UNIFIX in my work or interactions with the institution.'
+  ]
+});
 
 export const ISO_CHARACTERISTICS = Object.freeze({
   functionalSuitability: 'Functional suitability',
@@ -36,12 +59,15 @@ export const ISO_QUESTIONS = Object.freeze({
   portability: 'I can use UNIFIX across the devices and environments available to me.'
 });
 
-const STORAGE_KEY = 'unifix-anonymous-evaluation-v1';
+const STORAGE_KEY = 'unifix-anonymous-evaluation-v2';
 
 function validateSubmission(submission) {
-  if (!Array.isArray(submission.susAnswers) || submission.susAnswers.length !== 10
-    || submission.susAnswers.some((answer) => !Number.isInteger(answer) || answer < 1 || answer > 5)) {
-    throw new Error('Answer all 10 usability questions using the 1–5 scale.');
+  const utautKeys = Object.keys(UTAUT_CONSTRUCTS);
+  if (!submission.utautAnswers || Object.keys(submission.utautAnswers).length !== utautKeys.length
+    || utautKeys.some((key) => !Array.isArray(submission.utautAnswers[key])
+      || submission.utautAnswers[key].length !== UTAUT_QUESTIONS[key].length
+      || submission.utautAnswers[key].some((answer) => !Number.isInteger(answer) || answer < 1 || answer > 5))) {
+    throw new Error('Answer all UTAUT questions using the 1–5 scale.');
   }
   const isoKeys = Object.keys(ISO_CHARACTERISTICS);
   if (!submission.isoAnswers || Object.keys(submission.isoAnswers).length !== isoKeys.length
@@ -54,14 +80,18 @@ function validateSubmission(submission) {
   }
 }
 
-export function calculateSusScore(answers) {
-  if (!Array.isArray(answers) || answers.length !== 10
-    || answers.some((answer) => !Number.isInteger(answer) || answer < 1 || answer > 5)) {
-    throw new Error('SUS requires exactly 10 answers from 1 to 5.');
+export function calculateUtautMeans(answers) {
+  const keys = Object.keys(UTAUT_CONSTRUCTS);
+  if (!answers || Object.keys(answers).length !== keys.length
+    || keys.some((key) => !Array.isArray(answers[key])
+      || answers[key].length !== UTAUT_QUESTIONS[key].length
+      || answers[key].some((answer) => !Number.isInteger(answer) || answer < 1 || answer > 5))) {
+    throw new Error('UTAUT requires three answers per construct using the 1–5 scale.');
   }
-  return Number((answers.reduce((score, answer, index) => (
-    score + (index % 2 === 0 ? answer - 1 : 5 - answer)
-  ), 0) * 2.5).toFixed(2));
+  return Object.fromEntries(keys.map((key) => [
+    key,
+    Number((answers[key].reduce((total, answer) => total + answer, 0) / answers[key].length).toFixed(2))
+  ]));
 }
 
 function readDemoResponses() {
@@ -79,11 +109,12 @@ function buildDemoSummary(responses) {
   const roleCounts = {};
   const isoTotals = Object.fromEntries(Object.keys(ISO_CHARACTERISTICS).map((key) => [key, 0]));
   const isoCounts = Object.fromEntries(Object.keys(ISO_CHARACTERISTICS).map((key) => [key, 0]));
-  const scores = [];
+  const utautTotals = Object.fromEntries(Object.keys(UTAUT_CONSTRUCTS).map((key) => [key, 0]));
 
   for (const response of responses) {
-    scores.push(calculateSusScore(response.susAnswers));
+    const means = calculateUtautMeans(response.utautAnswers);
     roleCounts[response.respondentRole] = (roleCounts[response.respondentRole] || 0) + 1;
+    for (const key of Object.keys(UTAUT_CONSTRUCTS)) utautTotals[key] += means[key];
     for (const key of Object.keys(ISO_CHARACTERISTICS)) {
       isoTotals[key] += response.isoAnswers[key];
       isoCounts[key] += 1;
@@ -92,9 +123,10 @@ function buildDemoSummary(responses) {
 
   return {
     responseCount: responses.length,
-    susAverage: scores.length
-      ? Number((scores.reduce((total, score) => total + score, 0) / scores.length).toFixed(2))
-      : null,
+    utautMeans: Object.fromEntries(Object.keys(UTAUT_CONSTRUCTS).map((key) => [
+      key,
+      responses.length ? Number((utautTotals[key] / responses.length).toFixed(2)) : null
+    ])),
     isoMeans: Object.fromEntries(Object.keys(ISO_CHARACTERISTICS).map((key) => [
       key,
       isoCounts[key] ? Number((isoTotals[key] / isoCounts[key]).toFixed(2)) : null
@@ -119,7 +151,7 @@ export function useEvaluation() {
     const responses = readDemoResponses();
     responses.push({
       respondentRole: submission.respondentRole,
-      susAnswers: [...submission.susAnswers],
+      utautAnswers: Object.fromEntries(Object.entries(submission.utautAnswers).map(([key, answers]) => [key, [...answers]])),
       isoAnswers: { ...submission.isoAnswers }
     });
     try {

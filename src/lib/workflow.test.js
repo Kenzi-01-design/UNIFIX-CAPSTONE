@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { canRejectForRework, canSubmitWorkForVerification, canVerifyCompletedWork, isAssignedToPersonnel } from './workflow.js';
 import { validateReportInput, validateRequestInput } from './validation.js';
-import { calculateSusScore } from '../composables/useEvaluation.js';
+import { calculateUtautMeans } from '../composables/useEvaluation.js';
 
 describe('work verification transitions', () => {
   const startedAssignment = {
@@ -39,10 +39,31 @@ describe('work verification transitions', () => {
       })).toThrow(/oversized/);
     });
 
-    describe('System Usability Scale scoring', () => {
-      it('converts the ten raw answers to a 0–100 SUS score', () => {
-        expect(calculateSusScore(Array(10).fill(3))).toBe(50);
-        expect(calculateSusScore(Array(10).fill(5))).toBe(50);
+    describe('UTAUT construct summaries', () => {
+      it('calculates a 1–5 mean for each construct', () => {
+        expect(calculateUtautMeans({
+          performanceExpectancy: [1, 3, 5],
+          effortExpectancy: [2, 2, 2],
+          socialInfluence: [3, 3, 3],
+          facilitatingConditions: [4, 4, 4],
+          behavioralIntention: [1, 2, 3]
+        })).toEqual({
+          performanceExpectancy: 3,
+          effortExpectancy: 2,
+          socialInfluence: 3,
+          facilitatingConditions: 4,
+          behavioralIntention: 2
+        });
+      });
+
+      it('rejects incomplete or out-of-range construct answers', () => {
+        expect(() => calculateUtautMeans({
+          performanceExpectancy: [1, 3, 5],
+          effortExpectancy: [2, 2],
+          socialInfluence: [3, 3, 3],
+          facilitatingConditions: [4, 4, 4],
+          behavioralIntention: [1, 2, 3]
+        })).toThrow(/UTAUT requires/);
       });
     });
 

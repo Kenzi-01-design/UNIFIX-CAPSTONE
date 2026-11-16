@@ -111,7 +111,13 @@ if (process.env.SMOKE_TEST_WRITES === 'true') {
   const evaluation = {
     respondentRole: 'Public',
     submissionKey: crypto.randomUUID(),
-    susAnswers: Array(10).fill(4),
+    utautAnswers: {
+      performanceExpectancy: [4, 4, 4],
+      effortExpectancy: [4, 4, 4],
+      socialInfluence: [4, 4, 4],
+      facilitatingConditions: [4, 4, 4],
+      behavioralIntention: [4, 4, 4]
+    },
     isoAnswers: {
       functionalSuitability: 4,
       performanceEfficiency: 4,

@@ -8,7 +8,7 @@
       <header class="evaluation-header">
         <p class="evaluation-eyebrow">SYSTEM QUALITY</p>
         <h1>Evaluation results</h1>
-        <p>Anonymous SUS and ISO/IEC 25010 responses. No names, emails, or account identifiers are stored.</p>
+        <p>Anonymous UTAUT and ISO/IEC 25010 responses. No names, emails, or account identifiers are stored.</p>
       </header>
       <div v-if="loading" class="evaluation-state" role="status">Loading evaluation results…</div>
       <div v-else-if="error" class="evaluation-state evaluation-error" role="alert">{{ error }}</div>
@@ -21,11 +21,14 @@
           No responses yet. Share the evaluation page with system users to collect feedback.
         </div>
         <div v-else class="evaluation-results-grid">
-          <section class="evaluation-result-card sus-result">
-            <h2>System Usability Scale</h2>
-            <strong>{{ summary.susAverage ?? '—' }}<small>/ 100</small></strong>
-            <p v-if="summary.susAverage !== null">{{ susInterpretation(summary.susAverage) }} (average SUS score)</p>
-            <p>Standard SUS scoring is applied: odd questions score 0–4; even questions are reverse-scored.</p>
+          <section class="evaluation-result-card">
+            <h2>UTAUT construct means</h2>
+            <p class="result-caption">Mean response on a 1–5 agreement scale</p>
+            <div v-for="(label, key) in UTAUT_CONSTRUCTS" :key="key" class="mean-row">
+              <span>{{ label }}</span>
+              <div class="mean-track"><i :style="{ width: `${(summary.utautMeans?.[key] || 0) * 20}%` }"></i></div>
+              <strong>{{ summary.utautMeans?.[key] ?? '—' }}</strong>
+            </div>
           </section>
           <section class="evaluation-result-card">
             <h2>ISO/IEC 25010 characteristics</h2>
@@ -65,17 +68,20 @@
           <small>This role is used only for aggregated respondent counts.</small>
         </div>
         <section class="evaluation-section">
-          <h2>System Usability Scale (SUS)</h2>
-          <p>Choose how much you agree with each statement about UNIFIX.</p>
-          <fieldset v-for="(question, index) in SUS_QUESTIONS" :key="question" class="evaluation-question">
-            <legend>{{ index + 1 }}. {{ question }}</legend>
-            <div class="rating-options">
-              <label v-for="rating in ratings" :key="rating">
-                <input v-model.number="susAnswers[index]" type="radio" :name="`sus-${index}`" :value="rating" required />
-                <span>{{ rating }}</span>
-              </label>
-            </div>
-          </fieldset>
+          <h2>UTAUT technology acceptance questions</h2>
+          <p>Rate each statement from Strongly disagree (1) to Strongly agree (5).</p>
+          <div v-for="(questions, construct) in UTAUT_QUESTIONS" :key="construct">
+            <h3>{{ UTAUT_CONSTRUCTS[construct] }}</h3>
+            <fieldset v-for="(question, index) in questions" :key="question" class="evaluation-question">
+              <legend>{{ question }}</legend>
+              <div class="rating-options">
+                <label v-for="rating in ratings" :key="rating">
+                  <input v-model.number="utautAnswers[construct][index]" type="radio" :name="`utaut-${construct}-${index}`" :value="rating" required />
+                  <span>{{ rating }}</span>
+                </label>
+              </div>
+            </fieldset>
+          </div>
         </section>
         <section class="evaluation-section">
           <h2>ISO/IEC 25010 quality characteristics</h2>
@@ -107,7 +113,8 @@ import { onMounted, reactive, ref } from 'vue';
 import {
   ISO_CHARACTERISTICS,
   ISO_QUESTIONS,
-  SUS_QUESTIONS,
+  UTAUT_CONSTRUCTS,
+  UTAUT_QUESTIONS,
   useEvaluation
 } from '../composables/useEvaluation.js';
 import { useToast } from '../composables/useToast.js';
@@ -121,7 +128,9 @@ const props = defineProps({
 defineEmits(['back']);
 
 const ratings = [1, 2, 3, 4, 5];
-const susAnswers = ref(Array(10).fill(null));
+const utautAnswers = reactive(Object.fromEntries(
+  Object.entries(UTAUT_QUESTIONS).map(([key, questions]) => [key, Array(questions.length).fill(null)])
+));
 const isoAnswers = reactive(Object.fromEntries(Object.keys(ISO_CHARACTERISTICS).map((key) => [key, null])));
 const respondentRole = ref(props.publicMode ? 'Public' : props.respondentRole);
 const submitted = ref(false);
@@ -154,7 +163,7 @@ async function submit() {
   try {
     await submitEvaluation({
       respondentRole: respondentRole.value,
-      susAnswers: susAnswers.value,
+      utautAnswers: Object.fromEntries(Object.entries(utautAnswers).map(([key, answers]) => [key, [...answers]])),
       isoAnswers: { ...isoAnswers }
     });
     submitted.value = true;
@@ -166,18 +175,11 @@ async function submit() {
   }
 }
 
-function susInterpretation(score) {
-  if (score >= 80.3) return 'Excellent';
-  if (score >= 68) return 'Good';
-  if (score >= 51) return 'Fair';
-  return 'Needs improvement';
-}
-
 function exportCsv() {
   const lines = [
     ['Measure', 'Value'],
     ['Respondent count', summary.value.responseCount],
-    ['Average SUS score', summary.value.susAverage ?? ''],
+    ...Object.entries(UTAUT_CONSTRUCTS).map(([key, label]) => [label, summary.value.utautMeans?.[key] ?? '']),
     ...Object.entries(ISO_CHARACTERISTICS).map(([key, label]) => [label, summary.value.isoMeans?.[key] ?? '']),
     ...Object.entries(summary.value.respondentsByRole || {}).map(([role, count]) => [`Respondents · ${role}`, count])
   ];
@@ -192,7 +194,7 @@ function exportCsv() {
 </script>
 
 <style scoped>
-.evaluation-page{max-width:1040px;margin:0 auto;padding:24px 0 48px}.evaluation-header{margin:0 0 22px}.evaluation-header h1{font-size:clamp(26px,4vw,36px);letter-spacing:-.8px}.evaluation-header>p:last-child{max-width:760px;margin-top:7px;color:var(--text-2);font-size:13px}.evaluation-eyebrow{color:var(--primary);font-size:10px;font-weight:800;letter-spacing:.14em}.evaluation-form,.evaluation-result-card{padding:20px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow-sm)}.respondent-role{max-width:430px;margin-bottom:20px}.respondent-role small,.result-caption{display:block;margin-top:4px;color:var(--text-3);font-size:11px}.evaluation-section{margin-top:20px;padding:18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2)}.evaluation-section h2,.evaluation-result-card h2{font-size:16px}.evaluation-section>p{margin:4px 0 14px;color:var(--text-3);font-size:12px}.evaluation-question{min-width:0;margin:0;padding:13px 0;border:0;border-top:1px solid var(--border)}.evaluation-question legend{width:100%;font-size:13px;font-weight:600;line-height:1.5}.rating-options{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:10px}.rating-options label{position:relative;display:grid;place-items:center;min-height:38px;border:1px solid var(--border-dark);border-radius:7px;background:var(--surface);cursor:pointer}.rating-options input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}.rating-options label:has(input:checked){border-color:var(--primary);background:var(--primary-bg);color:var(--primary-dark);font-weight:800}.rating-options label:has(input:focus-visible){outline:3px solid var(--accent-light);outline-offset:2px}.evaluation-submit{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:18px}.evaluation-submit p{max-width:520px;color:var(--text-3);font-size:11px}.evaluation-submit button{flex:none}.evaluation-state{padding:24px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text-2);font-size:13px}.evaluation-success{border-color:#b7ddc5;background:var(--green-bg);color:var(--primary-dark)}.evaluation-success h2{font-size:18px}.evaluation-success p{margin:4px 0 14px}.evaluation-error{color:var(--red)}.evaluation-results-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;color:var(--text-3);font-size:12px}.evaluation-results-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.evaluation-result-card>h2{margin-bottom:12px}.sus-result>strong{display:block;color:var(--primary);font-size:42px;line-height:1.1}.sus-result>strong small{font-size:16px}.sus-result>p{margin-top:8px;color:var(--text-2);font-size:12px}.mean-row{display:grid;grid-template-columns:minmax(130px,1fr) minmax(70px,1.4fr) 36px;align-items:center;gap:10px;margin:11px 0;font-size:11px}.mean-track{height:9px;overflow:hidden;border-radius:8px;background:var(--surface-3)}.mean-track i{display:block;height:100%;border-radius:inherit;background:var(--primary)}.mean-row>strong{text-align:right}.role-count-list{list-style:none}.role-count-list li{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px}
+.evaluation-page{max-width:1040px;margin:0 auto;padding:24px 0 48px}.evaluation-header{margin:0 0 22px}.evaluation-header h1{font-size:clamp(26px,4vw,36px);letter-spacing:-.8px}.evaluation-header>p:last-child{max-width:760px;margin-top:7px;color:var(--text-2);font-size:13px}.evaluation-eyebrow{color:var(--primary);font-size:10px;font-weight:800;letter-spacing:.14em}.evaluation-form,.evaluation-result-card{padding:20px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow-sm)}.respondent-role{max-width:430px;margin-bottom:20px}.respondent-role small,.result-caption{display:block;margin-top:4px;color:var(--text-3);font-size:11px}.evaluation-section{margin-top:20px;padding:18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2)}.evaluation-section h2,.evaluation-result-card h2{font-size:16px}.evaluation-section h3{margin:16px 0 0;font-size:14px}.evaluation-section>p{margin:4px 0 14px;color:var(--text-3);font-size:12px}.evaluation-question{min-width:0;margin:0;padding:13px 0;border:0;border-top:1px solid var(--border)}.evaluation-question legend{width:100%;font-size:13px;font-weight:600;line-height:1.5}.rating-options{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:10px}.rating-options label{position:relative;display:grid;place-items:center;min-height:38px;border:1px solid var(--border-dark);border-radius:7px;background:var(--surface);cursor:pointer}.rating-options input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}.rating-options label:has(input:checked){border-color:var(--primary);background:var(--primary-bg);color:var(--primary-dark);font-weight:800}.rating-options label:has(input:focus-visible){outline:3px solid var(--accent-light);outline-offset:2px}.evaluation-submit{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:18px}.evaluation-submit p{max-width:520px;color:var(--text-3);font-size:11px}.evaluation-submit button{flex:none}.evaluation-state{padding:24px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text-2);font-size:13px}.evaluation-success{border-color:#b7ddc5;background:var(--green-bg);color:var(--primary-dark)}.evaluation-success h2{font-size:18px}.evaluation-success p{margin:4px 0 14px}.evaluation-error{color:var(--red)}.evaluation-results-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;color:var(--text-3);font-size:12px}.evaluation-results-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.evaluation-result-card>h2{margin-bottom:12px}.mean-row{display:grid;grid-template-columns:minmax(130px,1fr) minmax(70px,1.4fr) 36px;align-items:center;gap:10px;margin:11px 0;font-size:11px}.mean-track{height:9px;overflow:hidden;border-radius:8px;background:var(--surface-3)}.mean-track i{display:block;height:100%;border-radius:inherit;background:var(--primary)}.mean-row>strong{text-align:right}.role-count-list{list-style:none}.role-count-list li{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px}
 @media(max-width:1023px){
   .evaluation-page{width:min(100%,1040px);padding:clamp(16px,3vw,24px) clamp(16px,3vw,24px) 40px}
   .evaluation-header{min-width:0;margin-bottom:20px}
