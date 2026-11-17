@@ -7,6 +7,7 @@ import {
   classifyAuthError
 } from '../lib/authFlow.js';
 import { getPublicFunctionErrorMessage } from '../lib/publicFunctionErrors.js';
+import { PERSONNEL_SPECIALTIES } from '../lib/personnelSpecialties.js';
 
 // Private module-level state
 const _currentRole = ref('Admin');
@@ -569,9 +570,58 @@ export function useAuth() {
       email: _activeUserEmail.value || userProfile?.email || savedProfile.email || '',
       phone: userProfile?.phone ?? savedProfile.phone ?? '',
       dept: userProfile?.department ?? savedProfile.dept ?? '',
+      specialty: userProfile?.specialty ?? savedProfile.specialty ?? '',
       location: userProfile?.location || savedProfile.location || 'Bambang Campus',
       updatedAt: savedProfile.updatedAt || 'Not yet'
     };
+  }
+
+  async function savePersonnelSpecialty(specialty) {
+    if (_currentRole.value !== 'Personnel') {
+      throw new Error('Only Personnel accounts can update a work specialty.');
+    }
+    if (!PERSONNEL_SPECIALTIES.includes(specialty)) {
+      throw new Error('Select a valid work specialty.');
+    }
+
+    if (isSupabaseConfigured) {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const authUser = sessionData.session?.user;
+      if (!authUser) throw new Error('No signed-in user found.');
+
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .update({ specialty })
+        .eq('auth_user_id', authUser.id)
+        .select('id')
+        .maybeSingle();
+      if (error) throw error;
+
+      if (!data) {
+        const { data: legacyData, error: legacyError } = await supabase
+          .from('user_profiles')
+          .update({ specialty })
+          .is('auth_user_id', null)
+          .eq('email', authUser.email || '')
+          .select('id')
+          .maybeSingle();
+        if (legacyError) throw legacyError;
+        if (!legacyData) throw new Error('Could not find your user profile to update.');
+      }
+    }
+
+    const updatedProfile = {
+      ..._activeUserProfile.value,
+      specialty
+    };
+    _activeUserProfile.value = updatedProfile;
+    const savedProfile = {
+      ...loadProfile(),
+      specialty
+    };
+    localStorage.setItem(getProfileKey(), JSON.stringify(savedProfile));
+    return specialty;
   }
 
   async function saveProfile(profileData) {
@@ -751,6 +801,7 @@ export function useAuth() {
     logout,
     loadProfile,
     saveProfile,
+    savePersonnelSpecialty,
     loadSettings,
     fetchSettings,
     saveSettings,

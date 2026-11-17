@@ -7,6 +7,28 @@
           <span class="panel-action" @click="handleReset">Use Defaults</span>
         </div>
         <div class="account-content">
+          <form
+            v-if="currentRole === 'Personnel'"
+            class="form-group personnel-specialty-setting"
+            @submit.prevent="handleSpecialtySave"
+          >
+            <label for="personnel-specialty">Work Specialty</label>
+            <select id="personnel-specialty" v-model="personnelSpecialty" required>
+              <option value="" disabled>Select your specialty</option>
+              <option v-for="specialty in personnelSpecialties" :key="specialty" :value="specialty">
+                {{ specialty }}
+              </option>
+            </select>
+            <small>Choose the maintenance work area assigned to you.</small>
+            <button
+              class="btn-secondary"
+              type="submit"
+              :disabled="savingSpecialty || !personnelSpecialty || personnelSpecialty === savedPersonnelSpecialty"
+            >
+              {{ savingSpecialty ? 'Saving…' : 'Save Specialty' }}
+            </button>
+          </form>
+
           <label class="setting-row">
             <span>Email Updates on Work Orders
               <small v-if="!settings.notificationEmailVerified">Verify a notification email below before enabling email updates.</small>
@@ -140,16 +162,21 @@
 import { reactive, computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { useAuth } from '../composables/useAuth.js';
 import { useToast } from '../composables/useToast.js';
+import { PERSONNEL_SPECIALTIES } from '../lib/personnelSpecialties.js';
 
 const {
   loadSettings, fetchSettings, saveSettings, resetSettings, changePassword,
-  requestNotificationEmailVerification
+  requestNotificationEmailVerification, currentRole, loadProfile, savePersonnelSpecialty
 } = useAuth();
 const { showToast } = useToast();
 const newPassword = ref('');
 const confirmNewPassword = ref('');
 const changingPassword = ref(false);
 const sendingVerification = ref(false);
+const personnelSpecialties = PERSONNEL_SPECIALTIES;
+const personnelSpecialty = ref(loadProfile().specialty || '');
+const savedPersonnelSpecialty = ref(personnelSpecialty.value);
+const savingSpecialty = ref(false);
 
 const settings = reactive(loadSettings());
 const verifiedNotificationEmail = ref(
@@ -165,6 +192,19 @@ const landingLabelMap = {
 };
 
 const landingLabel = computed(() => landingLabelMap[settings.landing] || 'Dashboard');
+
+async function handleSpecialtySave() {
+  savingSpecialty.value = true;
+  try {
+    await savePersonnelSpecialty(personnelSpecialty.value);
+    savedPersonnelSpecialty.value = personnelSpecialty.value;
+    showToast('Work specialty saved successfully.', 'success');
+  } catch (error) {
+    showToast(error.message || 'Unable to save your work specialty.', 'error');
+  } finally {
+    savingSpecialty.value = false;
+  }
+}
 
 onMounted(async () => {
   try {

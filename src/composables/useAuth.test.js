@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   },
   removeChannel: vi.fn(),
   insert: vi.fn(),
+  update: vi.fn(),
   loginEventsResult: [],
   loginRecordResult: null,
   profileResult: { data: null, error: null }
@@ -82,6 +83,10 @@ describe('useAuth sign-in handling', () => {
         })),
         eq: vi.fn(() => query),
         is: vi.fn(() => query),
+        update: vi.fn((value) => {
+          mocks.update(value);
+          return query;
+        }),
         maybeSingle: vi.fn(() => Promise.resolve(mocks.profileResult)),
         upsert: vi.fn(() => Promise.resolve({ error: null })),
         insert: vi.fn((value) => {
@@ -102,6 +107,41 @@ describe('useAuth sign-in handling', () => {
       email: '',
       dept: ''
     });
+  });
+
+  it('saves a valid specialty for the signed-in Personnel profile', async () => {
+    mocks.profileResult = {
+      data: {
+        auth_user_id: 'auth-personnel-1',
+        name: 'Personnel User',
+        email: 'personnel@nvsu.edu.ph',
+        role: 'Personnel',
+        specialty: 'Electrical',
+        is_active: true,
+        registration_status: 'approved'
+      },
+      error: null
+    };
+    mocks.auth.getSession.mockResolvedValue({
+      data: { session: { user: { id: 'auth-personnel-1', email: 'personnel@nvsu.edu.ph' } } },
+      error: null
+    });
+    const auth = await loadAuth();
+    await auth.login('personnel@nvsu.edu.ph', 'password', 'Personnel');
+
+    await expect(auth.savePersonnelSpecialty('HVAC')).resolves.toBe('HVAC');
+
+    expect(mocks.from).toHaveBeenCalledWith('user_profiles');
+    expect(mocks.update).toHaveBeenCalledWith({ specialty: 'HVAC' });
+    expect(auth.loadProfile().specialty).toBe('HVAC');
+  });
+
+  it('rejects specialty changes from non-Personnel accounts', async () => {
+    const auth = await loadAuth();
+
+    await expect(auth.savePersonnelSpecialty('HVAC'))
+      .rejects.toThrow('Only Personnel accounts can update a work specialty.');
+    expect(mocks.from).not.toHaveBeenCalledWith('user_profiles');
   });
 
   it('uses the profile role, not the selected login tab', async () => {
