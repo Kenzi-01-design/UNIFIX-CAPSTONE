@@ -41,6 +41,16 @@
             </div>
           </div>
 
+          <div v-if="currentRole === 'Personnel'" class="form-group">
+            <label for="profile-specialty">Work Specialty</label>
+            <select id="profile-specialty" v-model="profile.specialty" required>
+              <option value="" disabled>Select your specialty</option>
+              <option v-for="specialty in personnelSpecialties" :key="specialty" :value="specialty">
+                {{ specialty }}
+              </option>
+            </select>
+          </div>
+
           <div class="form-group">
             <label>Designated Campus / Location</label>
             <select v-model="profile.location">
@@ -94,12 +104,14 @@ import { reactive, computed } from 'vue';
 import { useAuth } from '../composables/useAuth.js';
 import { useReports } from '../composables/useReports.js';
 import { useToast } from '../composables/useToast.js';
+import { PERSONNEL_SPECIALTIES } from '../lib/personnelSpecialties.js';
 
 const { currentRole, userInitials, loadProfile, saveProfile } = useAuth();
 const { reports } = useReports();
 const { showToast } = useToast();
 
 const profile = reactive(loadProfile());
+const personnelSpecialties = PERSONNEL_SPECIALTIES;
 
 const submittedCount = computed(() => {
   return reports.value.filter((r) => r.reporter === profile.name).length;

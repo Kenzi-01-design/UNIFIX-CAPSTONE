@@ -109,7 +109,7 @@ describe('useAuth sign-in handling', () => {
     });
   });
 
-  it('saves a valid specialty for the signed-in Personnel profile', async () => {
+  it('saves a valid specialty with the signed-in Personnel profile', async () => {
     mocks.profileResult = {
       data: {
         auth_user_id: 'auth-personnel-1',
@@ -129,19 +129,37 @@ describe('useAuth sign-in handling', () => {
     const auth = await loadAuth();
     await auth.login('personnel@nvsu.edu.ph', 'password', 'Personnel');
 
-    await expect(auth.savePersonnelSpecialty('HVAC')).resolves.toBe('HVAC');
+    await auth.saveProfile({
+      ...auth.loadProfile(),
+      specialty: 'HVAC'
+    });
 
     expect(mocks.from).toHaveBeenCalledWith('user_profiles');
-    expect(mocks.update).toHaveBeenCalledWith({ specialty: 'HVAC' });
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ specialty: 'HVAC' }));
     expect(auth.loadProfile().specialty).toBe('HVAC');
   });
 
-  it('rejects specialty changes from non-Personnel accounts', async () => {
+  it('rejects invalid specialties in Personnel profiles', async () => {
+    mocks.profileResult = {
+      data: {
+        auth_user_id: 'auth-personnel-1',
+        name: 'Personnel User',
+        email: 'personnel@nvsu.edu.ph',
+        role: 'Personnel',
+        specialty: 'Electrical',
+        is_active: true,
+        registration_status: 'approved'
+      },
+      error: null
+    };
     const auth = await loadAuth();
+    await auth.login('personnel@nvsu.edu.ph', 'password', 'Personnel');
 
-    await expect(auth.savePersonnelSpecialty('HVAC'))
-      .rejects.toThrow('Only Personnel accounts can update a work specialty.');
-    expect(mocks.from).not.toHaveBeenCalledWith('user_profiles');
+    await expect(auth.saveProfile({
+      ...auth.loadProfile(),
+      specialty: 'Not a valid specialty'
+    })).rejects.toThrow('Select a valid work specialty.');
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 
   it('uses the profile role, not the selected login tab', async () => {

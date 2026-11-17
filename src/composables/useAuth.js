@@ -576,55 +576,12 @@ export function useAuth() {
     };
   }
 
-  async function savePersonnelSpecialty(specialty) {
-    if (_currentRole.value !== 'Personnel') {
-      throw new Error('Only Personnel accounts can update a work specialty.');
-    }
-    if (!PERSONNEL_SPECIALTIES.includes(specialty)) {
+  async function saveProfile(profileData) {
+    const isPersonnel = _currentRole.value === 'Personnel';
+    if (isPersonnel && !PERSONNEL_SPECIALTIES.includes(profileData.specialty)) {
       throw new Error('Select a valid work specialty.');
     }
 
-    if (isSupabaseConfigured) {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-      const authUser = sessionData.session?.user;
-      if (!authUser) throw new Error('No signed-in user found.');
-
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .update({ specialty })
-        .eq('auth_user_id', authUser.id)
-        .select('id')
-        .maybeSingle();
-      if (error) throw error;
-
-      if (!data) {
-        const { data: legacyData, error: legacyError } = await supabase
-          .from('user_profiles')
-          .update({ specialty })
-          .is('auth_user_id', null)
-          .eq('email', authUser.email || '')
-          .select('id')
-          .maybeSingle();
-        if (legacyError) throw legacyError;
-        if (!legacyData) throw new Error('Could not find your user profile to update.');
-      }
-    }
-
-    const updatedProfile = {
-      ..._activeUserProfile.value,
-      specialty
-    };
-    _activeUserProfile.value = updatedProfile;
-    const savedProfile = {
-      ...loadProfile(),
-      specialty
-    };
-    localStorage.setItem(getProfileKey(), JSON.stringify(savedProfile));
-    return specialty;
-  }
-
-  async function saveProfile(profileData) {
     const updated = {
       ...profileData,
       updatedAt: new Date().toLocaleString()
@@ -636,7 +593,8 @@ export function useAuth() {
       email: updated.email,
       department: updated.dept,
       phone: updated.phone,
-      location: updated.location
+      location: updated.location,
+      ...(isPersonnel ? { specialty: updated.specialty } : {})
     };
     localStorage.setItem(getProfileKey(), JSON.stringify(updated));
 
@@ -645,9 +603,15 @@ export function useAuth() {
       if (sessionError) throw sessionError;
       const authUser = sessionData.session?.user;
       if (!authUser) throw new Error('No signed-in user found.');
+      const profileChanges = {
+        name: updated.name,
+        phone: updated.phone || '',
+        location: 'Bambang Campus',
+        ...(isPersonnel ? { specialty: updated.specialty } : {})
+      };
       const { data, error } = await supabase
         .from('user_profiles')
-        .update({ name: updated.name, phone: updated.phone || '', location: 'Bambang Campus' })
+        .update(profileChanges)
         .eq('auth_user_id', authUser.id)
         .select('id')
         .maybeSingle();
@@ -655,7 +619,7 @@ export function useAuth() {
       if (!data) {
         const { error: legacyError } = await supabase
           .from('user_profiles')
-          .update({ name: updated.name, phone: updated.phone || '', location: 'Bambang Campus' })
+          .update(profileChanges)
           .is('auth_user_id', null)
           .eq('email', authUser.email || '')
           .select('id')
@@ -801,7 +765,6 @@ export function useAuth() {
     logout,
     loadProfile,
     saveProfile,
-    savePersonnelSpecialty,
     loadSettings,
     fetchSettings,
     saveSettings,
