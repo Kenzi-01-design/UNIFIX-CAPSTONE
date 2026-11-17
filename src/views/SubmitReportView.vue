@@ -66,15 +66,15 @@
             <label>Category *</label>
             <select v-model="form.cat">
               <option value="">Select category...</option>
-              <option value="Electrical">⌁ Electrical</option>
-              <option value="Plumbing">⌇ Plumbing</option>
-              <option value="Furniture">▣ Furniture</option>
-              <option value="HVAC">❄ HVAC / AC</option>
-              <option value="Network">◎ Network / IT</option>
-              <option value="Civil">▦ Structural / Civil</option>
-              <option value="Security">◇ Security / Locks</option>
-              <option value="Sanitation">✦ Sanitation</option>
-              <option value="Other">□ Other</option>
+              <option value="Electrical">Electrical</option>
+              <option value="Plumbing">Plumbing</option>
+              <option value="Furniture">Furniture</option>
+              <option value="HVAC">HVAC / AC</option>
+              <option value="Network">Network / IT</option>
+              <option value="Civil">Structural / Civil</option>
+              <option value="Security">Security / Locks</option>
+              <option value="Sanitation">Sanitation</option>
+              <option value="Other">Other</option>
             </select>
           </div>
           <div class="form-group">
