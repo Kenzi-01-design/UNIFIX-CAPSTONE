@@ -105,7 +105,6 @@
             <label>Floor</label>
             <select v-model="form.floor">
               <option value="">Select floor...</option>
-              <option>Ground Floor (GF)</option>
               <option>Floor 1</option>
               <option>Floor 2</option>
               <option>Floor 3</option>
