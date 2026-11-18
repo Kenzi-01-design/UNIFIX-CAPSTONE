@@ -82,9 +82,9 @@
     </section>
 
     <div v-if="!hasAdminAccess(currentRole)" class="quick-actions-grid">
-      <button v-if="currentRole !== 'Employee'" class="quick-action primary" @click="$emit('navigate', 'submit')">
-        <span class="quick-action-icon"><UiIcon name="add" /></span>
-        <span><strong>{{ currentRole === 'Personnel' ? 'Report an Issue' : 'Submit a Report' }}</strong><small>Tell maintenance what needs attention</small></span>
+      <button v-if="currentRole !== 'Employee'" class="quick-action primary" @click="$emit('navigate', currentRole === 'Personnel' ? 'reports' : 'submit')">
+        <span class="quick-action-icon"><UiIcon :name="currentRole === 'Personnel' ? 'reports' : 'add'" /></span>
+        <span><strong>{{ currentRole === 'Personnel' ? 'Browse Reports' : 'Submit a Report' }}</strong><small>{{ currentRole === 'Personnel' ? 'View assigned maintenance reports' : 'Tell maintenance what needs attention' }}</small></span>
         <span class="quick-action-arrow">→</span>
       </button>
       <button v-if="currentRole === 'Employee'" class="quick-action" @click="$emit('navigate', 'submit-request')">
