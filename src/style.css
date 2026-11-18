@@ -451,11 +451,16 @@ textarea,
 }
 .sidebar-logo {
   width: 100%;
+  min-height: 52px;
+  box-sizing: border-box;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   position: relative;
   gap: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
 }
 .sidebar-logo .logo-icon {
   width: 36px;
