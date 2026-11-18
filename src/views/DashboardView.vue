@@ -82,19 +82,19 @@
     </section>
 
     <div v-if="!hasAdminAccess(currentRole)" class="quick-actions-grid">
-      <button v-if="currentRole !== 'Employee'" class="quick-action primary" @click="$emit('navigate', currentRole === 'Personnel' ? 'reports' : 'submit')">
-        <span class="quick-action-icon"><UiIcon :name="currentRole === 'Personnel' ? 'reports' : 'add'" /></span>
-        <span><strong>{{ currentRole === 'Personnel' ? 'Browse Reports' : 'Submit a Report' }}</strong><small>{{ currentRole === 'Personnel' ? 'View assigned maintenance reports' : 'Tell maintenance what needs attention' }}</small></span>
-        <span class="quick-action-arrow">→</span>
-      </button>
       <button v-if="currentRole === 'Employee'" class="quick-action" @click="$emit('navigate', 'submit-request')">
         <span class="quick-action-icon"><UiIcon name="request" /></span>
         <span><strong>Submit a Request</strong><small>Open a facilities requisition</small></span>
         <span class="quick-action-arrow">→</span>
       </button>
-      <button v-if="currentRole === 'Personnel'" class="quick-action" @click="$emit('navigate', 'tasks')">
+      <button v-if="currentRole === 'Personnel'" class="quick-action primary" @click="$emit('navigate', 'tasks')">
         <span class="quick-action-icon"><UiIcon name="tasks" /></span>
         <span><strong>Open Tasks</strong><small>View and update assigned repairs</small></span>
+        <span class="quick-action-arrow">→</span>
+      </button>
+      <button v-if="currentRole !== 'Employee'" class="quick-action" @click="$emit('navigate', currentRole === 'Personnel' ? 'reports' : 'submit')">
+        <span class="quick-action-icon"><UiIcon :name="currentRole === 'Personnel' ? 'reports' : 'add'" /></span>
+        <span><strong>{{ currentRole === 'Personnel' ? 'Browse Reports' : 'Submit a Report' }}</strong><small>{{ currentRole === 'Personnel' ? 'View assigned maintenance reports' : 'Tell maintenance what needs attention' }}</small></span>
         <span class="quick-action-arrow">→</span>
       </button>
       <button class="quick-action" @click="$emit('navigate', currentRole === 'Employee' ? 'my-requisitions' : 'requests')">
