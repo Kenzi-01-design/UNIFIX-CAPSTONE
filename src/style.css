@@ -25,7 +25,7 @@
   --text-2: #4a5568;
   --text-3: #6f7e75;
   --focus-ring: rgba(15, 107, 61, 0.34);
-  --sidebar-w: 260px;
+  --sidebar-w: 280px;
   --header-h: 68px;
   --radius: 14px;
   --radius-sm: 8px;
@@ -446,7 +446,7 @@ textarea,
   transition: var(--transition);
 }
 .sidebar-header {
-  padding: 20px 20px 16px;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--border);
 }
 .sidebar-logo {
@@ -474,7 +474,7 @@ textarea,
   color: var(--primary);
 }
 .sidebar-user {
-  margin: 12px 0 0;
+  margin: 10px 0 0;
   padding: 10px 12px;
   background: var(--surface-2);
   border-radius: var(--radius-sm);
@@ -2515,7 +2515,7 @@ tbody td {
 }
 @media (max-width: 768px) {
   :root {
-    --sidebar-w: 220px;
+    --sidebar-w: 240px;
   }
   .login-visual {
     display: none;

@@ -811,7 +811,7 @@ async function handleModalTechComplete(id, completionPhotos) {
 }
 
 .main-content {
-  margin-left: var(--sidebar-w, 240px);
+  margin-left: var(--sidebar-w, 280px);
   flex: 1;
   display: flex;
   flex-direction: column;
