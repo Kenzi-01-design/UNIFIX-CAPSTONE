@@ -450,6 +450,7 @@ textarea,
   border-bottom: 1px solid var(--border);
 }
 .sidebar-logo {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: flex-start;
