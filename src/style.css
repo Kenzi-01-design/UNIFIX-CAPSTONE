@@ -451,20 +451,18 @@ textarea,
 }
 .sidebar-logo {
   width: 100%;
-  min-height: 52px;
   box-sizing: border-box;
-  padding: 8px 12px;
+  min-height: 48px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   position: relative;
   gap: 10px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
 }
 .sidebar-logo .logo-icon {
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
   display: block;
   flex-shrink: 0;
   filter: drop-shadow(0 4px 8px rgba(15, 107, 61, 0.18));
