@@ -200,6 +200,30 @@
         <span class="login-leaf login-leaf-7" data-depth="0.45">
           <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
         </span>
+        <span class="login-leaf login-leaf-8" data-depth="0.75">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
+        <span class="login-leaf login-leaf-9" data-depth="1.05">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
+        <span class="login-leaf login-leaf-10" data-depth="0.58">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
+        <span class="login-leaf login-leaf-11" data-depth="0.92">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
+        <span class="login-leaf login-leaf-12" data-depth="0.68">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
+        <span class="login-leaf login-leaf-13" data-depth="0.82">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
+        <span class="login-leaf login-leaf-14" data-depth="1.1">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
+        <span class="login-leaf login-leaf-15" data-depth="0.5">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
       </div>
       <header class="login-form-header">
         <button v-if="showBack" class="login-back public-back-button" type="button" @click="$emit('back')" aria-label="Back to home">
@@ -394,8 +418,8 @@ async function requestReapplication() {
   display: block;
   width: 34px;
   height: 34px;
-  filter: drop-shadow(0 8px 7px rgba(27, 92, 56, 0.14));
-  opacity: 0.42;
+  filter: drop-shadow(0 8px 7px rgba(15, 107, 61, 0.18));
+  opacity: 0.58;
   transform:
     translate3d(var(--leaf-move-x), var(--leaf-move-y), 18px)
     rotateX(var(--leaf-rotate-x))
@@ -409,14 +433,14 @@ async function requestReapplication() {
   overflow: visible;
 }
 .login-leaf svg path:first-child {
-  fill: #84ad91;
-  stroke: #47795b;
+  fill: #3f9a5f;
+  stroke: #17683d;
   stroke-width: 1.2;
   stroke-linejoin: round;
 }
 .login-leaf svg path:last-child {
   fill: none;
-  stroke: #d9eadc;
+  stroke: #d5ead4;
   stroke-width: 1.35;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -428,14 +452,24 @@ async function requestReapplication() {
 .login-leaf-5 { bottom: 12%; left: 9%; width: 24px; height: 24px; opacity: 0.32; animation-delay: -3.3s; }
 .login-leaf-6 { bottom: 5%; right: 12%; width: 46px; height: 46px; opacity: 0.24; animation-delay: -5.2s; }
 .login-leaf-7 { top: 33%; right: -10px; width: 28px; height: 28px; opacity: 0.30; animation-delay: -1.8s; }
+.login-leaf-8 { top: 7%; left: 28%; width: 26px; height: 26px; opacity: 0.48; animation-delay: -2.8s; }
+.login-leaf-9 { top: 27%; left: 6%; width: 38px; height: 38px; opacity: 0.50; animation-delay: -4.8s; }
+.login-leaf-10 { top: 52%; left: 18%; width: 20px; height: 20px; opacity: 0.52; animation-delay: -0.7s; }
+.login-leaf-11 { top: 39%; right: 16%; width: 30px; height: 30px; opacity: 0.44; animation-delay: -3.7s; }
+.login-leaf-12 { top: 69%; left: 4%; width: 32px; height: 32px; opacity: 0.46; animation-delay: -5.5s; }
+.login-leaf-13 { bottom: 21%; right: 24%; width: 25px; height: 25px; opacity: 0.54; animation-delay: -1.5s; }
+.login-leaf-14 { bottom: 28%; left: 26%; width: 28px; height: 28px; opacity: 0.42; animation-delay: -4.4s; }
+.login-leaf-15 { bottom: 4%; left: 38%; width: 20px; height: 20px; opacity: 0.50; animation-delay: -2.1s; }
 @keyframes login-leaf-drift {
   from { margin-top: -3px; margin-left: -2px; }
   to { margin-top: 5px; margin-left: 3px; }
 }
 @media (max-width: 767px) {
-  .login-leaf-field { opacity: 0.72; }
+  .login-leaf-field { opacity: 0.88; }
   .login-leaf-3,
-  .login-leaf-6 { display: none; }
+  .login-leaf-6,
+  .login-leaf-12,
+  .login-leaf-14 { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .login-leaf { animation: none; transition: none; }
