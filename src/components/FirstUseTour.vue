@@ -1,7 +1,12 @@
 <template>
   <Teleport to="body">
     <div v-if="visible" class="first-use-tour" role="dialog" aria-modal="true" :aria-label="`Guide step ${currentIndex + 1} of ${steps.length}`">
-      <div class="tour-backdrop" aria-hidden="true"></div>
+      <div class="tour-backdrop" aria-hidden="true">
+        <div class="tour-shade" :style="shadeTop"></div>
+        <div class="tour-shade" :style="shadeLeft"></div>
+        <div class="tour-shade" :style="shadeRight"></div>
+        <div class="tour-shade" :style="shadeBottom"></div>
+      </div>
       <div class="tour-highlight" :style="highlightStyle" aria-hidden="true"></div>
       <section class="tour-card" :style="cardStyle" role="document">
         <div class="tour-progress" aria-label="Guide progress">
@@ -37,6 +42,10 @@ const visible = ref(false);
 const currentIndex = ref(0);
 const highlightStyle = ref({});
 const cardStyle = ref({});
+const shadeTop = ref({ left: '0', top: '0', width: '100%', height: '100%' });
+const shadeLeft = ref({ display: 'none' });
+const shadeRight = ref({ display: 'none' });
+const shadeBottom = ref({ display: 'none' });
 
 const currentStep = computed(() => props.steps[currentIndex.value] || props.steps[0]);
 
@@ -85,6 +94,10 @@ async function positionGuide() {
       transform: 'translateX(-50%)'
     };
     highlightStyle.value = { display: 'none' };
+    shadeTop.value = { left: '0', top: '0', width: '100%', height: '100%' };
+    shadeLeft.value = { display: 'none' };
+    shadeRight.value = { display: 'none' };
+    shadeBottom.value = { display: 'none' };
     return;
   }
 
@@ -98,6 +111,30 @@ async function positionGuide() {
     top: `${Math.max(8, rect.top - padding)}px`,
     width: `${rect.width + padding * 2}px`,
     height: `${rect.height + padding * 2}px`
+  };
+  const spotlightLeft = Math.max(8, rect.left - padding);
+  const spotlightTop = Math.max(8, rect.top - padding);
+  const right = Math.min(window.innerWidth - 8, rect.right + padding);
+  const bottom = Math.min(window.innerHeight - 8, rect.bottom + padding);
+
+  shadeTop.value = { left: '0', top: '0', width: '100%', height: `${spotlightTop}px` };
+  shadeLeft.value = {
+    left: '0',
+    top: `${spotlightTop}px`,
+    width: `${spotlightLeft}px`,
+    height: `${bottom - spotlightTop}px`
+  };
+  shadeRight.value = {
+    left: `${right}px`,
+    top: `${spotlightTop}px`,
+    width: `${window.innerWidth - right}px`,
+    height: `${bottom - spotlightTop}px`
+  };
+  shadeBottom.value = {
+    left: '0',
+    top: `${bottom}px`,
+    width: '100%',
+    height: `${window.innerHeight - bottom}px`
   };
 
   const cardWidth = Math.min(340, window.innerWidth - 32);
@@ -161,9 +198,12 @@ defineExpose({ start, finish });
 }
 
 .tour-backdrop {
-  background: rgba(4, 18, 10, 0.68);
-  backdrop-filter: blur(1px);
   pointer-events: auto;
+}
+
+.tour-shade {
+  position: absolute;
+  background: rgba(4, 18, 10, 0.68);
 }
 
 .tour-highlight {
@@ -171,7 +211,7 @@ defineExpose({ start, finish });
   z-index: 10001;
   border: 3px solid #fff;
   border-radius: 12px;
-  box-shadow: 0 0 0 9999px rgba(4, 18, 10, 0.68), 0 8px 28px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.24);
   pointer-events: none;
   transition: left 180ms ease, top 180ms ease, width 180ms ease, height 180ms ease;
 }
