@@ -485,7 +485,7 @@ const appTourSteps = computed(() => {
     feature: '.page-content'
   };
 
-  return [
+  const steps = [
     {
       target: guide.selector,
       title: guide.title,
@@ -495,25 +495,30 @@ const appTourSteps = computed(() => {
       target: guide.feature,
       title: 'Use this section',
       description: 'This is the main area for this page. Follow the labels and controls to complete the action.'
-    },
-    {
+    }
+  ];
+
+  if (currentView.value === 'dashboard') {
+    steps.push({
       target: navigationTarget,
       title: 'Move between pages',
       description: isMobile
         ? 'Tap More to open every page available to your role.'
         : 'Use this navigation menu to open every page available to your role.'
-    },
-    {
+    });
+    steps.push({
       target: '#notif-btn',
       title: 'Read updates',
       description: 'Open notifications to check recent reports, requests, assignments, and account updates.'
-    },
-    {
+    });
+    steps.push({
       target: '#global-help-button',
       title: 'Get help anytime',
       description: `Tap Help to replay the guidance for ${viewTitles[currentView.value] || 'this page'} whenever you need it.`
-    }
-  ];
+    });
+  }
+
+  return steps;
 });
 
 function openAppTour() {
