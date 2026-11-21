@@ -205,7 +205,6 @@
         @submit.prevent="handleLogin"
       >
         <div class="login-form-heading login-enter" style="--enter-delay: 0ms">
-          <span class="login-eyebrow-chip"><i></i>NVSU GENERAL SERVICES UNIT</span>
           <h2>{{ greeting }}<span class="login-greeting-swash" aria-hidden="true"></span></h2>
           <p>Sign in with your NVSU institutional account.</p>
         </div>
@@ -781,27 +780,6 @@ onBeforeUnmount(() => {
   margin-top: 18px;
 }
 .login-form-heading { margin-bottom: 28px; }
-.login-eyebrow-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 14px;
-  padding: 7px 10px;
-  border: 1px solid #dbe8d9;
-  border-radius: 999px;
-  background: #edf4e9;
-  color: #28543a;
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: .12em;
-}
-.login-eyebrow-chip i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #e2b64d;
-  box-shadow: 0 0 0 3px rgba(226,182,77,.14);
-}
 .login-heading-mark {
   display: grid;
   width: 42px;
