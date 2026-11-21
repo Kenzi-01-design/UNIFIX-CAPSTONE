@@ -17,6 +17,7 @@
 
     <div class="admin-tabs user-management-tabs" role="tablist" aria-label="User management sections">
       <button
+        id="user-tab-approvals"
         class="admin-tab"
         :class="{ active: activeTab === 'approvals' }"
         type="button"
@@ -27,6 +28,7 @@
         Pending Approvals <span class="tab-count">{{ pendingProfiles.length }}</span>
       </button>
       <button
+        id="user-tab-invite"
         class="admin-tab"
         :class="{ active: activeTab === 'invite' }"
         type="button"
@@ -37,6 +39,7 @@
         {{ editingId ? 'Edit User Profile' : 'Invite User' }}
       </button>
       <button
+        id="user-tab-users"
         class="admin-tab"
         :class="{ active: activeTab === 'users' }"
         type="button"

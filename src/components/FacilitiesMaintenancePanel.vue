@@ -1,10 +1,10 @@
 <template>
   <section class="facilities-panel">
     <div class="admin-tabs" role="tablist" aria-label="Facilities and maintenance">
-      <button type="button" class="admin-tab" :class="{ active: activeTab === 'locations' }" @click="activeTab = 'locations'">
+      <button id="facilities-tab-locations" type="button" class="admin-tab" :class="{ active: activeTab === 'locations' }" @click="activeTab = 'locations'">
         Facility locations
       </button>
-      <button type="button" class="admin-tab" :class="{ active: activeTab === 'schedules' }" @click="activeTab = 'schedules'">
+      <button id="facilities-tab-schedules" type="button" class="admin-tab" :class="{ active: activeTab === 'schedules' }" @click="activeTab = 'schedules'">
         Preventive schedules
       </button>
     </div>
@@ -153,6 +153,10 @@
       </div>
       <p class="facility-note">For automatic generation, schedule the documented database function <code>generate_due_maintenance_work_orders()</code> daily. The button above runs due schedules immediately.</p>
     </template>
+    <FirstUseTour
+      storage-key="unifix-facilities-tabs-tour-v1"
+      :steps="facilitiesTourSteps"
+    />
   </section>
 </template>
 
@@ -162,9 +166,22 @@ import { useLocations } from '../composables/useLocations.js';
 import { useMaintenanceSchedules } from '../composables/useMaintenanceSchedules.js';
 import { useReports } from '../composables/useReports.js';
 import { useToast } from '../composables/useToast.js';
+import FirstUseTour from './FirstUseTour.vue';
 
 const categories = ['Electrical', 'Plumbing', 'Furniture', 'HVAC', 'Network', 'Civil', 'Carpentry', 'Security', 'Sanitation', 'Other'];
 const activeTab = ref('locations');
+const facilitiesTourSteps = [
+  {
+    target: '#facilities-tab-locations',
+    title: 'Facility Locations',
+    description: 'Add campus buildings and rooms, edit them, print QR signs, and activate or deactivate locations used in report forms.'
+  },
+  {
+    target: '#facilities-tab-schedules',
+    title: 'Preventive Schedules',
+    description: 'Create recurring maintenance plans, choose their facility and category, set due dates, and track completion.'
+  }
+];
 const qrCodes = ref({});
 const qrLoading = ref(false);
 const saving = ref(false);

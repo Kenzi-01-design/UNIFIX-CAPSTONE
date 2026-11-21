@@ -498,6 +498,93 @@ const appTourSteps = computed(() => {
     }
   ];
 
+  if (currentView.value === 'admin' && hasAdminAccess(currentRole.value)) {
+    steps.push(
+      {
+        target: '#admin-tab-reports',
+        title: 'All Reports',
+        description: 'Review every maintenance report, inspect details and photos, and manage report risk or status.'
+      },
+      {
+        target: '#admin-tab-requests',
+        title: 'All Requests',
+        description: 'Review all facilities requisitions submitted by employees and check their progress or verification.'
+      },
+      {
+        target: '#admin-tab-assignment',
+        title: 'Assign Personnel',
+        description: 'Choose unassigned work and assign the appropriate maintenance personnel based on availability and specialty.'
+      },
+      {
+        target: '#admin-tab-facilities',
+        title: 'Facilities',
+        description: 'Open Facilities to manage campus locations. Inside it, Facility Locations adds and edits buildings and QR signs, while Preventive Schedules plans recurring maintenance.'
+      }
+    );
+  }
+
+  if (currentView.value === 'submit-request') {
+    steps.push(
+      {
+        target: '#request-tab-rwss',
+        title: 'Water & Sewerage',
+        description: 'Use RWSS for faucets, toilets, drains, pumps, pipes, and other water or sewerage work.'
+      },
+      {
+        target: '#request-tab-reas',
+        title: 'Electrical & Air-Conditioning',
+        description: 'Use REAS for electrical repairs, lighting, outlets, air-conditioning, and related equipment.'
+      },
+      {
+        target: '#request-tab-carpentry',
+        title: 'Carpentry Inspection',
+        description: 'Use Carpentry for furniture, doors, windows, cabinets, fixtures, and structural wood repairs.'
+      }
+    );
+  }
+
+  if (currentView.value === 'activity-log') {
+    steps.push(
+      {
+        target: '#activity-tab-reports',
+        title: 'Report Activity',
+        description: 'Review status changes and maintenance updates for submitted facility reports.'
+      },
+      {
+        target: '#activity-tab-requests',
+        title: 'Request Activity',
+        description: 'Review status changes and handling history for submitted service requisitions.'
+      }
+    );
+    if (hasAdminAccess(currentRole.value)) {
+      steps.push({
+        target: '#activity-tab-login',
+        title: 'Login Activity',
+        description: 'Admin and Assistant accounts can review recent account sign-ins and login history here.'
+      });
+    }
+  }
+
+  if (currentView.value === 'user-management') {
+    steps.push(
+      {
+        target: '#user-tab-approvals',
+        title: 'Pending Approvals',
+        description: 'Review registration requests, confirm the correct role, assign specialties, and approve or reject applicants.'
+      },
+      {
+        target: '#user-tab-invite',
+        title: 'Invite or Edit a User',
+        description: 'Create a new account invitation or open an existing profile from the user list to edit its information.'
+      },
+      {
+        target: '#user-tab-users',
+        title: 'University Users',
+        description: 'View all managed university accounts and open an account to update or review its details.'
+      }
+    );
+  }
+
   if (currentView.value === 'dashboard') {
     steps.push({
       target: navigationTarget,

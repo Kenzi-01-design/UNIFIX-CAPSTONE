@@ -13,6 +13,7 @@
 
     <div class="admin-tabs admin-panel-tabs" role="tablist" aria-label="Admin panel sections">
       <button
+        id="admin-tab-reports"
         type="button"
         class="admin-tab"
         :class="{ active: activeAdminTab === 'reports' }"
@@ -23,6 +24,7 @@
         All Reports <span class="tab-count">{{ reports.length }}</span>
       </button>
       <button
+        id="admin-tab-requests"
         type="button"
         class="admin-tab"
         :class="{ active: activeAdminTab === 'requests' }"
@@ -33,6 +35,7 @@
         All Requests <span class="tab-count">{{ requests.length }}</span>
       </button>
       <button
+        id="admin-tab-assignment"
         v-if="hasAdminAccess(currentRole)"
         type="button"
         class="admin-tab"
@@ -44,6 +47,7 @@
         Assign Personnel <span class="tab-count">{{ unassignedQueue.length }}</span>
       </button>
       <button
+        id="admin-tab-facilities"
         v-if="hasAdminAccess(currentRole)"
         type="button"
         class="admin-tab"

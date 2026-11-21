@@ -6,6 +6,7 @@
       <!-- Request form tabs -->
       <div class="req-form-tabs">
         <button
+          id="request-tab-rwss"
           class="req-tab-btn"
           :class="{ active: activeTab === 'rwss' }"
           @click="activeTab = 'rwss'"
@@ -13,6 +14,7 @@
           <UiIcon name="plumbing" :size="16" /> 1. Water & Sewerage (RWSS)
         </button>
         <button
+          id="request-tab-reas"
           class="req-tab-btn"
           :class="{ active: activeTab === 'reas' }"
           @click="activeTab = 'reas'"
@@ -20,6 +22,7 @@
           <UiIcon name="zap" :size="16" /> 2. Electrical & Air-Conditioning (REAS)
         </button>
         <button
+          id="request-tab-carpentry"
           class="req-tab-btn"
           :class="{ active: activeTab === 'carpentry' }"
           @click="activeTab = 'carpentry'"
