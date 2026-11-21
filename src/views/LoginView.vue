@@ -172,7 +172,35 @@
       </div>
     </div>
 
-    <div class="login-form-wrap">
+    <div
+      class="login-form-wrap"
+      ref="loginFormRef"
+      @pointermove="handleFormPointerMove"
+      @pointerleave="handleFormPointerLeave"
+    >
+      <div class="login-leaf-field" ref="leafFieldRef" aria-hidden="true">
+        <span class="login-leaf login-leaf-1" data-depth="0.7">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
+        <span class="login-leaf login-leaf-2" data-depth="1">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
+        <span class="login-leaf login-leaf-3" data-depth="0.55">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
+        <span class="login-leaf login-leaf-4" data-depth="0.85">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
+        <span class="login-leaf login-leaf-5" data-depth="0.65">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
+        <span class="login-leaf login-leaf-6" data-depth="1.15">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
+        <span class="login-leaf login-leaf-7" data-depth="0.45">
+          <svg viewBox="0 0 44 44"><path d="M36.5 5.5C20.5 7 8 15.7 7.2 31.8c9.5 3.3 20.1-2.3 24.5-11.1 3.1-6.2 3.8-11.8 4.8-15.2Z"/><path d="M8.7 32.4c7.2-8.4 14.4-13.7 23.6-20.1"/></svg>
+        </span>
+      </div>
       <header class="login-form-header">
         <button v-if="showBack" class="login-back public-back-button" type="button" @click="$emit('back')" aria-label="Back to home">
           <UiIcon name="arrow-left" :size="16" />
@@ -268,6 +296,35 @@ const email = ref('');
 const password = ref('');
 const signingIn = ref(false);
 const reapplying = ref(false);
+const loginFormRef = ref(null);
+const leafFieldRef = ref(null);
+
+function handleFormPointerMove(event) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const form = loginFormRef.value;
+  if (!form) return;
+
+  const rect = form.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
+  const y = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
+
+  leafFieldRef.value?.querySelectorAll('.login-leaf').forEach((leaf) => {
+    const depth = Number(leaf.dataset.depth || 1);
+    leaf.style.setProperty('--leaf-move-x', `${(x * 18 * depth).toFixed(1)}px`);
+    leaf.style.setProperty('--leaf-move-y', `${(y * 12 * depth).toFixed(1)}px`);
+    leaf.style.setProperty('--leaf-rotate-x', `${(-y * 10 * depth).toFixed(1)}deg`);
+    leaf.style.setProperty('--leaf-rotate-y', `${(x * 12 * depth).toFixed(1)}deg`);
+  });
+}
+
+function handleFormPointerLeave() {
+  leafFieldRef.value?.querySelectorAll('.login-leaf').forEach((leaf) => {
+    leaf.style.setProperty('--leaf-move-x', '0px');
+    leaf.style.setProperty('--leaf-move-y', '0px');
+    leaf.style.setProperty('--leaf-rotate-x', '0deg');
+    leaf.style.setProperty('--leaf-rotate-y', '0deg');
+  });
+}
 
 async function handleLogin() {
   if (!email.value.trim()) {
@@ -318,6 +375,71 @@ async function requestReapplication() {
 </script>
 
 <style scoped>
+.login-form-wrap { position: relative; isolation: isolate; overflow: hidden; perspective: 900px; }
+.login-form-wrap > :not(.login-leaf-field) { position: relative; z-index: 2; }
+.login-leaf-field {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  perspective: 700px;
+}
+.login-leaf {
+  --leaf-move-x: 0px;
+  --leaf-move-y: 0px;
+  --leaf-rotate-x: 0deg;
+  --leaf-rotate-y: 0deg;
+  position: absolute;
+  display: block;
+  width: 34px;
+  height: 34px;
+  filter: drop-shadow(0 8px 7px rgba(27, 92, 56, 0.14));
+  opacity: 0.42;
+  transform:
+    translate3d(var(--leaf-move-x), var(--leaf-move-y), 18px)
+    rotateX(var(--leaf-rotate-x))
+    rotateY(var(--leaf-rotate-y));
+  transition: transform 180ms cubic-bezier(.2,.7,.2,1);
+  animation: login-leaf-drift 6.5s ease-in-out infinite alternate;
+}
+.login-leaf svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.login-leaf svg path:first-child {
+  fill: #84ad91;
+  stroke: #47795b;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+.login-leaf svg path:last-child {
+  fill: none;
+  stroke: #d9eadc;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.login-leaf-1 { top: 11%; left: 7%; width: 30px; height: 30px; transform-origin: 20% 80%; }
+.login-leaf-2 { top: 18%; right: 8%; width: 22px; height: 22px; opacity: 0.34; animation-delay: -2.4s; }
+.login-leaf-3 { top: 44%; left: -10px; width: 42px; height: 42px; opacity: 0.28; animation-delay: -4.1s; }
+.login-leaf-4 { top: 58%; right: 4%; width: 36px; height: 36px; opacity: 0.38; animation-delay: -1.2s; }
+.login-leaf-5 { bottom: 12%; left: 9%; width: 24px; height: 24px; opacity: 0.32; animation-delay: -3.3s; }
+.login-leaf-6 { bottom: 5%; right: 12%; width: 46px; height: 46px; opacity: 0.24; animation-delay: -5.2s; }
+.login-leaf-7 { top: 33%; right: -10px; width: 28px; height: 28px; opacity: 0.30; animation-delay: -1.8s; }
+@keyframes login-leaf-drift {
+  from { margin-top: -3px; margin-left: -2px; }
+  to { margin-top: 5px; margin-left: 3px; }
+}
+@media (max-width: 767px) {
+  .login-leaf-field { opacity: 0.72; }
+  .login-leaf-3,
+  .login-leaf-6 { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-leaf { animation: none; transition: none; }
+}
 .login-form-header { position: relative; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 22px; }
 .login-back { grid-column: 1; justify-self: start; margin: 0; min-height: 40px; padding-inline: 10px; gap: 6px; font-size: 12px; }
 .login-form-brand { display: flex; grid-column: 3; justify-self: end; margin: 0; gap: 8px; }
