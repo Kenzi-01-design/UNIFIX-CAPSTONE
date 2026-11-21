@@ -19,6 +19,16 @@
 
     <div v-else class="submit-layout">
       <div class="form-card">
+        <aside v-if="showFirstTimeGuide" class="first-time-guide" aria-label="First-time report guide">
+          <div class="first-time-guide-icon" aria-hidden="true"><UiIcon name="report" :size="20" /></div>
+          <div class="first-time-guide-copy">
+            <strong>New to reporting? Start here.</strong>
+            <p>Add a clear issue title, describe what happened and where it is, attach a photo, then submit.</p>
+          </div>
+          <button type="button" class="first-time-guide-dismiss" aria-label="Dismiss first-time guide" @click="dismissFirstTimeGuide">
+            Got it
+          </button>
+        </aside>
         <section v-if="publicMode && offlineDrafts.length" class="offline-draft-banner" role="status">
           <div>
             <strong>{{ offlineDrafts.length }} report draft{{ offlineDrafts.length === 1 ? '' : 's' }} saved on this device</strong>
@@ -40,7 +50,13 @@
           </div>
         </div>
         <div class="form-group">
-          <label for="report-title">Issue Title *</label>
+          <label for="report-title">
+            Issue Title *
+            <HelpTooltip
+              label="issue title"
+              text="Write a short headline, such as “Broken chair in Room 112” or “Water leak near Restroom A.”"
+            />
+          </label>
           <input
             id="report-title"
             type="text"
@@ -52,7 +68,13 @@
           />
         </div>
         <div class="form-group">
-          <label for="report-description">Description *</label>
+          <label for="report-description">
+            Description *
+            <HelpTooltip
+              label="issue description"
+              text="Explain what is wrong, when it started, and whether it is unsafe. Include useful details for the maintenance team."
+            />
+          </label>
           <textarea
             id="report-description"
             v-model="form.desc"
@@ -63,7 +85,10 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>Category *</label>
+            <label>
+              Category *
+              <HelpTooltip label="category" text="Choose the option closest to the problem. “Other” is available if none of the categories fit." />
+            </label>
             <select v-model="form.cat">
               <option value="">Select category...</option>
               <option value="Electrical">Electrical</option>
@@ -78,7 +103,10 @@
             </select>
           </div>
           <div class="form-group">
-            <label>Building *</label>
+            <label>
+              Building *
+              <HelpTooltip label="building" text="Select the campus building where the problem is located. A QR code may fill this in automatically." />
+            </label>
             <select v-model="locationSelectValue">
               <option value="">Select building...</option>
               <option v-for="location in activeLocations" :key="location.id" :value="location.id">
@@ -102,7 +130,10 @@
         </div>
         <div class="form-row triple">
           <div class="form-group">
-            <label>Floor</label>
+            <label>
+              Floor
+              <HelpTooltip label="floor" text="Choose the floor if you know it. The Basement and Rooftop options are also available." />
+            </label>
             <select v-model="form.floor">
               <option value="">Select floor...</option>
               <option>Floor 1</option>
@@ -114,11 +145,17 @@
             </select>
           </div>
           <div class="form-group">
-            <label>Room / Area</label>
+            <label>
+              Room / Area
+              <HelpTooltip label="room or area" text="Enter a room number or a nearby place, such as “Library entrance” or “Hallway outside Room 204.”" />
+            </label>
             <input type="text" v-model="form.room" placeholder="e.g., Room 204" />
           </div>
           <div class="form-group">
-            <label>Specific Landmark</label>
+            <label>
+              Specific Landmark
+              <HelpTooltip label="specific landmark" text="Add a nearby landmark to make the exact location easier to find, such as “Beside the blue vending machine.”" />
+            </label>
             <input type="text" v-model="form.landmark" placeholder="e.g., Near staircase" />
           </div>
         </div>
@@ -226,6 +263,7 @@ import TurnstileWidget from '../components/TurnstileWidget.vue';
 import UiIcon from '../components/UiIcon.vue';
 import PhotoPicker from '../components/PhotoPicker.vue';
 import TrackingCodeNotice from '../components/TrackingCodeNotice.vue';
+import HelpTooltip from '../components/HelpTooltip.vue';
 import { useReports } from '../composables/useReports.js';
 import { useAuth } from '../composables/useAuth.js';
 import { useToast } from '../composables/useToast.js';
@@ -267,6 +305,8 @@ const offlineDrafts = ref([]);
 const offlineDraftScope = ref('');
 const queuedDraftId = ref('');
 const draftError = ref('');
+const firstTimeGuideKey = 'unifix-first-report-guide-dismissed';
+const showFirstTimeGuide = ref(false);
 const duplicatePrompt = ref(false);
 const duplicateChoice = ref('');
 const duplicateNote = ref('');
@@ -296,6 +336,15 @@ function resetCaptcha() {
 function handleCaptchaError() {
   captchaToken.value = '';
   showToast('Security verification could not load. Please refresh and try again.', 'error');
+}
+
+function dismissFirstTimeGuide() {
+  showFirstTimeGuide.value = false;
+  try {
+    localStorage.setItem(firstTimeGuideKey, 'true');
+  } catch (error) {
+    console.warn('Could not save the first-report guide preference.', error);
+  }
 }
 
 const form = reactive({
@@ -413,6 +462,11 @@ watch(
 );
 
 onMounted(async () => {
+  try {
+    showFirstTimeGuide.value = localStorage.getItem(firstTimeGuideKey) !== 'true';
+  } catch (error) {
+    showFirstTimeGuide.value = true;
+  }
   try {
     await loadLocations();
   } catch (error) {

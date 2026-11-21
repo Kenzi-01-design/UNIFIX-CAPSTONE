@@ -1162,6 +1162,64 @@ textarea,
   padding: 32px;
   max-width: none;
 }
+.first-time-guide {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 14px;
+  border: 1px solid #b8d7c4;
+  border-radius: var(--radius-sm);
+  background: #eff8f2;
+}
+.first-time-guide-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 12px;
+  background: #dcefe4;
+  color: var(--primary);
+}
+.first-time-guide-copy {
+  min-width: 0;
+}
+.first-time-guide-copy strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text);
+  font-size: 14px;
+}
+.first-time-guide-copy p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.first-time-guide-dismiss {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid #86b79a;
+  border-radius: 8px;
+  background: #fff;
+  color: #17633e;
+  font-weight: 750;
+  cursor: pointer;
+}
+@media (max-width: 767px) {
+ .first-time-guide {
+   grid-template-columns: 36px minmax(0, 1fr);
+ }
+ .first-time-guide-icon {
+   width: 36px;
+   height: 36px;
+ }
+ .first-time-guide-dismiss {
+   grid-column: 1 / -1;
+   width: 100%;
+ }
+}
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
