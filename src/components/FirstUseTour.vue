@@ -85,7 +85,11 @@ async function positionGuide() {
   if (!visible.value || !currentStep.value) return;
 
   await nextTick();
-  const target = document.querySelector(currentStep.value.target);
+  let target = document.querySelector(currentStep.value.target);
+  for (let attempt = 0; !target && attempt < 10; attempt += 1) {
+    await new Promise((resolve) => window.setTimeout(resolve, 100));
+    target = document.querySelector(currentStep.value.target);
+  }
   if (!target) {
     cardStyle.value = {
       left: '50%',

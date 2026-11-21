@@ -227,7 +227,7 @@
         :key="appTourStorageKey"
         :storage-key="appTourStorageKey"
         :steps="appTourSteps"
-        :auto-start="true"
+        :auto-start="currentView !== 'submit'"
       />
     </div>
   </div>
@@ -372,46 +372,146 @@ const requestBadgeCount = computed(() => {
 const appTourRef = ref(null);
 const appTourStorageKey = computed(() => {
   const account = (activeUserEmail.value || activeUserName.value || 'account').trim().toLowerCase();
-  return `unifix-role-tour-v1:${account}:${currentRole.value}`;
+  return `unifix-role-tour-v1:${account}:${currentRole.value}:${currentView.value}`;
 });
 
 const appTourSteps = computed(() => {
   const isMobile = window.matchMedia('(max-width: 1023px)').matches;
   const navigationTarget = isMobile ? '.mobile-navigation' : '.sidebar-nav';
-  const roleDescriptions = {
-    Employee: 'Submit requests, track requisitions, evaluate the system, and manage your profile.',
-    Personnel: 'Review assigned reports and tasks, update maintenance work, and check requests.',
-    Admin: 'Manage reports, requests, assignments, users, activity, and evaluations.',
-    Assistant: 'Assist with reports and requests, assignments, activity, and user coordination.'
+
+  const pageGuides = {
+    dashboard: {
+      selector: '#view-dashboard',
+      title: 'Dashboard overview',
+      description: hasAdminAccess(currentRole.value)
+        ? 'Read campus totals, open recent work, and use the summary cards to filter reports or requests.'
+        : currentRole.value === 'Personnel'
+          ? 'Use the quick actions to open assigned tasks and review reports or requests.'
+          : 'Use the quick actions to submit a request or review work already raised.',
+      feature: hasAdminAccess(currentRole.value) ? '.stats-grid' : '.quick-actions-grid'
+    },
+    submit: {
+      selector: '#view-submit',
+      title: 'Submit a facility report',
+      description: 'Use the form to describe the issue, choose its location and category, attach photos, and submit it.',
+      feature: '.form-card'
+    },
+    'submit-request': {
+      selector: '#view-submit-request',
+      title: 'Submit an official service request',
+      description: 'Choose the request category, fill in the official form, attach photos, and submit it for review.',
+      feature: '.req-form-tabs'
+    },
+    'my-requisitions': {
+      selector: '#view-my-requisitions',
+      title: 'Track your requisitions',
+      description: 'Search your submissions and open a requisition to review its status, details, feedback, or verification.',
+      feature: '.filter-bar'
+    },
+    'activity-log': {
+      selector: '#view-activity-log',
+      title: 'Review your activity',
+      description: 'Use the activity and request history to confirm submissions, updates, and completed campus work.',
+      feature: '.activity-tabs'
+    },
+    'user-management': {
+      selector: '#view-user-management',
+      title: 'Manage user accounts',
+      description: 'Review account roles and status, add or update users, and reject invalid account changes when required.',
+      feature: '.user-management-tabs'
+    },
+    reports: {
+      selector: '#view-reports',
+      title: 'Find and open reports',
+      description: hasAdminAccess(currentRole.value)
+        ? 'Search and filter reports, then open one to assign personnel or review maintenance progress.'
+        : currentRole.value === 'Personnel'
+          ? 'Search reports assigned to you. Open a report to accept jobs and update its workflow.'
+          : 'Search reports and open one to check its location, status, and current progress.',
+      feature: '.filter-bar'
+    },
+    requests: {
+      selector: '#view-requests',
+      title: 'Manage service requests',
+      description: hasAdminAccess(currentRole.value)
+        ? 'Search and filter requests, then open one to review or verify the work.'
+        : currentRole.value === 'Personnel'
+          ? 'View requests assigned to you and use the filters to find active or waiting work.'
+          : 'Search and filter requests, then open them to review your submission.',
+      feature: '.filter-bar'
+    },
+    tasks: {
+      selector: '#view-tasks',
+      title: 'Complete assigned maintenance work',
+      description: 'Review your assigned tickets, accept work, update progress, and attach required completion photos.',
+      feature: '.personnel-metrics'
+    },
+    admin: {
+      selector: '#view-admin',
+      title: 'Administration workspace',
+      description: 'Switch between reports, requests, assignment, and facilities tools to manage campus maintenance.',
+      feature: '.admin-panel-tabs'
+    },
+    profile: {
+      selector: '#view-profile',
+      title: 'Update your profile',
+      description: 'Review your account details and update editable information or your specialty when applicable.',
+      feature: '.profile-grid'
+    },
+    settings: {
+      selector: '#view-settings',
+      title: 'Configure system settings',
+      description: 'Adjust available preferences such as display options, notifications, and security timeout.',
+      feature: '.settings-grid'
+    },
+    evaluation: {
+      selector: '#view-evaluation',
+      title: 'Complete the system evaluation',
+      description: 'Answer each evaluation item and add an optional comment before submitting your feedback.',
+      feature: '.evaluation-form'
+    },
+    'evaluation-results': {
+      selector: '#view-evaluation',
+      title: 'Review evaluation results',
+      description: 'Review submitted ratings, comments, and overall feedback to understand user experience trends.',
+      feature: '.evaluation-results'
+    }
+  };
+
+  const guide = pageGuides[currentView.value] || {
+    selector: '.page-content',
+    title: viewTitles[currentView.value] || 'UNIFIX page',
+    description: 'Use the controls on this page to complete the task available to your role.',
+    feature: '.page-content'
   };
 
   return [
     {
-      target: '.topbar-title',
-      title: `Welcome, ${currentRole.value}`,
-      description: roleDescriptions[currentRole.value] || 'Use UNIFIX to submit and track campus maintenance work.'
+      target: guide.selector,
+      title: guide.title,
+      description: guide.description
+    },
+    {
+      target: guide.feature,
+      title: 'Use this section',
+      description: 'This is the main area for this page. Follow the labels and controls to complete the action.'
     },
     {
       target: navigationTarget,
-      title: 'Use the main navigation',
+      title: 'Move between pages',
       description: isMobile
         ? 'Tap More to open every page available to your role.'
-        : 'Use this menu to open pages available to your role.'
+        : 'Use this navigation menu to open every page available to your role.'
     },
     {
       target: '#notif-btn',
-      title: 'Check your notifications',
-      description: 'Open this bell to read updates about reports, requests, assignments, and maintenance work.'
-    },
-    {
-      target: '.page-content',
-      title: 'Work with this page',
-      description: 'Your current task is shown here. Use the page filters and buttons to find or update work.'
+      title: 'Read updates',
+      description: 'Open notifications to check recent reports, requests, assignments, and account updates.'
     },
     {
       target: '#global-help-button',
-      title: 'Open Help anytime',
-      description: 'Tap Help whenever you need this quick guide again.'
+      title: 'Get help anytime',
+      description: `Tap Help to replay the guidance for ${viewTitles[currentView.value] || 'this page'} whenever you need it.`
     }
   ];
 });
