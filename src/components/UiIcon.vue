@@ -25,6 +25,7 @@ const icons = {
   print: FileText, building: Building2, electrical: Lightbulb, plumbing: Droplets,
   furniture: BriefcaseBusiness, hvac: Sparkles, network: Network, civil: Landmark,
   security: ShieldCheck, sanitation: Sparkles, other: Package, activity: FolderKanban,
+  'shield-check': ShieldCheck,
   analytics: ChartNoAxesCombined, work: Hammer
   ,download: Download, success: CheckCircle2, error: CircleAlert, info: CircleHelp, logout: LogOut, zap: Zap,
   menu: Menu, close: X, 'arrow-left': ArrowLeft, 'arrow-right': ArrowRight, 'arrow-up-right': ArrowUpRight,
