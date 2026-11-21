@@ -125,9 +125,9 @@
       <div class="login-brand">
         <div class="login-campus-label">
           <span class="login-campus-label-icon"><UiIcon name="building" :size="14" /></span>
-          <span>NVSU CAMPUS SERVICES</span>
+          <span>NVSU GENERAL SERVICES UNIT</span>
           <i></i>
-          <span>REPORT Â· ROUTE Â· RESTORE</span>
+          <span>REPORT · ROUTE · RESTORE</span>
         </div>
         <div class="login-brand-lockup">
           <div class="login-brand-heading">
@@ -205,7 +205,7 @@
         @submit.prevent="handleLogin"
       >
         <div class="login-form-heading login-enter" style="--enter-delay: 0ms">
-          <span class="login-eyebrow-chip"><i></i>NVSU CAMPUS SERVICES</span>
+          <span class="login-eyebrow-chip"><i></i>NVSU GENERAL SERVICES UNIT</span>
           <h2>{{ greeting }}<span class="login-greeting-swash" aria-hidden="true"></span></h2>
           <p>Sign in with your NVSU institutional account.</p>
         </div>
