@@ -55,12 +55,13 @@ function finish() {
   } catch (error) {
     console.warn('Could not save the first-use guide preference.', error);
   }
+}
 
-  function start() {
-    currentIndex.value = 0;
-    visible.value = true;
-    positionGuide();
-  }
+async function start() {
+  currentIndex.value = 0;
+  visible.value = true;
+  await nextTick();
+  await positionGuide();
 }
 
 function next() {
