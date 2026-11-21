@@ -410,11 +410,13 @@ async function handleLogin() {
         ? 'tasks'
         : (settings.landing || 'dashboard');
 
-    refreshNotifications(role, activeUserName.value);
     signingIn.value = false;
     signInSuccess.value = true;
     showToast(`Signed in as ${activeUserName.value}`, 'success');
     emit('logged-in', landing);
+    window.setTimeout(() => {
+      void refreshNotifications(role, activeUserName.value);
+    }, 0);
   } catch (error) {
     signingIn.value = false;
     triggerFormShake();
@@ -840,8 +842,7 @@ onBeforeUnmount(() => {
 .login-input-wrap:hover { border-color: #bdcfc3; }
 .login-input-wrap:focus-within {
   border-color: #14783f;
-  box-shadow: 0 0 0 4px rgba(20,120,63,.10), 0 8px 18px rgba(20,80,48,.06);
-  transform: translateY(-1px);
+  box-shadow: 0 0 0 3px rgba(20,120,63,.10);
 }
 .login-input-wrap.has-error { border-color: #c65d55; box-shadow: 0 0 0 3px rgba(198,93,85,.08); }
 .login-leading-icon {
@@ -870,7 +871,7 @@ onBeforeUnmount(() => {
   color: #14231b;
   font: inherit;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 400;
 }
 .login-input-wrap label {
   position: absolute;
@@ -881,13 +882,13 @@ onBeforeUnmount(() => {
   font-size: 13px;
   line-height: 20px;
   pointer-events: none;
-  transition: 180ms ease-out;
+  transition: top 120ms ease-out, font-size 120ms ease-out, color 120ms ease-out;
 }
 .login-input-wrap input:focus + label,
 .login-input-wrap input:not(:placeholder-shown) + label {
   top: 7px;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   color: #14783f;
 }
 .login-password-toggle {
@@ -953,10 +954,10 @@ onBeforeUnmount(() => {
   font-size: 14px;
   font-weight: 800;
   cursor: pointer;
-  transition: 200ms ease-out;
+  transition: box-shadow 120ms ease-out, background 120ms ease-out;
 }
-.login-submit:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(20,120,63,.28), 0 4px 10px rgba(20,80,48,.12); }
-.login-submit:active:not(:disabled) { transform: scale(.98); }
+.login-submit:hover:not(:disabled) { box-shadow: 0 12px 24px rgba(20,120,63,.24), 0 3px 8px rgba(20,80,48,.10); }
+.login-submit:active:not(:disabled) { background: #0f6637; }
 .login-submit:focus-visible { outline: 3px solid rgba(20,120,63,.24); outline-offset: 3px; }
 .login-submit:disabled { cursor: wait; }
 .login-submit.is-success { background: #14783f; }
@@ -1020,9 +1021,7 @@ onBeforeUnmount(() => {
 }
 
 .login-enter {
-  opacity: 0;
-  animation: login-fade-up 480ms cubic-bezier(.2,.7,.2,1) forwards;
-  animation-delay: var(--enter-delay, 0ms);
+  opacity: 1;
 }
 .login-form-shake { animation: login-shake 380ms ease-out; }
 
