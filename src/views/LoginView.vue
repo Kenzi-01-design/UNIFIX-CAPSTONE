@@ -140,7 +140,7 @@
       <div class="login-showcase" aria-hidden="true">
         <div class="login-showcase-topline">
           <span><i></i> CAMPUS OPERATIONS</span>
-          <span>NVSU Â· SERVICE WORKFLOW</span>
+          <span>NVSU · SERVICE WORKFLOW</span>
         </div>
         <div class="login-showcase-status">
           <div class="login-showcase-icon"><UiIcon name="building" :size="21" /></div>
@@ -229,7 +229,6 @@
               aria-describedby="login-email-error"
               @blur="validateEmail"
               @input="emailError = ''"
-              @keyup.enter="handleLogin"
             />
             <label for="login-email">University Email</label>
           </div>
@@ -252,7 +251,6 @@
               aria-describedby="login-password-error"
               @blur="validatePassword"
               @input="passwordError = ''"
-              @keyup.enter="handleLogin"
             />
             <label for="login-password">Password</label>
             <button
@@ -288,9 +286,9 @@
           :disabled="signingIn"
           style="--enter-delay: 300ms"
         >
-          <span v-if="signInSuccess" class="login-submit-check" aria-hidden="true">âœ“</span>
+          <span v-if="signInSuccess" class="login-submit-check" aria-hidden="true">✓</span>
           <span v-else-if="signingIn" class="login-spinner" aria-hidden="true"></span>
-          <span>{{ signInSuccess ? 'Signed in' : signingIn ? 'Signing inâ€¦' : 'Sign in to UNIFIX' }}</span>
+          <span>{{ signInSuccess ? 'Signed in' : signingIn ? 'Signing in…' : 'Sign in to UNIFIX' }}</span>
           <svg v-if="!signingIn && !signInSuccess" class="login-submit-arrow" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 12h14m-5-5 5 5-5 5" />
           </svg>
@@ -298,7 +296,7 @@
 
         <div v-if="authNoticeCode === 'rejected'" class="login-state-action" aria-live="polite">
           <button type="button" class="login-secondary-button" :disabled="reapplying" @click="requestReapplication">
-            {{ reapplying ? 'Submittingâ€¦' : 'Request a new application review' }}
+            {{ reapplying ? 'Submitting…' : 'Request a new application review' }}
           </button>
           <small>Reapplication requests are limited to once every 30 days.</small>
         </div>
@@ -393,6 +391,7 @@ function triggerFormShake() {
 }
 
 async function handleLogin() {
+  if (signingIn.value || signInSuccess.value) return;
   const emailValid = validateEmail();
   const passwordValid = validatePassword();
   if (!emailValid || !passwordValid) {
@@ -415,7 +414,7 @@ async function handleLogin() {
     signingIn.value = false;
     signInSuccess.value = true;
     showToast(`Signed in as ${activeUserName.value}`, 'success');
-    window.setTimeout(() => emit('logged-in', landing), 520);
+    emit('logged-in', landing);
   } catch (error) {
     signingIn.value = false;
     triggerFormShake();
@@ -778,6 +777,7 @@ onBeforeUnmount(() => {
   z-index: 2;
   width: min(430px, 100%);
   margin-top: 18px;
+  font-family: "Plus Jakarta Sans", "Outfit", "Sora", sans-serif;
 }
 .login-form-heading { margin-bottom: 28px; }
 .login-heading-mark {
@@ -794,7 +794,7 @@ onBeforeUnmount(() => {
 .login-form-heading h2 {
   margin: 0 0 8px;
   color: #0f3b2a;
-  font-family: "Fraunces", "Playfair Display", Georgia, serif;
+  font-family: "Plus Jakarta Sans", "Outfit", "Sora", sans-serif;
   font-size: clamp(36px, 3.4vw, 40px);
   font-weight: 600;
   line-height: 1.08;
