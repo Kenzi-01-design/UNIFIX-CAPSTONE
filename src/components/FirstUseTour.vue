@@ -29,7 +29,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const props = defineProps({
   storageKey: { type: String, required: true },
-  steps: { type: Array, required: true }
+  steps: { type: Array, required: true },
+  autoStart: { type: Boolean, default: true }
 });
 
 const visible = ref(false);
@@ -53,6 +54,12 @@ function finish() {
     localStorage.setItem(props.storageKey, 'true');
   } catch (error) {
     console.warn('Could not save the first-use guide preference.', error);
+  }
+
+  function start() {
+    currentIndex.value = 0;
+    visible.value = true;
+    positionGuide();
   }
 }
 
@@ -111,13 +118,19 @@ async function positionGuide() {
 }
 
 watch(currentIndex, positionGuide);
+watch(() => props.storageKey, () => {
+  if (!props.autoStart) return;
+  currentIndex.value = 0;
+  visible.value = !wasDismissed();
+  if (visible.value) positionGuide();
+});
 
 function handleKeydown(event) {
   if (event.key === 'Escape') finish();
 }
 
 onMounted(() => {
-  visible.value = !wasDismissed();
+  visible.value = props.autoStart ? !wasDismissed() : false;
   if (visible.value) positionGuide();
   window.addEventListener('resize', positionGuide);
   window.addEventListener('scroll', positionGuide, true);
@@ -129,6 +142,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('scroll', positionGuide, true);
   window.removeEventListener('keydown', handleKeydown);
 });
+
+defineExpose({ start, finish });
 </script>
 
 <style scoped>

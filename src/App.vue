@@ -211,6 +211,24 @@
         @verify="handleModalVerifyRequest"
         @reject="handleModalRejectRequest"
       />
+      <button
+        id="global-help-button"
+        class="global-help-button"
+        type="button"
+        aria-label="Open UNIFIX help guide"
+        title="Help guide"
+        @click="openAppTour"
+      >
+        <span aria-hidden="true">?</span>
+        <span class="global-help-label">Help</span>
+      </button>
+      <FirstUseTour
+        ref="appTourRef"
+        :key="appTourStorageKey"
+        :storage-key="appTourStorageKey"
+        :steps="appTourSteps"
+        :auto-start="true"
+      />
     </div>
   </div>
 </template>
@@ -235,6 +253,7 @@ import RequestModal from './components/RequestModal.vue';
 import ToastContainer from './components/ToastContainer.vue';
 import MobileNavigation from './components/MobileNavigation.vue';
 import PwaInstallPrompt from './components/PwaInstallPrompt.vue';
+import FirstUseTour from './components/FirstUseTour.vue';
 
 // Views
 import LoginView from './views/LoginView.vue';
@@ -349,6 +368,57 @@ const badgeCount = computed(() => {
 const requestBadgeCount = computed(() => {
   return requests.value.filter((request) => ['submitted', 'in-progress', 'for-verification'].includes(request.status)).length;
 });
+
+const appTourRef = ref(null);
+const appTourStorageKey = computed(() => {
+  const account = (activeUserEmail.value || activeUserName.value || 'account').trim().toLowerCase();
+  return `unifix-role-tour-v1:${account}:${currentRole.value}`;
+});
+
+const appTourSteps = computed(() => {
+  const isMobile = window.matchMedia('(max-width: 1023px)').matches;
+  const navigationTarget = isMobile ? '.mobile-navigation' : '.sidebar-nav';
+  const roleDescriptions = {
+    Employee: 'Submit requests, track requisitions, evaluate the system, and manage your profile.',
+    Personnel: 'Review assigned reports and tasks, update maintenance work, and check requests.',
+    Admin: 'Manage reports, requests, assignments, users, activity, and evaluations.',
+    Assistant: 'Assist with reports and requests, assignments, activity, and user coordination.'
+  };
+
+  return [
+    {
+      target: '.topbar-title',
+      title: `Welcome, ${currentRole.value}`,
+      description: roleDescriptions[currentRole.value] || 'Use UNIFIX to submit and track campus maintenance work.'
+    },
+    {
+      target: navigationTarget,
+      title: 'Use the main navigation',
+      description: isMobile
+        ? 'Tap More to open every page available to your role.'
+        : 'Use this menu to open pages available to your role.'
+    },
+    {
+      target: '#notif-btn',
+      title: 'Check your notifications',
+      description: 'Open this bell to read updates about reports, requests, assignments, and maintenance work.'
+    },
+    {
+      target: '.page-content',
+      title: 'Work with this page',
+      description: 'Your current task is shown here. Use the page filters and buttons to find or update work.'
+    },
+    {
+      target: '#global-help-button',
+      title: 'Open Help anytime',
+      description: 'Tap Help whenever you need this quick guide again.'
+    }
+  ];
+});
+
+function openAppTour() {
+  appTourRef.value?.start();
+}
 
 const selectedReport = computed(() => {
   if (!selectedReportId.value) return null;
