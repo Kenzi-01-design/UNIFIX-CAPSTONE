@@ -325,17 +325,17 @@ async function requestReapplication() {
 .login-form-brand-icon .brand-mark { width: 24px; height: 24px; }
 .login-form-brand strong { font-size: 13px; }
 .login-form-brand small { font-size: 10px; }
-.login-form-wrap h2 { margin: 0 0 6px; }
-.login-form-wrap p.sub { margin: 0 0 20px; }
-.login-form-wrap > .form-group { margin-bottom: 14px; }
-.login-form-wrap .form-group label { margin-bottom: 5px; }
-.login-form-wrap .form-group input { padding-block: 10px; }
-.login-form-wrap .login-password-help { margin-bottom: 12px; }
+.login-form-wrap h2 { margin: 0 0 8px; }
+.login-form-wrap p.sub { margin: 0 0 28px; }
+.login-form-wrap > .form-group { margin-bottom: 18px; }
+.login-form-wrap .form-group label { margin-bottom: 7px; }
+.login-form-wrap .form-group input { min-height: 48px; padding-block: 12px; }
+.login-form-wrap .login-password-help { margin-bottom: 18px; }
 .login-form-wrap > .btn-primary { width: 100%; min-height: 48px; }
-.login-register-link { margin:16px 0 0; color:var(--text-2); text-align:center; font-size:13px; }
+.login-register-link { margin:18px 0 0; color:var(--text-2); text-align:center; font-size:13px; }
 .login-register-link button { padding:0; border:0; background:none; color:var(--primary); font:inherit; font-weight:700; cursor:pointer; }
-.login-support { margin:14px 0 0; color:var(--text-3); font-size:12px; line-height:1.5; text-align:center; }
-.login-auth-notice { margin:0 0 18px; padding:12px 14px; border-radius:var(--radius); background:var(--amber-bg); color:var(--amber); line-height:1.5; }
+.login-support { margin:12px 0 0; color:var(--text-3); font-size:12px; line-height:1.5; text-align:center; }
+.login-auth-notice { margin:0 0 20px; padding:12px 14px; border-radius:var(--radius); background:var(--amber-bg); color:var(--amber); line-height:1.5; }
 .role-hint { display:block; margin-top:8px; color:var(--text-3); }
 .login-password-help { display:grid; justify-items:end; gap:6px; margin:0 0 24px; }
 .login-password-help small { color:var(--text-3); text-align:right; line-height:1.4; }
@@ -343,21 +343,27 @@ async function requestReapplication() {
 .login-state-action { display:grid; gap:8px; margin:0 0 18px; }
 .login-state-action .btn-secondary { width:100%; }
 .login-state-action small { color:var(--text-3); line-height:1.5; }
+#login-page .login-form-wrap h2 { margin: 0 0 8px; }
+#login-page .login-form-wrap p.sub { margin: 0 0 28px; }
+#login-page .login-form-wrap .login-register-link { margin: 18px 0 0; }
+#login-page .login-form-wrap .login-support { margin: 12px 0 0; }
 @media (min-width: 768px) and (max-height: 760px) {
   .login-form-header { margin-bottom: 14px; }
-  .login-form-wrap p.sub { margin-bottom: 14px; }
-  .login-form-wrap > .form-group { margin-bottom: 10px; }
-  .login-form-wrap .login-password-help { margin-bottom: 8px; }
-  .login-support { margin-top: 10px; }
+  #login-page .login-form-wrap p.sub { margin-bottom: 18px; }
+  .login-form-wrap > .form-group { margin-bottom: 12px; }
+  .login-form-wrap .form-group input { min-height: 44px; padding-block: 9px; }
+  .login-form-wrap .login-password-help { margin-bottom: 12px; }
+  .login-support { margin-top: 8px; }
 }
 
 @media (max-width: 600px) {
-  .login-form-header { margin-bottom: 16px; }
-  .login-form-wrap p.sub { margin-bottom: 16px; }
+  .login-form-header { margin-bottom: 18px; }
+  #login-page .login-form-wrap p.sub { margin-bottom: 22px; }
   .login-form-wrap { justify-content: flex-start; }
-  .login-form-wrap > .form-group { margin-bottom: 12px; }
-  .login-form-wrap .login-password-help { margin-bottom: 8px; }
-  .login-form-wrap .login-register-link { margin-top: 12px; }
+  .login-form-wrap > .form-group { margin-bottom: 16px; }
+  .login-form-wrap .form-group input { min-height: 46px; padding-block: 10px; }
+  .login-form-wrap .login-password-help { margin-bottom: 14px; }
+  .login-form-wrap .login-register-link { margin-top: 16px; }
   .login-form-wrap .login-support { margin-top: 10px; }
 }
 

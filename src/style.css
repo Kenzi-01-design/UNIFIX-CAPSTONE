@@ -324,7 +324,7 @@ textarea,
 .login-form-wrap p.sub {
   color: var(--text-3);
   font-size: 14px;
-  margin-bottom: 36px;
+  margin-bottom: 28px;
 }
 .login-showcase {
   display: none;
