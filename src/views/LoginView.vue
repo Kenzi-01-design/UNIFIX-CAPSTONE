@@ -192,6 +192,10 @@
           <UiIcon name="arrow-left" :size="18" />
           <span>Back to home</span>
         </button>
+        <div class="login-mobile-brand" aria-label="UNIFIX">
+          <BrandMark :size="28" />
+          <strong>UNIFIX</strong>
+        </div>
       </div>
 
       <form
@@ -738,7 +742,7 @@ onBeforeUnmount(() => {
   left: clamp(28px, 4vw, 68px);
   right: clamp(28px, 4vw, 68px);
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
 }
 .login-back {
   min-height: 42px;
@@ -757,7 +761,18 @@ onBeforeUnmount(() => {
   transition: 200ms ease-out;
 }
 .login-back:hover { border: 0; color: #14783f; transform: translateX(-2px); }
-.login-mobile-brand { display: none; }
+.login-mobile-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #0f3b2a;
+  font-size: 12px;
+  letter-spacing: .06em;
+}
+.login-mobile-brand :deep(.brand-mark) {
+  width: 28px !important;
+  height: 28px !important;
+}
 
 .login-form {
   position: relative;
@@ -1102,7 +1117,6 @@ onBeforeUnmount(() => {
   .login-form-panel::after { display: none; }
   .login-form-topbar { top: 10px; left: 20px; right: 20px; justify-content: flex-end; }
   .login-back { min-height: 38px; }
-  .login-mobile-brand { display: none; }
   .login-form { width: min(430px, 100%); margin: 50px auto 0; }
   .login-form-heading { margin-bottom: 22px; }
   .login-heading-mark { display: none; }
