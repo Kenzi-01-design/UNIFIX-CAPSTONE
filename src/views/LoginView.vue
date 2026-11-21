@@ -190,50 +190,6 @@
       <p class="sub">Sign in with your NVSU institutional account.</p>
       <p v-if="authNotice" class="login-auth-notice" role="alert">{{ authNotice }}</p>
       
-      <div class="login-role-selection">
-        <label style="font-size: 13px; font-weight: 700; color: var(--text-2); display: block; margin-bottom: 8px;">
-          Select Your Account Type
-        </label>
-        <div class="role-tabs">
-          <button
-            class="role-tab"
-            type="button"
-            :aria-pressed="selectedRole === 'Employee'"
-            :class="{ active: selectedRole === 'Employee' }"
-            @click="setRole('Employee')"
-          >
-            <UiIcon name="reporter" :size="20" /><span>Employee</span>
-          </button>
-          <button
-            class="role-tab"
-            type="button"
-            :aria-pressed="selectedRole === 'Admin'"
-            :class="{ active: selectedRole === 'Admin' }"
-            @click="setRole('Admin')"
-          >
-            <UiIcon name="admin" :size="20" /><span>Admin</span>
-          </button>
-          <button
-            class="role-tab"
-            type="button"
-            :aria-pressed="selectedRole === 'Assistant'"
-            :class="{ active: selectedRole === 'Assistant' }"
-            @click="setRole('Assistant')"
-          >
-            <UiIcon name="activity" :size="20" /><span>Assistant</span>
-          </button>
-          <button
-            class="role-tab"
-            type="button"
-            :aria-pressed="selectedRole === 'Personnel'"
-            :class="{ active: selectedRole === 'Personnel' }"
-            @click="setRole('Personnel')"
-          >
-            <UiIcon name="tasks" :size="20" /><span>Personnel</span>
-          </button>
-        </div>
-      </div>
-
       <div class="form-group">
         <label for="login-email">University Email</label>
         <input
@@ -296,7 +252,6 @@ import BrandMark from '../components/BrandMark.vue';
 import { useAuth } from '../composables/useAuth.js';
 import { useToast } from '../composables/useToast.js';
 import { useNotifications } from '../composables/useNotifications.js';
-import { isSupabaseConfigured } from '../lib/supabase.js';
 import UiIcon from '../components/UiIcon.vue';
 
 defineProps({ showBack: Boolean });
@@ -309,15 +264,10 @@ const {
 const { showToast } = useToast();
 const { refreshNotifications } = useNotifications();
 
-const selectedRole = ref('Admin');
 const email = ref('');
 const password = ref('');
 const signingIn = ref(false);
 const reapplying = ref(false);
-
-function setRole(role) {
-  selectedRole.value = role;
-}
 
 async function handleLogin() {
   if (!email.value.trim()) {
@@ -331,8 +281,7 @@ async function handleLogin() {
 
   signingIn.value = true;
   try {
-    const authenticatedRole = await login(email.value, password.value, selectedRole.value);
-    const role = isSupabaseConfigured ? authenticatedRole : selectedRole.value;
+    const role = await login(email.value, password.value);
     const settings = loadSettings();
     const landing = role === 'Assistant'
       ? 'admin'
@@ -378,10 +327,6 @@ async function requestReapplication() {
 .login-form-brand small { font-size: 10px; }
 .login-form-wrap h2 { margin: 0 0 6px; }
 .login-form-wrap p.sub { margin: 0 0 20px; }
-.login-role-selection { margin: 0 0 12px; }
-.login-role-selection > label { margin-bottom: 8px; }
-.login-role-selection .role-tabs { gap: 8px; margin: 0; }
-.login-role-selection .role-tab { min-height: 58px; padding: 8px 6px; }
 .login-form-wrap > .form-group { margin-bottom: 14px; }
 .login-form-wrap .form-group label { margin-bottom: 5px; }
 .login-form-wrap .form-group input { padding-block: 10px; }
@@ -401,8 +346,6 @@ async function requestReapplication() {
 @media (min-width: 768px) and (max-height: 760px) {
   .login-form-header { margin-bottom: 14px; }
   .login-form-wrap p.sub { margin-bottom: 14px; }
-  .login-role-selection { margin-bottom: 10px; }
-  .login-role-selection .role-tab { min-height: 52px; padding-block: 6px; }
   .login-form-wrap > .form-group { margin-bottom: 10px; }
   .login-form-wrap .login-password-help { margin-bottom: 8px; }
   .login-support { margin-top: 10px; }
@@ -412,9 +355,6 @@ async function requestReapplication() {
   .login-form-header { margin-bottom: 16px; }
   .login-form-wrap p.sub { margin-bottom: 16px; }
   .login-form-wrap { justify-content: flex-start; }
-  .login-role-selection { margin-bottom: 10px; }
-  .login-role-selection .role-tabs { gap: 6px; }
-  .login-role-selection .role-tab { flex-direction: row; gap: 6px; min-height: 48px; padding: 6px 4px; }
   .login-form-wrap > .form-group { margin-bottom: 12px; }
   .login-form-wrap .login-password-help { margin-bottom: 8px; }
   .login-form-wrap .login-register-link { margin-top: 12px; }

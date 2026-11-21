@@ -402,6 +402,14 @@ export function useAuth() {
       .join(' ');
   }
 
+  function inferDemoRole(emailAddress) {
+    const localPart = emailAddress.trim().toLowerCase().split('@')[0];
+    if (localPart.includes('personnel') || localPart.includes('technician') || localPart.includes('maintenance')) return 'Personnel';
+    if (localPart.includes('assistant')) return 'Assistant';
+    if (localPart.includes('admin')) return 'Admin';
+    return 'Employee';
+  }
+
   async function login(email, password, role) {
     clearNotice();
     if (isSupabaseConfigured) {
@@ -458,7 +466,10 @@ export function useAuth() {
       throw new Error(authStateMessage('network-error'));
     }
 
-    _currentRole.value = role;
+    const demoRole = role && ['Admin', 'Assistant', 'Personnel', 'Employee'].includes(role)
+      ? role
+      : inferDemoRole(email);
+    _currentRole.value = demoRole;
     _activeUserName.value = displayNameFromEmail(email) || 'User';
     _activeUserEmail.value = email.trim().toLowerCase();
     _activeUserProfile.value = null;
@@ -472,11 +483,12 @@ export function useAuth() {
       timestamp: Date.now(),
       statusClass: 'resolved',
       statusLabel: 'Successful',
-      details: `${role} signed in with ${email.trim()}`
+      details: `${demoRole} signed in with ${email.trim()}`
     };
     loginEvents.value.unshift(event);
     loginEvents.value = loginEvents.value.slice(0, 100);
     localStorage.setItem(LOGIN_EVENTS_KEY, JSON.stringify(loginEvents.value));
+    return demoRole;
   }
 
   async function requestRegistrationReapplication(email, password) {
