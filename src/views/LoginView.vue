@@ -72,6 +72,14 @@
     </section>
 
     <section class="login-form-panel" aria-label="UNIFIX sign in">
+      <div class="login-form-sun-glow" aria-hidden="true"></div>
+      <svg class="login-form-landscape" viewBox="0 0 520 180" aria-hidden="true">
+        <path d="M-20 172C58 132 102 148 158 126c72-28 112-9 166-31 74-31 128-5 216-46" />
+        <path d="M-10 180c92-30 138-18 198-48 74-37 118-18 171-42 72-32 118-17 181-43" />
+      </svg>
+      <div class="login-form-leaves" aria-hidden="true">
+        <span></span><span></span><span></span><span></span>
+      </div>
       <div class="login-form-topbar">
         <button
           v-if="showBack"
@@ -83,10 +91,6 @@
           <UiIcon name="arrow-left" :size="18" />
           <span>Back to home</span>
         </button>
-        <div class="login-mobile-brand">
-          <BrandMark :size="38" />
-          <strong>UNIFIX</strong>
-        </div>
       </div>
 
       <form
@@ -96,8 +100,8 @@
         @submit.prevent="handleLogin"
       >
         <div class="login-form-heading login-enter" style="--enter-delay: 0ms">
-          <span class="login-heading-mark"><UiIcon name="shield-check" :size="20" /></span>
-          <h2>Welcome back</h2>
+          <span class="login-eyebrow-chip"><i></i>NVSU CAMPUS SERVICES</span>
+          <h2>{{ greeting }}<span class="login-greeting-swash" aria-hidden="true"></span></h2>
           <p>Sign in with your NVSU institutional account.</p>
         </div>
 
@@ -210,7 +214,7 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import BrandMark from '../components/BrandMark.vue';
 import UiIcon from '../components/UiIcon.vue';
 import { useAuth } from '../composables/useAuth.js';
@@ -238,6 +242,12 @@ const passwordError = ref('');
 const formShake = ref(false);
 const campusTipIndex = ref(0);
 const resolvedCount = ref(1248);
+const greeting = computed(() => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+});
 let campusTipTimer = null;
 let resolvedCountTimer = null;
 
@@ -559,17 +569,64 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   padding: 42px clamp(28px, 4vw, 68px);
-  background:
-    radial-gradient(circle at 100% 0, rgba(20,120,63,.035), transparent 28%),
-    #f7faf8;
+  overflow: hidden;
+  border-top-left-radius: 48px;
+  border-bottom-left-radius: 48px;
+  background: linear-gradient(180deg, #fbf7ec 0%, #f4eedc 100%);
+  box-shadow: -18px 0 38px rgba(12, 67, 43, 0.10), -1px 0 0 #e2b64d;
+  isolation: isolate;
 }
 .login-form-panel::after {
   content: "";
   position: absolute;
   inset: 0;
-  opacity: 0.035;
+  z-index: 1;
+  opacity: 0.038;
   pointer-events: none;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.28'/%3E%3C/svg%3E");
+}
+.login-form-sun-glow {
+  position: absolute;
+  z-index: 0;
+  top: -110px;
+  right: -130px;
+  width: 340px;
+  height: 340px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(226,182,77,.20), rgba(226,182,77,.07) 38%, transparent 68%);
+  pointer-events: none;
+}
+.login-form-landscape {
+  position: absolute;
+  z-index: 0;
+  right: -2%;
+  bottom: -8px;
+  width: 92%;
+  height: auto;
+  fill: none;
+  stroke: #9db8a0;
+  stroke-width: 1.2;
+  opacity: 0.25;
+  pointer-events: none;
+  mask-image: linear-gradient(to top, #000 62%, transparent 100%);
+}
+.login-form-leaves span {
+  position: absolute;
+  z-index: 0;
+  width: 18px;
+  height: 10px;
+  border: 1px solid rgba(72,124,86,.25);
+  border-radius: 100% 0 100% 0;
+  opacity: .55;
+  pointer-events: none;
+  animation: login-leaf-drift 16s ease-in-out infinite alternate;
+}
+.login-form-leaves span:nth-child(1) { top: 18%; left: 7%; transform: rotate(-28deg); }
+.login-form-leaves span:nth-child(2) { top: 34%; right: 7%; transform: rotate(36deg); animation-delay: -5s; }
+.login-form-leaves span:nth-child(3) { bottom: 19%; left: 9%; transform: rotate(52deg); animation-delay: -9s; }
+.login-form-leaves span:nth-child(4) { bottom: 31%; right: 9%; transform: rotate(-48deg); animation-delay: -12s; }
+@keyframes login-leaf-drift {
+  to { translate: 5px -8px; rotate: 8deg; }
 }
 
 .login-form-topbar {
@@ -586,10 +643,10 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 0 12px;
-  border: 1px solid #dce7df;
-  border-radius: 12px;
-  background: rgba(255,255,255,.78);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #53685b;
   font: inherit;
   font-size: 12px;
@@ -597,7 +654,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition: 200ms ease-out;
 }
-.login-back:hover { border-color: #9ec2a9; color: #14783f; transform: translateY(-1px); }
+.login-back:hover { border: 0; color: #14783f; transform: translateX(-2px); }
 .login-mobile-brand { display: none; }
 
 .login-form {
@@ -607,6 +664,27 @@ onBeforeUnmount(() => {
   margin-top: 18px;
 }
 .login-form-heading { margin-bottom: 28px; }
+.login-eyebrow-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 7px 10px;
+  border: 1px solid #dbe8d9;
+  border-radius: 999px;
+  background: #edf4e9;
+  color: #28543a;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+.login-eyebrow-chip i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e2b64d;
+  box-shadow: 0 0 0 3px rgba(226,182,77,.14);
+}
 .login-heading-mark {
   display: grid;
   width: 42px;
@@ -620,10 +698,21 @@ onBeforeUnmount(() => {
 }
 .login-form-heading h2 {
   margin: 0 0 8px;
-  color: #14231b;
-  font-size: clamp(34px, 3vw, 44px);
-  line-height: 1.05;
+  color: #0f3b2a;
+  font-family: "Fraunces", "Playfair Display", Georgia, serif;
+  font-size: clamp(36px, 3.4vw, 40px);
+  font-weight: 600;
+  line-height: 1.08;
   letter-spacing: -0.045em;
+}
+.login-greeting-swash {
+  display: block;
+  width: 72px;
+  height: 8px;
+  margin-top: 2px;
+  border-bottom: 3px solid #e2b64d;
+  border-radius: 50%;
+  transform: rotate(-2deg);
 }
 .login-form-heading p {
   margin: 0;
@@ -646,10 +735,11 @@ onBeforeUnmount(() => {
 .login-field { margin-bottom: 17px; }
 .login-input-wrap {
   position: relative;
-  height: 52px;
-  border: 1.5px solid #d8e2dc;
-  border-radius: 14px;
-  background: rgba(255,255,255,.92);
+  height: 54px;
+  border: 1px solid rgba(110,137,119,.24);
+  border-radius: 16px;
+  background: rgba(255,255,255,.80);
+  box-shadow: 0 8px 20px rgba(55,83,64,.055), inset 0 1px 0 rgba(255,255,255,.86);
   transition: 200ms ease-out;
 }
 .login-input-wrap:hover { border-color: #bdcfc3; }
@@ -754,13 +844,13 @@ onBeforeUnmount(() => {
 
 .login-submit {
   width: 100%;
-  height: 52px;
+  height: 54px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 9px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 16px;
   background: linear-gradient(135deg, #14783f 0%, #0f6637 100%);
   color: #fff;
   box-shadow: 0 10px 24px rgba(20,120,63,.22), 0 3px 8px rgba(20,80,48,.10);
@@ -902,6 +992,10 @@ onBeforeUnmount(() => {
     min-height: calc(100dvh - 168px);
     display: block;
     padding: 24px 20px 28px;
+    border-top-left-radius: 36px;
+    border-top-right-radius: 36px;
+    border-bottom-left-radius: 0;
+    box-shadow: 0 -14px 32px rgba(12,67,43,.10), -1px 0 0 #e2b64d;
   }
   .login-form-panel::after { display: none; }
   .login-form-topbar { top: 10px; left: 20px; right: 20px; justify-content: flex-end; }
